@@ -25,6 +25,9 @@ venv/
 .venv/
 env/
 
+# Install stamp (generated locally)
+MAC/.deps_installed
+
 # OS
 .DS_Store
 Thumbs.db
