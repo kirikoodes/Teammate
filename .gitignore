@@ -1,9 +1,8 @@
 # Executables & builds
 PC/TEAMMATE.POTO.exe
 PC/TEAMMATE.log
-dist/
-build/
-*.spec
+PC/dist/
+PC/build/
 
 # RAVE models (trop lourds)
 PC/rave_models/

@@ -31,14 +31,22 @@ Feed it noise. Feed it music. Feed it silence.
 
 ## Installation
 
-### PC — Windows (exe)
+### PC — Windows (build your own exe)
 
-1. Copy the `PC/` folder to your machine
-2. Double-click `TEAMMATE.POTO.exe`
-3. Follow the prompts (audio device + MIDI selection)
+**Requirements:** Python 3.10, 3.11 or 3.12 — [python.org](https://python.org)  
+During install, check **"Add Python to PATH"**.
 
-No install required — everything is bundled.  
-*(exe not included in this repo — see Releases)*
+1. Download the `PC/` folder
+2. Double-click `build_pc.bat`
+3. Wait — the exe is generated in `PC/dist/TEAMMATE.POTO.exe`
+4. Copy `dist/TEAMMATE.POTO.exe` wherever you want and run it
+
+The build script installs all dependencies and PyInstaller automatically.
+
+> To run from source without building:
+> ```
+> python TEAMMATE_PC.POTO run
+> ```
 
 ### Mac — macOS
 
