@@ -40,20 +40,23 @@ Feed it noise. Feed it music. Feed it silence.
 No install required — everything is bundled.  
 *(exe not included in this repo — see Releases)*
 
-### Mac — macOS (source)
+### Mac — macOS
 
-Requirements: Python 3.10 or 3.11, `portaudio` (`brew install portaudio`)
+1. Download the `MAC/` folder
+2. Double-click `TEAMMATE.POTO.command`
 
-```bash
-cd MAC/
-pip3 install -r requirements.txt
-python3 TEAMMATE_MAC.POTO
-# or double-click TEAMMATE.POTO.command
-```
+That's it. The launcher installs everything automatically on first run (Python deps + portaudio via Homebrew).
 
-If double-click is blocked by macOS:
+**Requirements:** Python 3.10 or 3.11 — [python.org](https://python.org)
+
+If double-click is blocked by macOS (security prompt):
 ```bash
 chmod +x TEAMMATE.POTO.command
+```
+
+If you don't have Homebrew:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 ---
