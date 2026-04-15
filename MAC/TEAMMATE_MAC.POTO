@@ -10613,107 +10613,6 @@ class MidiManager:
         threading.Thread(target=_off, daemon=True).start()
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  WIFI SENSOR — M5StickC / Bruce firmware serial input
-#  Reads WiFi scan JSON from USB serial → maps to POtO params in real time
-#  Requires: pip install pyserial
-# ─────────────────────────────────────────────────────────────────────────────
-
-class WifiSensorThread:
-    """Reads WiFi scan data from M5StickC (Bruce firmware) via USB serial.
-
-    Expected JSON line from device:
-        {"n":12,"max":-42,"min":-88,"avg":-61,"var":14,"ch":5}
-
-    Mapping:
-        n   (nb networks 0-30)   → poto_voices       (1-8)
-        max (RSSI -30 to -90)    → poto_gain          (0.2-1.0)
-        var (signal variance)    → poto_grain_ms      (20-300 ms)
-        ch  (nb channels 1-13)   → poto_chord_spread  (0.005-0.05)
-    """
-    ALPHA = 0.25  # smoothing factor (lower = smoother)
-
-    def __init__(self, params_ref):
-        self.params   = params_ref
-        self.port     = None
-        self._ser     = None
-        self.running  = False
-        self._thread  = None
-        self.last_raw = {}
-        self._smooth  = {}
-
-    def open(self, port, baud=115200):
-        try:
-            import serial as _serial
-        except ImportError:
-            return "pyserial not installed — run: pip3 install pyserial"
-        try:
-            self._ser   = _serial.Serial(port, baud, timeout=1)
-            self.port   = port
-            self.running = True
-            self._thread = threading.Thread(target=self._loop, daemon=True)
-            self._thread.start()
-            return True
-        except Exception as e:
-            return str(e)
-
-    def close(self):
-        self.running = False
-        if self._ser:
-            try: self._ser.close()
-            except: pass
-        self._ser = None
-        self.port = None
-
-    def _smooth_val(self, key, val):
-        prev = self._smooth.get(key, val)
-        s    = prev + self.ALPHA * (val - prev)
-        self._smooth[key] = s
-        return s
-
-    def _loop(self):
-        while self.running:
-            try:
-                line = self._ser.readline().decode("utf-8", errors="ignore").strip()
-                if not line:
-                    continue
-                data = json.loads(line)
-                self.last_raw = data
-                self._apply(data)
-            except json.JSONDecodeError:
-                pass
-            except Exception as e:
-                if self.running:
-                    log.warning(f"WifiSensor: {e}")
-                break
-
-    def _apply(self, d):
-        n   = d.get("n",   0)    # nb networks  0-30
-        mx  = d.get("max", -90)  # strongest RSSI  -90 to -30
-        var = d.get("var", 0)    # signal variance  0-30
-        ch  = d.get("ch",  1)    # nb channels  1-13
-
-        voices  = max(1, min(8, round(n / 4)))
-        gain    = self._smooth_val("gain",     max(0.2, min(1.0, (mx + 90) / 60.0)))
-        g_ms    = self._smooth_val("grain_ms", max(20,  min(300, int(300 - var * 9))))
-        spread  = self._smooth_val("spread",   max(0.005, min(0.05, ch * 0.004)))
-
-        self.params.set("poto_voices",      voices)
-        self.params.set("poto_gain",        round(gain, 3))
-        self.params.set("poto_grain_ms",    int(g_ms))
-        self.params.set("poto_chord_spread", round(spread, 4))
-
-    def status(self):
-        if not self.port:
-            return "  WiFi Sensor | OFF"
-        d = self.last_raw
-        if not d:
-            return f"  WiFi Sensor | port={self.port}  waiting for data..."
-        return (f"  WiFi Sensor | port={self.port}"
-                f"  nets={d.get('n')}  max={d.get('max')}dBm"
-                f"  var={d.get('var')}  ch={d.get('ch')}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 #  AI LAYER 1 — AubioAnalyzer
 #  Real-time pitch (YIN), onset detection, tempo tracking
 #  Requires: pip install aubio
@@ -12332,7 +12231,6 @@ def run_engine(args):
     poto_midi_manager = MidiManager()   # separate MIDI port for POtO (optional)
     session_recorder = SessionRecorder(args.sample_rate)
     poto_engine = POtOEngine(grain_cloud, mixer, params, poto_midi_manager, midi_fallback=midi_manager)
-    wifi_sensor = WifiSensorThread(params)
 
     structure_analyzer = StructureAnalyzer()
     _saves_dir_base = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
@@ -12964,24 +12862,7 @@ def run_engine(args):
             style_profiler._event_count = 0
             print("  style profile reset")
             return False
-        if cmd.startswith("/wifi-open"):
-            parts = cmd.split()
-            port  = parts[1] if len(parts) > 1 else "/dev/tty.usbserial-0001"
-            result = wifi_sensor.open(port)
-            if result is True:
-                print(f"  WiFi Sensor ON  port={port}")
-            else:
-                print(f"  WiFi Sensor error: {result}")
-            return False
-        if cmd == "/wifi-close":
-            wifi_sensor.close()
-            print("  WiFi Sensor OFF")
-            return False
-        if cmd == "/wifi-status":
-            print(wifi_sensor.status())
-            return False
         if cmd == "/quit":
-            wifi_sensor.close()
             style_profiler.save_session()
             return True
         numeric = {

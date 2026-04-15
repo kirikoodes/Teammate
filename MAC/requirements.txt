@@ -7,7 +7,6 @@ sounddevice>=0.4.4
 mido>=1.2.10
 python-rtmidi>=1.4.9
 librosa>=0.10.0
-pyserial>=3.5
 
 # Optional — AI layers
 # aubio available on macOS via pip (unlike Windows Python 3.12):
