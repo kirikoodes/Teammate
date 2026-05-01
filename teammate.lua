@@ -897,6 +897,7 @@ local function improv_rate(strategy, i, n)
 end
 
 local function play_phrase(phrase, strategy)
+  brain_trigger(math.random(2, 4), 1.0)
   local gap
   if strategy == "IMITATION" and phrase_analysis and phrase_analysis.density > 0 then
     gap = math.max(0.02, 1.0 / phrase_analysis.density * 0.6)
@@ -964,6 +965,7 @@ local function process_gate(new_gate)
       last_centroid=cur_centroid ; last_flatness=cur_flatness
       head  = (head % CORPUS_SLOTS) + 1
       count = math.min(count + 1, CORPUS_SLOTS)
+      brain_trigger(1, math.min(1.0, avg * 8))
       table.insert(phrase_buf, corpus[rec_slot])
     end
 
@@ -1094,6 +1096,98 @@ local function silence_loop()
 end
 
 ---------------------------------------------------------------------
+-- cerveau — page 12 visualisation
+---------------------------------------------------------------------
+local BRAIN_N = 20
+local brain_charge = {}
+for i = 1, BRAIN_N do brain_charge[i] = 0 end
+
+local BN = {
+  -- hemisphere gauche
+  {30,13},{44,13},
+  {22,22},{38,21},{54,22},
+  {20,32},{38,30},{56,31},
+  {28,42},{46,42},
+  -- hemisphere droit
+  {98,13},{84,13},
+  {106,22},{90,21},{74,22},
+  {108,32},{90,30},{72,31},
+  {100,42},{82,42},
+}
+
+local BCONN = {}
+for i = 1, BRAIN_N do
+  for j = i+1, BRAIN_N do
+    local dx = BN[i][1]-BN[j][1] ; local dy = BN[i][2]-BN[j][2]
+    if dx*dx + dy*dy <= 18*18 then BCONN[#BCONN+1] = {i,j} end
+  end
+end
+
+local function brain_trigger(n, intensity)
+  intensity = intensity or 1.0
+  local peak = math.min(15, math.floor(7 + intensity * 8))
+  for _ = 1, n do
+    local idx = math.random(BRAIN_N)
+    if brain_charge[idx] < peak - 2 then brain_charge[idx] = peak end
+  end
+end
+
+local function brain_update()
+  for _, c in ipairs(BCONN) do
+    local a, b = brain_charge[c[1]], brain_charge[c[2]]
+    if a > 10 and b < 4 and math.random() < 0.3 then brain_charge[c[2]] = a - 5 end
+    if b > 10 and a < 4 and math.random() < 0.3 then brain_charge[c[1]] = b - 5 end
+  end
+  for i = 1, BRAIN_N do
+    if brain_charge[i] > 0 then brain_charge[i] = brain_charge[i] - 1 end
+  end
+end
+
+local function draw_brain_page()
+  -- contours lobes
+  screen.level(2)
+  screen.circle(40, 28, 26) ; screen.stroke()
+  screen.circle(88, 28, 26) ; screen.stroke()
+  -- fissure interhemispherique
+  screen.level(1)
+  screen.move(64, 3) ; screen.line(64, 54) ; screen.stroke()
+  -- sulci (sillons)
+  screen.arc(32, 22, 11, 0.3, 2.8) ; screen.stroke()
+  screen.arc(36, 36,  8, 0.5, 2.5) ; screen.stroke()
+  screen.arc(96, 22, 11, 0.3, 2.8) ; screen.stroke()
+  screen.arc(92, 36,  8, 0.5, 2.5) ; screen.stroke()
+  -- connexions (allumees quand voisins actifs)
+  for _, c in ipairs(BCONN) do
+    local ca, cb = brain_charge[c[1]], brain_charge[c[2]]
+    local avg = (ca + cb) * 0.5
+    if avg > 1 then
+      screen.level(math.min(8, math.floor(avg)))
+      screen.move(BN[c[1]][1], BN[c[1]][2])
+      screen.line(BN[c[2]][1], BN[c[2]][2])
+      screen.stroke()
+    end
+  end
+  -- neurones
+  for i = 1, BRAIN_N do
+    local x, y = BN[i][1], BN[i][2]
+    local ch = brain_charge[i]
+    if ch > 0 then
+      if ch > 10 then
+        screen.level(3) ; screen.circle(x, y, 4) ; screen.stroke()
+      end
+      screen.level(math.min(15, ch + 3))
+      screen.circle(x, y, 2) ; screen.fill()
+    else
+      screen.level(2) ; screen.rect(x, y, 1, 1) ; screen.fill()
+    end
+  end
+  -- etat en bas
+  screen.level(3)
+  screen.move(2, 62) ; screen.text(state)
+  screen.move(50, 62) ; screen.text(strat_name)
+end
+
+---------------------------------------------------------------------
 -- norns
 ---------------------------------------------------------------------
 function init()
@@ -1123,6 +1217,7 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(0.1)
+      brain_update()
       redraw()
     end
   end)
@@ -1149,11 +1244,12 @@ end
 -- Page 9  MIDI I : E2 ch       | E3 dev       | K3 on/off
 -- Page 10 MIDI P : E2 ch       | ---          | K3 on/off
 -- Page 11 MIDI 8 : E2 ch       | ---          | K3 on/off
+-- Page 12 BRAIN  : ---         | ---          | K3 reset cerveau
 -- E1 : navigation pages | K2 : page suivante
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 11) + 1
+    page = ((page - 1 + d) % 12) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1204,7 +1300,7 @@ end
 function key(n, z)
   if z == 0 then return end
   if n == 2 then
-    page = (page % 11) + 1
+    page = (page % 12) + 1
   elseif n == 3 then
     if page == 1 then
       corpus = {} ; count = 0 ; head = 1 ; last_slot = 0
@@ -1246,6 +1342,8 @@ function key(n, z)
       midi_poto_on = not midi_poto_on
     elseif page == 11 then
       midi_8os_on = not midi_8os_on
+    elseif page == 12 then
+      for i = 1, BRAIN_N do brain_charge[i] = 0 end
     end
   end
   redraw()
@@ -1276,6 +1374,19 @@ function redraw()
     return
   end
 
+  if page == 12 then
+    screen.aa(0)
+    screen.font_size(8)
+    draw_brain_page()
+    for i = 1, 12 do
+      screen.level(i == page and 12 or 3)
+      screen.circle(34 + (i - 1) * 5, 62, 1)
+      screen.fill()
+    end
+    screen.update()
+    return
+  end
+
   screen.font_size(8)
 
 
@@ -1293,7 +1404,7 @@ function redraw()
 
   screen.level(5)
   screen.move(104, 8)
-  screen.text(page .. "/11")
+  screen.text(page .. "/12")
 
   if rec_on then
     screen.level(15)
@@ -1487,10 +1598,10 @@ function redraw()
     screen.text("K3 on/off")
   end
 
-  -- dots de page (11 points)
-  for i = 1, 11 do
+  -- dots de page (12 points)
+  for i = 1, 12 do
     screen.level(i == page and 12 or 3)
-    screen.circle(39 + (i - 1) * 5, 62, 1)
+    screen.circle(34 + (i - 1) * 5, 62, 1)
     screen.fill()
   end
 
