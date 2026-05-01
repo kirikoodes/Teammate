@@ -121,9 +121,10 @@ local os8_pos_v3  = nil
 
 local splash_active = false
 
--- MIDI output
-local midi_out      = nil
-local midi_dev_id   = 1
+-- MIDI output (3 streams independants)
+local midi_out_impro = nil ; local midi_dev_impro = 1
+local midi_out_poto  = nil ; local midi_dev_poto  = 1
+local midi_out_8os   = nil ; local midi_dev_8os   = 1
 local midi_impro_on = false
 local midi_impro_ch = 1
 local midi_poto_on  = false
@@ -246,11 +247,11 @@ local function play_event(ev, rate_mult)
   softcut.level(v, 1.0)   -- fade in (fade_time = 20ms)
 
   local imp_note = nil
-  if midi_impro_on and midi_out then
+  if midi_impro_on and midi_out_impro then
     local f = ev.freq > 0 and ev.freq or cur_freq
     imp_note = freq_to_midi(f) or 60
     local vel = math.max(1, math.min(127, math.floor(ev.rms * 800)))
-    midi_out:note_on(imp_note, vel, midi_impro_ch)
+    midi_out_impro:note_on(imp_note, vel, midi_impro_ch)
   end
 
   clock.run(function()
@@ -260,7 +261,7 @@ local function play_event(ev, rate_mult)
       clock.sleep(0.03)
       softcut.play(v, 0)
       softcut.loop(v, 0)
-      if imp_note and midi_out then midi_out:note_off(imp_note, 0, midi_impro_ch) end
+      if imp_note and midi_out_impro then midi_out_impro:note_off(imp_note, 0, midi_impro_ch) end
     end
   end)
 
@@ -447,12 +448,12 @@ local function os8_set(mode)
             softcut.level(5, os8_vol)
             softcut.play(5, 1)
             local n5 = nil
-            if midi_8os_on and midi_out then
+            if midi_8os_on and midi_out_8os then
               n5 = freq_to_midi(g.pitch)
-              if n5 then midi_out:note_on(n5, math.floor(os8_vol * 127), midi_8os_ch) end
+              if n5 then midi_out_8os:note_on(n5, math.floor(os8_vol * 127), midi_8os_ch) end
             end
             grain_sleep(gs)
-            if n5 and midi_out then midi_out:note_off(n5, 0, midi_8os_ch) end
+            if n5 and midi_out_8os then midi_out_8os:note_off(n5, 0, midi_8os_ch) end
             softcut.level(5, 0) ; clock.sleep(0.02)
           else
             clock.sleep(0.05)
@@ -481,12 +482,12 @@ local function os8_set(mode)
             softcut.level(6, os8_vol * 0.65)
             softcut.play(6, 1)
             local n6 = nil
-            if midi_8os_on and midi_out then
+            if midi_8os_on and midi_out_8os then
               n6 = freq_to_midi(g.pitch)
-              if n6 then midi_out:note_on(n6, math.floor(os8_vol * 83), midi_8os_ch) end
+              if n6 then midi_out_8os:note_on(n6, math.floor(os8_vol * 83), midi_8os_ch) end
             end
             grain_sleep(gs)
-            if n6 and midi_out then midi_out:note_off(n6, 0, midi_8os_ch) end
+            if n6 and midi_out_8os then midi_out_8os:note_off(n6, 0, midi_8os_ch) end
             softcut.level(6, 0) ; clock.sleep(0.02)
           else
             clock.sleep(0.05)
@@ -515,12 +516,12 @@ local function os8_set(mode)
             softcut.level(3, os8_vol * 0.40)
             softcut.play(3, 1)
             local n3 = nil
-            if midi_8os_on and midi_out then
+            if midi_8os_on and midi_out_8os then
               n3 = freq_to_midi(g.pitch)
-              if n3 then midi_out:note_on(n3, math.floor(os8_vol * 51), midi_8os_ch) end
+              if n3 then midi_out_8os:note_on(n3, math.floor(os8_vol * 51), midi_8os_ch) end
             end
             grain_sleep(gs)
-            if n3 and midi_out then midi_out:note_off(n3, 0, midi_8os_ch) end
+            if n3 and midi_out_8os then midi_out_8os:note_off(n3, 0, midi_8os_ch) end
             softcut.level(3, 0) ; clock.sleep(0.02)
           else
             clock.sleep(0.05)
@@ -592,12 +593,12 @@ local function poto_set(on)
           softcut.level(lv, p_poto_vol)
           softcut.play(lv, 1)
           local pn_lv = nil
-          if midi_poto_on and midi_out and cur_freq > 0 then
+          if midi_poto_on and midi_out_poto and cur_freq > 0 then
             pn_lv = freq_to_midi(cur_freq)
-            if pn_lv then midi_out:note_on(pn_lv, math.floor(p_poto_vol * 127), midi_poto_ch) end
+            if pn_lv then midi_out_poto:note_on(pn_lv, math.floor(p_poto_vol * 127), midi_poto_ch) end
           end
           clock.sleep(p_poto_size)
-          if pn_lv and midi_out then midi_out:note_off(pn_lv, 0, midi_poto_ch) end
+          if pn_lv and midi_out_poto then midi_out_poto:note_off(pn_lv, 0, midi_poto_ch) end
           softcut.level(lv, 0)
           clock.sleep(0.02)
         else
@@ -625,12 +626,12 @@ local function poto_set(on)
           softcut.level(av, p_poto_vol * 0.65)
           softcut.play(av, 1)
           local pn_av = nil
-          if midi_poto_on and midi_out and cur_freq > 0 then
+          if midi_poto_on and midi_out_poto and cur_freq > 0 then
             pn_av = freq_to_midi(cur_freq)
-            if pn_av then midi_out:note_on(pn_av, math.floor(p_poto_vol * 83), midi_poto_ch) end
+            if pn_av then midi_out_poto:note_on(pn_av, math.floor(p_poto_vol * 83), midi_poto_ch) end
           end
           clock.sleep(p_poto_size + 0.01)
-          if pn_av and midi_out then midi_out:note_off(pn_av, 0, midi_poto_ch) end
+          if pn_av and midi_out_poto then midi_out_poto:note_off(pn_av, 0, midi_poto_ch) end
           softcut.level(av, 0)
           clock.sleep(0.02)
         else
@@ -658,12 +659,12 @@ local function poto_set(on)
           softcut.level(rv, p_poto_vol * 0.40)
           softcut.play(rv, 1)
           local pn_rv = nil
-          if midi_poto_on and midi_out and cur_freq > 0 then
+          if midi_poto_on and midi_out_poto and cur_freq > 0 then
             pn_rv = freq_to_midi(cur_freq)
-            if pn_rv then midi_out:note_on(pn_rv, math.floor(p_poto_vol * 51), midi_poto_ch) end
+            if pn_rv then midi_out_poto:note_on(pn_rv, math.floor(p_poto_vol * 51), midi_poto_ch) end
           end
           clock.sleep(p_poto_size + 0.03)
-          if pn_rv and midi_out then midi_out:note_off(pn_rv, 0, midi_poto_ch) end
+          if pn_rv and midi_out_poto then midi_out_poto:note_off(pn_rv, 0, midi_poto_ch) end
           softcut.level(rv, 0)
           clock.sleep(0.02)
         else
@@ -948,6 +949,11 @@ local function process_gate(new_gate)
     rec_on = true
   end
 
+  if new_gate < 0.5 and cur_gate > 0.5 then
+    if midi_8os_on  and midi_out_8os  then midi_out_8os:cc(123,  0, midi_8os_ch)  end
+    if midi_poto_on and midi_out_poto then midi_out_poto:cc(123, 0, midi_poto_ch) end
+  end
+
   if new_gate < 0.5 and cur_gate > 0.5 and rec_on then
     local dur = util.time() - rec_t0
     rec_stop()
@@ -1101,8 +1107,9 @@ function init()
   last_sound_t = util.time()
   splash_active = true
   clock.run(function() clock.sleep(3.0) ; splash_active = false end)
-  local ok, md = pcall(midi.connect, midi_dev_id)
-  if ok then midi_out = md end
+  local ok1, md1 = pcall(midi.connect, midi_dev_impro) ; if ok1 then midi_out_impro = md1 end
+  local ok2, md2 = pcall(midi.connect, midi_dev_poto)  ; if ok2 then midi_out_poto  = md2 end
+  local ok3, md3 = pcall(midi.connect, midi_dev_8os)   ; if ok3 then midi_out_8os   = md3 end
   audio.level_adc(1.0)
   audio.level_monitor(1.0)
   sc_init()
@@ -1193,9 +1200,17 @@ function enc(n, d)
     elseif page == 7 then
       os8_size      = util.clamp(os8_size      + d * 0.01, 0.02, 0.50)
     elseif page == 9 then
-      midi_dev_id   = util.clamp(midi_dev_id   + d, 1, 4)
-      local ok2, md2 = pcall(midi.connect, midi_dev_id)
-      if ok2 then midi_out = md2 end
+      midi_dev_impro = util.clamp(midi_dev_impro + d, 1, 4)
+      local ok2, md2 = pcall(midi.connect, midi_dev_impro)
+      if ok2 then midi_out_impro = md2 end
+    elseif page == 10 then
+      midi_dev_poto  = util.clamp(midi_dev_poto  + d, 1, 4)
+      local ok3, md3 = pcall(midi.connect, midi_dev_poto)
+      if ok3 then midi_out_poto = md3 end
+    elseif page == 11 then
+      midi_dev_8os   = util.clamp(midi_dev_8os   + d, 1, 4)
+      local ok4, md4 = pcall(midi.connect, midi_dev_8os)
+      if ok4 then midi_out_8os = md4 end
     end
   end
   redraw()
@@ -1459,7 +1474,7 @@ function redraw()
     screen.text(string.format("MIDI IMPRO  %s", midi_impro_on and "ON" or "off"))
     screen.level(10)
     screen.move(0, 57)
-    screen.text(string.format("E2 ch %d   E3 dev %d", midi_impro_ch, midi_dev_id))
+    screen.text(string.format("E2 ch %d   E3 dev %d", midi_impro_ch, midi_dev_impro))
     screen.level(7)
     screen.move(0, 64)
     screen.text("K3 on/off")
@@ -1470,7 +1485,7 @@ function redraw()
     screen.text(string.format("MIDI POTO  %s", midi_poto_on and "ON" or "off"))
     screen.level(10)
     screen.move(0, 57)
-    screen.text(string.format("E2 ch %d", midi_poto_ch))
+    screen.text(string.format("E2 ch %d   E3 dev %d", midi_poto_ch, midi_dev_poto))
     screen.level(7)
     screen.move(0, 64)
     screen.text("K3 on/off")
@@ -1481,7 +1496,7 @@ function redraw()
     screen.text(string.format("MIDI 8OS  %s", midi_8os_on and "ON" or "off"))
     screen.level(10)
     screen.move(0, 57)
-    screen.text(string.format("E2 ch %d", midi_8os_ch))
+    screen.text(string.format("E2 ch %d   E3 dev %d", midi_8os_ch, midi_dev_8os))
     screen.level(7)
     screen.move(0, 64)
     screen.text("K3 on/off")
