@@ -1,0 +1,33 @@
+# Executables & builds
+PC/TEAMMATE.POTO.exe
+PC/TEAMMATE.log
+PC/dist/
+PC/build/
+
+# RAVE models (trop lourds)
+PC/rave_models/
+MAC/rave_models/
+
+# Saves utilisateur
+PC/saves/
+MAC/saves/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environnements virtuels
+venv/
+.venv/
+env/
+
+# Install stamp (generated locally)
+MAC/.deps_installed
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
