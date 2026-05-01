@@ -19,16 +19,13 @@ Ce n'est pas de la génération. C'est de la **remémoration active** : TEAMMATE
 
 ## Installation
 
-```bash
-scp "TEAMMATE_PC.POTO/teammate_norns/teammate.lua" we@norns.local:"/home/we/dust/code/TEAMMATE.POTO/teammate.lua"
-scp "TEAMMATE_PC.POTO/teammate_norns/lib/Engine_Teammate.sc" we@norns.local:"/home/we/dust/code/TEAMMATE.POTO/lib/Engine_Teammate.sc"
+Depuis **MAIDEN** (l'éditeur web de Norns), taper dans la console en bas :
+
+```
+;install https://github.com/kirikoodes/Teammate
 ```
 
-Mot de passe : `sleep`
-
-Puis depuis MAIDEN ou SYSTEM > RESTART pour recharger le script.
-
-Lien Maiden direct : `http://norns.local/maiden/#edit/dust/code/TEAMMATE.POTO/teammate.lua`
+Puis **SYSTEM > RESTART** pour recharger les engines SuperCollider.
 
 ---
 
