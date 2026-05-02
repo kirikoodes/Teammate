@@ -66,14 +66,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (bidirectional, loops 1→11)
-K2        — next page
+E1        — previous / next page (loops 1→12)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 11 pages
+## The 12 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -140,18 +139,7 @@ Real-time granular texture over the last 4 seconds.
 
 ---
 
-### Page 6 — GRAIN
-POtO grain parameters.
-
-| Encoder | Function |
-|---|---|
-| E2 | Grain size (ms) |
-| E3 | Spread / detune between readers |
-| K3 | Rate preset (0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0) |
-
----
-
-### Page 7 — 8OS
+### Page 6 — 8OS
 Long-memory granular sampler. Records a full sequence, then replays grains selected by pitch + energy matching.
 
 | Encoder | Function |
@@ -177,47 +165,40 @@ K3 → OFF   : stop
 
 ---
 
+### Page 7 — GRAIN
+POtO grain parameters.
+
+| Encoder | Function |
+|---|---|
+| E2 | Grain size (ms) |
+| E3 | Spread / detune between readers |
+| K3 | Rate preset (0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0) |
+
+---
+
 ### Page 8 — CLR8OS
 Confirmation page to clear the 8OS bank.
 
-| Encoder | Function |
+| Key | Function |
 |---|---|
 | K3 | Clear 8OS bank |
 
 ---
 
-### Page 9 — MIDI I
-MIDI for TEAMMATE improvisation (notes tied to played grains).
+### Pages 9–12 — MIDI DEV 1–4
+Independent MIDI routing per device. Each page configures one physical MIDI output.
 
 | Encoder | Function |
 |---|---|
-| E2 | MIDI channel (1–16) |
-| E3 | MIDI device (1–4) |
-| K3 | MIDI IMPRO ON/OFF |
+| E2 | Select stream (IMPRO / POtO / 8OS) |
+| E3 | MIDI channel (1–16) for selected stream |
+| K3 | Toggle routing ON/OFF for selected stream on this device |
 
----
+- Each stream (IMPRO, POtO, 8OS) can be routed to any combination of the 4 devices
+- Each device has its own independent channel per stream
+- `[X]` = stream routed to this device / `[ ]` = not routed
 
-### Page 10 — MIDI P
-MIDI for POtO grains.
-
-| Encoder | Function |
-|---|---|
-| E2 | MIDI channel (1–16) |
-| E3 | MIDI device (1–4) |
-| K3 | MIDI POtO ON/OFF |
-
----
-
-### Page 11 — MIDI 8
-MIDI for 8OS grains.
-
-| Encoder | Function |
-|---|---|
-| E2 | MIDI channel (1–16) |
-| E3 | MIDI device (1–4) |
-| K3 | MIDI 8OS ON/OFF |
-
-> The 3 MIDI streams (IMPRO / POtO / 8OS) each have their own independent device — you can send to 2 different destinations simultaneously.
+> The 3 MIDI streams send notes tied to grain playback. IMPRO follows the corpus improvisation, POtO follows the granular halo, 8OS follows TRANS mode grain matching.
 
 ---
 
@@ -253,10 +234,12 @@ TEAMMATE chooses its response strategy probabilistically, weighted by the curren
 |---|---|
 | V1 | Corpus recording |
 | V2 | Corpus playback |
-| V3 | Corpus playback (borrowed by 8OS TRANS or POtO REPULSED) |
+| V3 | Corpus playback (borrowed by 8OS TRANS) |
 | V4 | Continuous POtO recording + 8OS recording |
 | V5 | POtO LEAD / 8OS LOCK #1 |
 | V6 | POtO ATTRACTED / 8OS LOCK #2 |
+
+> POtO and 8OS share voices V3–V6 and cannot run simultaneously.
 
 ---
 
