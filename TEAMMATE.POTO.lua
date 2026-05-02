@@ -1170,9 +1170,9 @@ function enc(n, d)
     elseif page == 5 then
       p_poto_vol    = util.clamp(p_poto_vol    + d * 0.05, 0.0, 1.0)
     elseif page == 6 then
-      p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
-    elseif page == 7 then
       os8_vol       = util.clamp(os8_vol       + d * 0.05, 0.0, 1.0)
+    elseif page == 7 then
+      p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
     elseif page >= 9 and page <= 12 then
       midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 3)
     end
@@ -1189,9 +1189,9 @@ function enc(n, d)
       p_monitor     = util.clamp(p_monitor     + d * 0.05, 0.0, 1.0)
       audio.level_monitor(p_monitor)
     elseif page == 6 then
-      p_poto_spread = util.clamp(p_poto_spread + d * 0.01, 0.0, 0.30)
-    elseif page == 7 then
       os8_size      = util.clamp(os8_size      + d * 0.01, 0.02, 0.50)
+    elseif page == 7 then
+      p_poto_spread = util.clamp(p_poto_spread + d * 0.01, 0.0, 0.30)
     elseif page >= 9 and page <= 12 then
       local dev = page - 8
       midi_ch[midi_cur_stream][dev] = util.clamp(midi_ch[midi_cur_stream][dev] + d, 1, 16)
@@ -1228,13 +1228,13 @@ function key(n, z)
     elseif page == 5 then
       poto_set(not p_poto_on)
     elseif page == 6 then
-      rate_pidx = (rate_pidx % #RATE_PRESETS) + 1
-      p_poto_rate = RATE_PRESETS[rate_pidx]
-    elseif page == 7 then
       local seq = {"OFF", "REC", "TRANS"}
       local nxt = 1
       for i, m in ipairs(seq) do if m == os8_mode then nxt = (i % #seq) + 1 end end
       os8_set(seq[nxt])
+    elseif page == 7 then
+      rate_pidx = (rate_pidx % #RATE_PRESETS) + 1
+      p_poto_rate = RATE_PRESETS[rate_pidx]
     elseif page == 8 then
       os8_bank = {} ; os8_rec_n = 0
     elseif page >= 9 and page <= 12 then
@@ -1402,6 +1402,9 @@ function redraw()
     screen.move(0, 56)
     screen.text(p_poto_on and "ON" or "off")
     screen.font_size(8)
+    screen.level(4)
+    screen.move(0, 64)
+    screen.text("POtO")
     screen.level(5)
     screen.move(60, 50)
     screen.text(string.format("vol  %d%%", math.floor(p_poto_vol * 100)))
@@ -1411,21 +1414,15 @@ function redraw()
     screen.text("K3 on/off")
 
   elseif page == 6 then
-    screen.level(p_poto_on and 10 or 5)
-    screen.move(0, 57)
-    screen.text(string.format("E2 grain %dms  E3 sprd %d%%",
-      math.floor(p_poto_size * 1000),
-      math.floor(p_poto_spread * 100)))
-    screen.move(0, 64)
-    screen.text(string.format("K3 rate x%.2f", p_poto_rate))
-
-  elseif page == 7 then
     local col = os8_mode == "TRANS" and 15 or (os8_mode == "REC" and 12 or 5)
     screen.level(col)
     screen.font_size(16)
     screen.move(0, 56)
     screen.text(os8_mode)
     screen.font_size(8)
+    screen.level(4)
+    screen.move(0, 64)
+    screen.text("8OS")
     screen.level(5)
     screen.move(60, 50)
     screen.text(string.format("bank %d", os8_rec_n))
@@ -1439,6 +1436,15 @@ function redraw()
     else
       screen.text(string.format("sz  %dms", math.floor(os8_size * 1000)))
     end
+
+  elseif page == 7 then
+    screen.level(p_poto_on and 10 or 5)
+    screen.move(0, 57)
+    screen.text(string.format("E2 grain %dms  E3 sprd %d%%",
+      math.floor(p_poto_size * 1000),
+      math.floor(p_poto_spread * 100)))
+    screen.move(0, 64)
+    screen.text(string.format("K3 rate x%.2f", p_poto_rate))
 
   elseif page == 8 then
     screen.level(os8_rec_n > 0 and 12 or 5)
