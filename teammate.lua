@@ -1296,19 +1296,22 @@ function redraw()
 
 
 
-  -- ligne 1 : etat | strategie | page | dot rec
+  -- ligne 1 : etat | strategie (abbrev) | page | dot rec
+  local STRAT_ABB = {
+    IMITATION="IMIT", CONTRASTE="CNTR", DENSIFICATION="DENS",
+    SPARSE="SPRS", SILENCE="SIL", ["---"]="---"
+  }
   screen.level(15)
   screen.move(0, 8)
   screen.text(state)
 
   screen.level(state == "THINK" and 15 or 5)
-  screen.move(54, 8)
-  screen.text(strat_name)
-
+  screen.move(40, 8)
+  screen.text(STRAT_ABB[strat_name] or strat_name)
 
   screen.level(5)
-  screen.move(104, 8)
-  screen.text(page .. "/11")
+  screen.move(100, 8)
+  screen.text(page .. "/12")
 
   if rec_on then
     screen.level(15)
@@ -1319,15 +1322,15 @@ function redraw()
   -- ligne 2 : corpus | silence / fragment
   screen.level(5)
   screen.move(0, 18)
-  screen.text("corpus " .. count .. "/" .. CORPUS_SLOTS)
+  screen.text(string.format("c:%d/%d", count, CORPUS_SLOTS))
 
   if #phrase_buf > 0 then
     screen.level(10)
-    screen.move(72, 18)
+    screen.move(52, 18)
     screen.text("+" .. #phrase_buf)
   elseif sil_sec > 0.5 then
     screen.level(4)
-    screen.move(72, 18)
+    screen.move(52, 18)
     screen.text(string.format("%.1fs", sil_sec))
   end
 
