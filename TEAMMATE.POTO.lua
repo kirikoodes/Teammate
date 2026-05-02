@@ -1497,12 +1497,5 @@ function redraw()
     screen.text("K3 on/off")
   end
 
-  -- dots de page (11 points)
-  for i = 1, 11 do
-    screen.level(i == page and 12 or 3)
-    screen.circle(39 + (i - 1) * 5, 62, 1)
-    screen.fill()
-  end
-
   screen.update()
 end
