@@ -1416,22 +1416,19 @@ function redraw()
   elseif page == 7 then
     local col = os8_mode == "TRANS" and 15 or (os8_mode == "REC" and 12 or 5)
     screen.level(col)
-    screen.font_size(16)
-    screen.move(0, 56)
-    screen.text(os8_mode)
-    screen.font_size(8)
+    screen.move(0, 57)
+    screen.text(string.format("K3 8OS %s  E2 %d%%", os8_mode, math.floor(os8_vol * 100)))
     screen.level(5)
-    screen.move(60, 50)
-    screen.text(string.format("bank %d", os8_rec_n))
-    screen.move(60, 57)
-    screen.text(string.format("vol  %d%%", math.floor(os8_vol * 100)))
-    screen.move(60, 64)
+    screen.move(0, 64)
     if os8_mode == "TRANS" then
       local note_names = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
       local ln = cur_note_class()
-      screen.text("note " .. (ln >= 0 and note_names[ln + 1] or "--"))
+      screen.text(string.format("E3 %dms  note %s  bank %d",
+        math.floor(os8_size * 1000),
+        ln >= 0 and note_names[ln + 1] or "--",
+        os8_rec_n))
     else
-      screen.text(string.format("sz  %dms", math.floor(os8_size * 1000)))
+      screen.text(string.format("E3 %dms  bank %d", math.floor(os8_size * 1000), os8_rec_n))
     end
 
   elseif page == 8 then
