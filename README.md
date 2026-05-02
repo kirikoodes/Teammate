@@ -1,296 +1,263 @@
 # TEAMMATE.POTO — Norns
 
+*An improvisation partner, not an accompanist.*  
 *Un partenaire d'improvisation, pas un accompagnateur.*
 
 ---
 
-## Philosophie
+## English
 
-La plupart des systèmes audio "intelligents" écoutent pour répondre.  
-TEAMMATE écoute pour **comprendre** — puis décide s'il veut répondre, et comment.
+Inspired by **Somax2** — a co-improvisation system developed at IRCAM (Institut de Recherche et Coordination Acoustique/Musique, Paris) by the Music Representations research team. Somax introduced the idea that a machine could listen to a musician, build a musical memory from what it hears, and navigate that memory in real time to improvise back. That idea changed how I think about human-machine dialogue in music.
 
-L'idée de départ est simple : un musicien improvise seul depuis trop longtemps. Il a besoin d'une présence qui l'écoute vraiment — qui capte l'énergie d'un geste, la couleur d'un timbre, la densité d'une phrase — et qui engage le dialogue à partir de ce qu'elle a entendu, pas d'une bibliothèque préréglée.
+TEAMMATE takes that same core intuition — the machine learns only from you, in the moment — and pushes it toward something rawer and more physical.
 
-TEAMMATE ne joue pas *avec* toi au sens d'un accompagnement. Il joue *à toi* — il te répond, te conteste, t'imite, se tait, prend l'initiative quand tu t'arrêtes. Comme un partenaire humain, il a ses propres intentions. Il peut couper la parole. Il peut rester silencieux pendant longtemps, puis exploser. Il peut choisir de faire exactement le contraire de ce que tu fais.
+Everything you play gets sliced into a memory of 48 sound fragments: pitch, energy, timbre, texture. When you stop, TEAMMATE analyzes the whole phrase and decides what to do. Imitate. Contrast. Densify. Thin out. Stay silent. It never plays something it hasn't heard from you. No generative AI, no presets — pure *remémoration*.
 
-Ce n'est pas de la génération. C'est de la **remémoration active** : TEAMMATE ne crée rien qu'il n'a pas entendu de toi — il réorganise, déforme, et recontextualise ta propre matière sonore pour te la renvoyer sous une forme nouvelle.
+Three layers running in parallel:
+
+- **The dialogue** — phrase by phrase. TEAMMATE waits, listens, builds a portrait of what you just played, and responds from its own memory.
+- **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past.
+- **8OS** — record a sequence, let it slice itself into analyzed grains. In TRANS mode, three voices scan the bank and pull the grains that match your live pitch and energy in real time.
+
+Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
 ---
 
-## Installation
+## Français
 
-Depuis **MAIDEN** (l'éditeur web de Norns), taper dans la console en bas :
+Inspiré par **Somax2** — un système de co-improvisation développé à l'IRCAM (Institut de Recherche et Coordination Acoustique/Musique, Paris) par l'équipe Music Representations. Somax a introduit l'idée qu'une machine pouvait écouter un musicien, construire une mémoire musicale de ce qu'elle entend, et naviguer dans cette mémoire en temps réel pour improviser en retour. Cette idée a changé ma façon de penser le dialogue homme-machine en musique.
+
+TEAMMATE part de la même intuition fondamentale — la machine n'apprend que de toi, dans l'instant — et la pousse vers quelque chose de plus brut et de plus physique.
+
+Tout ce que tu joues est découpé en une mémoire de 48 fragments sonores : pitch, énergie, timbre, texture. Quand tu t'arrêtes, TEAMMATE analyse la phrase entière et décide quoi faire. Imiter. Contraster. Densifier. Espacer. Se taire. Il ne joue jamais quelque chose qu'il n'a pas entendu de toi. Pas d'IA générative, pas de presets — de la **remémoration active**.
+
+Trois couches en parallèle :
+
+- **Le dialogue** — phrase par phrase. TEAMMATE attend, écoute, construit un portrait de ce que tu viens de jouer, et répond depuis sa propre mémoire.
+- **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé.
+- **8OS** — enregistre une séquence, laisse-la se découper en grains analysés. En mode TRANS, trois voix scannent le bank et tirent les grains qui correspondent à ton pitch et ton énergie live en temps réel.
+
+Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
+
+---
+
+## Install
+
+From **MAIDEN** (Norns web editor), type in the bottom console:
 
 ```
 ;install https://github.com/kirikoodes/Teammate
 ```
 
-Puis **SYSTEM > RESTART** pour recharger les engines SuperCollider.
+Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 
 ---
 
-## Démarrage rapide
+## Quick start
 
-1. Brancher l'instrument ou le micro en entrée Norns
-2. Charger le script **TEAMMATE.POTO** depuis SELECT
-3. Page 1 CORPUS : régler `E3 thr` selon ton niveau de bruit de fond (commence à `0.003`)
-4. Jouer — TEAMMATE écoute et commence à répondre après quelques sons enregistrés
-5. Surveiller le compteur `corpus X/48` en bas à gauche
+1. Plug instrument or mic into Norns input
+2. Load **TEAMMATE.POTO** from SELECT
+3. Page 1 CORPUS: adjust `E3 thr` to your noise floor (start at `0.003`)
+4. Play — TEAMMATE listens and starts responding after a few recorded sounds
+5. Watch the `c:X/48` counter top left
 
 ---
 
 ## Navigation
 
 ```
-E1        — page précédente / suivante (bidirectionnel, boucle 1→11)
-K2        — page suivante
-K3        — action principale de la page (voir tableau)
+E1        — previous / next page (bidirectional, loops 1→11)
+K2        — next page
+K3        — main action for current page (see table)
 ```
 
 ---
 
-## Les 11 pages
+## The 11 pages
 
 ### Page 1 — CORPUS
-Mémoire à court terme. Tout ce que tu joues y est découpé en événements.
+Short-term memory. Everything you play is sliced into events.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Taux d'apprentissage 0–100% (`FROZEN` à 0) |
-| E3 | Seuil de gate (bruit de fond) |
-| K3 | Effacer le corpus |
+| E2 | Learning rate 0–100% (`FROZEN` at 0) |
+| E3 | Gate threshold (noise floor) |
+| K3 | Clear corpus |
 
-- **Grille 48 cases** : chaque case = un son enregistré (énergie, pitch, durée)
-- **FROZEN** : corpus gelé, TEAMMATE joue depuis ce qu'il a mémorisé sans rien apprendre de nouveau
-- **Point rouge** en haut à droite : enregistrement en cours
+- **48-slot grid**: each slot = one recorded sound (energy, pitch, duration)
+- **FROZEN**: corpus frozen, TEAMMATE plays from memory without learning anything new
+- **Red dot** top right: recording in progress
 
 ---
 
 ### Page 2 — MAIN
-Comportement global de l'improvisation.
+Global improvisation behavior.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Densité de réponse (nombre d'événements par phrase) |
-| E3 | Biais de silence (probabilité de se taire) |
-| K3 | Forcer une réponse immédiate |
+| E2 | Response density (events per phrase) |
+| E3 | Silence bias (probability of staying silent) |
+| K3 | Force immediate response |
 
 ---
 
 ### Page 3 — RESP
-Qualité de la réponse.
+Response quality.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Contraste (0 = imiter, 1 = s'opposer) |
-| E3 | Probabilité de répondre à chaque phrase |
-| K3 | Mode sourd ON/OFF |
+| E2 | Contrast (0 = imitate, 1 = oppose) |
+| E3 | Probability of responding to each phrase |
+| K3 | Deaf mode ON/OFF |
 
-- **Mode sourd** : TEAMMATE ignore l'entrée audio et improvise de manière autonome depuis le corpus
+- **Deaf mode**: TEAMMATE ignores audio input and improvises autonomously from the corpus
 
 ---
 
 ### Page 4 — TIME
-Timing de l'échange.
+Exchange timing.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | `react` — silence minimum pour sceller un fragment (défaut 0.8s) |
-| E3 | `init` — silence minimum avant que TEAMMATE prenne l'initiative (défaut 1.5s) |
-| K3 | Mode voix ON/OFF |
+| E2 | `react` — minimum silence to seal a fragment (default 0.8s) |
+| E3 | `init` — minimum silence before TEAMMATE takes initiative (default 1.5s) |
+| K3 | Voice mode ON/OFF |
 
-- **Mode voix** : durée minimale des syllabes 120ms, adapté au chant et à la parole
+- **Voice mode**: minimum syllable duration 120ms, adapted for singing and speech
 
 ---
 
 ### Page 5 — POtO
-Texture granulaire en temps réel sur les 4 dernières secondes.
+Real-time granular texture over the last 4 seconds.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Volume POtO |
-| E3 | Monitor (volume du signal direct en sortie) |
+| E2 | POtO volume |
+| E3 | Monitor (direct signal volume at output) |
 | K3 | POtO ON/OFF |
 
-- Trois lecteurs : **LEAD** (zone fraîche), **ATTRACTED** (dérive vers LEAD), **REPULSED** (poussé vers le passé)
-- Crée un halo sonore autour de ta performance en temps réel
+- Three readers: **LEAD** (fresh zone), **ATTRACTED** (drifts toward LEAD), **REPULSED** (pushed toward the past)
 
 ---
 
 ### Page 6 — GRAIN
-Paramètres des grains POtO.
+POtO grain parameters.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Taille du grain (ms) |
-| E3 | Spread / detune entre les lecteurs |
-| K3 | Preset de rate (0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0) |
+| E2 | Grain size (ms) |
+| E3 | Spread / detune between readers |
+| K3 | Rate preset (0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 2.0) |
 
 ---
 
 ### Page 7 — 8OS
-Sampler granulaire à mémoire longue. Enregistre une séquence entière, puis rejoue des grains sélectionnés par correspondance pitch + énergie.
+Long-memory granular sampler. Records a full sequence, then replays grains selected by pitch + energy matching.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Volume 8OS |
-| E3 | Taille des grains de lecture (ms) |
+| E2 | 8OS volume |
+| E3 | Grain size (ms) |
 | K3 | Cycle OFF → REC → TRANS |
 
-#### Flux de travail
-
 ```
-K3 → REC   : enregistrement continu dans le buffer 20s
-              les grains se créent automatiquement toutes les [grain ms]
-              le compteur monte en temps réel
+K3 → REC   : continuous recording into 20s buffer
+              grains created automatically every [grain ms]
 
-K3 → TRANS : lecture — 3 voix cherchent les grains
-              les plus proches de ton pitch + énergie live
-              (matching MIDI complet avec octave)
+K3 → TRANS : playback — 3 voices search for grains
+              closest to your live pitch + energy
+              (full MIDI matching with octave)
 
-K3 → OFF   : arrêt
+K3 → OFF   : stop
 ```
 
-- **Sélection des grains** : score combiné pitch 55% + énergie 35% + timbre 10%
-- **3 voix LOCK** : toutes cherchent les grains les plus proches (polyphonie, pas de voix opposée)
-- Le bank persiste quand on passe de REC à TRANS
+- Grain selection: combined score pitch 55% + energy 35% + timbre 10%
+- **3 LOCK voices**: all search for the closest grains (polyphony)
+- Bank persists when switching from REC to TRANS
 
 ---
 
 ### Page 8 — CLR8OS
-Page de confirmation pour vider le bank 8OS.
+Confirmation page to clear the 8OS bank.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| K3 | Effacer le bank 8OS |
+| K3 | Clear 8OS bank |
 
 ---
 
 ### Page 9 — MIDI I
-MIDI pour l'improvisation TEAMMATE (notes calées sur les grains joués).
+MIDI for TEAMMATE improvisation (notes tied to played grains).
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Canal MIDI (1–16) |
-| E3 | Device MIDI (index) |
+| E2 | MIDI channel (1–16) |
+| E3 | MIDI device (1–4) |
 | K3 | MIDI IMPRO ON/OFF |
 
 ---
 
 ### Page 10 — MIDI P
-MIDI pour les grains POtO.
+MIDI for POtO grains.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Canal MIDI (1–16) |
+| E2 | MIDI channel (1–16) |
+| E3 | MIDI device (1–4) |
 | K3 | MIDI POtO ON/OFF |
 
 ---
 
 ### Page 11 — MIDI 8
-MIDI pour les grains 8OS.
+MIDI for 8OS grains.
 
-| Encodeur | Fonction |
+| Encoder | Function |
 |---|---|
-| E2 | Canal MIDI (1–16) |
+| E2 | MIDI channel (1–16) |
+| E3 | MIDI device (1–4) |
 | K3 | MIDI 8OS ON/OFF |
 
+> The 3 MIDI streams (IMPRO / POtO / 8OS) each have their own independent device — you can send to 2 different destinations simultaneously.
+
 ---
 
-## Indicateurs écran
+## Screen indicators
 
-| Indicateur | Signification |
+| Indicator | Meaning |
 |---|---|
-| `●` rouge (haut droite) | Enregistrement corpus en cours |
-| `FROZEN` (page 1) | Corpus gelé, apprentissage à 0% |
-| `V` (haut droite) | Mode voix actif |
-| `D` (haut droite) | Mode sourd actif |
-| `VD` | Les deux actifs |
-| Barre `ctr` / `flat` | Centroïde spectral / flatness live |
+| Red `●` (top right) | Corpus recording in progress |
+| `FROZEN` (page 1) | Corpus frozen, 0% learning |
+| `V` (top right) | Voice mode active |
+| `D` (top right) | Deaf mode active |
+| `VD` | Both active |
 
 ---
 
-## Le corpus — mémoire à court terme
+## The 5 strategies
 
-Tout ce que tu joues est découpé en événements sonores et stocké dans un corpus circulaire de **48 cases**. Chaque événement est caractérisé par :
+TEAMMATE chooses its response strategy probabilistically, weighted by the current musical context:
 
-- son **énergie** (RMS)
-- sa **hauteur** (pitch fondamental)
-- son **timbre** (centroïde spectral)
-- sa **texture** (flatness spectrale)
-- sa **durée**
-
-Quand TEAMMATE cherche à répondre, il calcule la distance entre ces portraits sonores pour trouver ce qui ressemble à ce que tu viens de jouer — ou ce qui s'en éloigne le plus, selon la stratégie choisie.
-
-Le corpus est **volontairement court** (96 secondes max). Ce qu'il joue vient toujours de ce moment présent de la session.
-
----
-
-## Les 5 stratégies
-
-TEAMMATE choisit sa stratégie de réponse de façon probabiliste, pondérée par le contexte musical en cours :
-
-| Stratégie | Intention |
+| Strategy | Intent |
 |---|---|
-| **IMITATION** | Reproduire l'énergie et le timbre de ta phrase |
-| **CONTRASTE** | Choisir le son le plus éloigné de ce que tu viens de jouer |
-| **DENSIFICATION** | Répondre avec plus d'événements, plus rapprochés |
-| **SPARSE** | Ralentir, espacer, créer du vide |
-| **SILENCE** | Ne rien dire — un geste musical à part entière |
+| **IMITATION** | Reproduce the energy and timbre of your phrase |
+| **CONTRASTE** | Choose the sound furthest from what you just played |
+| **DENSIFICATION** | Respond with more events, more tightly packed |
+| **SPARSE** | Slow down, spread out, create space |
+| **SILENCE** | Say nothing — a musical gesture in itself |
 
 ---
 
-## L'initiative
+## Softcut layout (technical reference)
 
-Après `init` secondes de silence de ta part, TEAMMATE ne attend plus. Il choisit un événement "intéressant" du corpus et part en improvisation spontanée. Plus le silence dure, plus la probabilité augmente.
-
----
-
-## POtO — présence continue
-
-En parallèle du dialogue, POtO est une texture granulaire construite sur les 4 dernières secondes de ta performance :
-
-- **LEAD** — colle à la zone la plus fraîche
-- **ATTRACTED** — dérive lentement vers LEAD, légèrement désaccordé au-dessus
-- **REPULSED** — poussé vers le passé du buffer, désaccordé en dessous
-
-L'ensemble crée un halo sonore — une résonance de toi-même décalée dans le temps et la hauteur.
-
----
-
-## 8OS — mémoire longue granulaire
-
-8OS enregistre une longue séquence (jusqu'à 20 secondes) et la découpe en grains analysés. En mode TRANS, trois lecteurs cherchent en permanence les grains dont le **pitch** et l'**énergie** correspondent le mieux à ce que tu joues en live :
-
-- V5 LOCK : grain #1 le plus proche, volume 100%
-- V6 LOCK : grain #2 le plus proche, volume 65%
-- V3 LOCK : grain #3 le plus proche, volume 40%
-
-La sélection utilise le numéro MIDI complet (avec octave) — chanter grave donne des grains graves, chanter aigu donne des grains aigus.
-
----
-
-## Softcut layout (référence technique)
-
-| Voix | Rôle |
+| Voice | Role |
 |---|---|
-| V1 | Enregistrement corpus |
-| V2 | Lecture corpus |
-| V3 | Lecture corpus (emprunté par 8OS TRANS ou POtO REPULSED) |
-| V4 | Enregistrement POtO continu + enregistrement 8OS |
+| V1 | Corpus recording |
+| V2 | Corpus playback |
+| V3 | Corpus playback (borrowed by 8OS TRANS or POtO REPULSED) |
+| V4 | Continuous POtO recording + 8OS recording |
 | V5 | POtO LEAD / 8OS LOCK #1 |
 | V6 | POtO ATTRACTED / 8OS LOCK #2 |
 
 ---
 
-## Ce projet n'est pas
-
-- Un générateur de musique autonome
-- Un effet audio
-- Un looper intelligent
-
-C'est un interlocuteur. Il a besoin de toi pour exister.
-
----
-
-*Port Norns (Lua + SuperCollider) d'un moteur Python original — NSDOS 2026*
+*Norns port (Lua + SuperCollider) of a Python original — NSDOS 2026*
