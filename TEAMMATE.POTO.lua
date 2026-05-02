@@ -121,12 +121,10 @@ local os8_pos_v3  = nil
 
 local splash_active = false
 
--- MIDI routing matrix [stream 1-3][device 1-4] : 1=IMPRO 2=POtO 3=8OS
+-- MIDI routing [stream 1-3][device 1-4] : 1=IMPRO 2=POtO 3=8OS
 local midi_outs  = {}
 local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false}}
-local midi_cur_row    = 1   -- curseur page 9 : stream (1-3)
-local midi_cur_col    = 1   -- curseur page 9 : device (1-4)
-local midi_cur_stream = 1   -- curseur page 10 : stream selectionne
+local midi_cur_stream = 1   -- stream selectionne sur pages 9-12
 local midi_impro_on = false ; local midi_impro_ch = 1
 local midi_poto_on  = false ; local midi_poto_ch  = 2
 local midi_8os_on   = false ; local midi_8os_ch   = 3
@@ -1182,7 +1180,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 10) + 1
+    page = ((page - 1 + d) % 12) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1198,9 +1196,7 @@ function enc(n, d)
       p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
     elseif page == 7 then
       os8_vol       = util.clamp(os8_vol       + d * 0.05, 0.0, 1.0)
-    elseif page == 9 then
-      midi_cur_row = util.clamp(midi_cur_row + d, 1, 3)
-    elseif page == 10 then
+    elseif page >= 9 and page <= 12 then
       midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 3)
     end
   elseif n == 3 then
@@ -1219,9 +1215,7 @@ function enc(n, d)
       p_poto_spread = util.clamp(p_poto_spread + d * 0.01, 0.0, 0.30)
     elseif page == 7 then
       os8_size      = util.clamp(os8_size      + d * 0.01, 0.02, 0.50)
-    elseif page == 9 then
-      midi_cur_col = util.clamp(midi_cur_col + d, 1, 4)
-    elseif page == 10 then
+    elseif page >= 9 and page <= 12 then
       if midi_cur_stream == 1 then
         midi_impro_ch = util.clamp(midi_impro_ch + d, 1, 16)
       elseif midi_cur_stream == 2 then
@@ -1237,8 +1231,9 @@ end
 function key(n, z)
   if z == 0 then return end
   if n == 2 then
-    if page == 9 then
-      midi_route[midi_cur_row][midi_cur_col] = not midi_route[midi_cur_row][midi_cur_col]
+    if page >= 9 and page <= 12 then
+      local dev = page - 8
+      midi_route[midi_cur_stream][dev] = not midi_route[midi_cur_stream][dev]
     end
   elseif n == 3 then
     if page == 1 then
@@ -1275,10 +1270,7 @@ function key(n, z)
       os8_set(seq[nxt])
     elseif page == 8 then
       os8_bank = {} ; os8_rec_n = 0
-    elseif page == 9 then
-      -- K3 efface la ligne du curseur
-      for d = 1, 4 do midi_route[midi_cur_row][d] = false end
-    elseif page == 10 then
+    elseif page >= 9 and page <= 12 then
       if midi_cur_stream == 1 then midi_impro_on = not midi_impro_on
       elseif midi_cur_stream == 2 then midi_poto_on = not midi_poto_on
       else midi_8os_on = not midi_8os_on end
@@ -1328,7 +1320,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/10")
+  screen.text(page .. "/12")
 
   if rec_on then
     screen.level(15)
@@ -1484,49 +1476,28 @@ function redraw()
     screen.move(0, 64)
     screen.text("K3 : clear bank")
 
-  elseif page == 9 then
-    -- matrice routing : lignes = streams, colonnes = devices
-    local row_labels = {"I", "P", "8"}
-    local col_x = {20, 44, 68, 92}
-    -- entete devices
-    screen.level(4)
-    for d = 1, 4 do
-      screen.move(col_x[d], 44)
-      screen.text("D" .. d)
-    end
-    -- lignes streams
-    local row_y = {52, 58, 64}
-    for s = 1, 3 do
-      screen.level(s == midi_cur_row and 15 or 5)
-      screen.move(0, row_y[s])
-      screen.text(row_labels[s])
-      for d = 1, 4 do
-        local active = midi_route[s][d]
-        local cursor = (s == midi_cur_row and d == midi_cur_col)
-        screen.level(cursor and 15 or (active and 12 or 3))
-        screen.move(col_x[d], row_y[s])
-        screen.text(active and (cursor and "[X]" or " X ") or (cursor and "[ ]" or " . "))
-      end
-    end
-    screen.level(3)
-    screen.move(0, 44)
-    screen.text("E2:row E3:col K2:tog K3:clr")
-
-  elseif page == 10 then
+  elseif page >= 9 and page <= 12 then
+    local dev = page - 8
     local labels = {"IMPRO", "POtO ", "8OS  "}
     local chs    = {midi_impro_ch, midi_poto_ch, midi_8os_ch}
     local ons    = {midi_impro_on, midi_poto_on, midi_8os_on}
     local y      = {50, 57, 64}
+    screen.level(10)
+    screen.move(0, 44)
+    screen.text("DEV " .. dev)
     for s = 1, 3 do
-      local sel = (s == midi_cur_stream)
-      screen.level(sel and 15 or (ons[s] and 8 or 4))
+      local sel    = (s == midi_cur_stream)
+      local routed = midi_route[s][dev]
+      local on     = ons[s]
+      screen.level(sel and 15 or (routed and 10 or 4))
       screen.move(0, y[s])
-      screen.text(string.format("%s ch:%2d  %s", labels[s], chs[s], ons[s] and "ON" or "off"))
-      if sel then
-        screen.level(3)
-        screen.move(108, y[s])
-        screen.text("<")
-      end
+      screen.text(labels[s])
+      screen.level(routed and (on and 15 or 8) or 3)
+      screen.move(40, y[s])
+      screen.text(routed and (on and "[ON]" or "[off]") or "[ . ]")
+      screen.level(sel and 10 or 4)
+      screen.move(80, y[s])
+      screen.text(string.format("ch:%2d", chs[s]))
     end
   end
 
