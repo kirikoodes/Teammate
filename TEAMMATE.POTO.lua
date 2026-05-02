@@ -1396,13 +1396,19 @@ function redraw()
     screen.text(string.format("K3 voice %s", p_voice and "ON" or "off"))
 
   elseif page == 5 then
-    screen.level(p_poto_on and 12 or 5)
-    screen.move(0, 57)
-    screen.text(string.format("K3 POtO %s  E2 %d%%",
-      p_poto_on and "ON" or "off", math.floor(p_poto_vol * 100)))
-    screen.level(p_monitor > 0 and 10 or 5)
-    screen.move(0, 64)
-    screen.text(string.format("E3 monitor %d%%", math.floor(p_monitor * 100)))
+    local col = p_poto_on and 15 or 5
+    screen.level(col)
+    screen.font_size(16)
+    screen.move(0, 56)
+    screen.text(p_poto_on and "ON" or "off")
+    screen.font_size(8)
+    screen.level(5)
+    screen.move(60, 50)
+    screen.text(string.format("vol  %d%%", math.floor(p_poto_vol * 100)))
+    screen.move(60, 57)
+    screen.text(string.format("mon  %d%%", math.floor(p_monitor * 100)))
+    screen.move(60, 64)
+    screen.text("K3 on/off")
 
   elseif page == 6 then
     screen.level(p_poto_on and 10 or 5)
@@ -1416,19 +1422,22 @@ function redraw()
   elseif page == 7 then
     local col = os8_mode == "TRANS" and 15 or (os8_mode == "REC" and 12 or 5)
     screen.level(col)
-    screen.move(0, 57)
-    screen.text(string.format("K3 8OS %s  E2 %d%%", os8_mode, math.floor(os8_vol * 100)))
+    screen.font_size(16)
+    screen.move(0, 56)
+    screen.text(os8_mode)
+    screen.font_size(8)
     screen.level(5)
-    screen.move(0, 64)
+    screen.move(60, 50)
+    screen.text(string.format("bank %d", os8_rec_n))
+    screen.move(60, 57)
+    screen.text(string.format("vol  %d%%", math.floor(os8_vol * 100)))
+    screen.move(60, 64)
     if os8_mode == "TRANS" then
       local note_names = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
       local ln = cur_note_class()
-      screen.text(string.format("E3 %dms  note %s  bank %d",
-        math.floor(os8_size * 1000),
-        ln >= 0 and note_names[ln + 1] or "--",
-        os8_rec_n))
+      screen.text("note " .. (ln >= 0 and note_names[ln + 1] or "--"))
     else
-      screen.text(string.format("E3 %dms  bank %d", math.floor(os8_size * 1000), os8_rec_n))
+      screen.text(string.format("sz  %dms", math.floor(os8_size * 1000)))
     end
 
   elseif page == 8 then
