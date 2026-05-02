@@ -1,6 +1,6 @@
--- teammate.lua — NSDOS 2026
--- Norns port of TEAMMATE.POTO (Python)
-
+--  48.816113, 2.410577
+-- ḫe₂-a-ni-ì-du₁₀-ga-zu-ne
+-- ki-tuš-a-ni-ir
 engine.name = "Teammate"
 
 ---------------------------------------------------------------------
@@ -1358,10 +1358,6 @@ function redraw()
     screen.move(104, 37)
     screen.text((p_voice and "V" or "") .. (p_deaf and "D" or ""))
   end
-
-  -- separator
-  screen.level(2)
-  screen.move(0, 41) ; screen.line(128, 41) ; screen.stroke()
 
   -- parametres specifiques a la page
   if page == 1 then
