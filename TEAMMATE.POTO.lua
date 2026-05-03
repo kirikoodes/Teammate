@@ -270,12 +270,12 @@ local function play_event(ev, rate_mult)
 
   clock.run(function()
     clock.sleep(len + 0.05)
+    midi_note_off(1, imp_note)
     if ply_tokens[vi] == tok then
       softcut.level(v, 0)     -- fade out
       clock.sleep(0.03)
       softcut.play(v, 0)
       softcut.loop(v, 0)
-      midi_note_off(1, imp_note)
     end
   end)
 
