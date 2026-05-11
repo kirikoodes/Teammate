@@ -217,6 +217,9 @@ local mgen_break_idx = 1
 local mgen_clock_co  = nil
 local mgen_gen_id    = 0
 local mgen_tap_times = {}   -- tap tempo : horodatages des derniers taps
+local mgen_mut_idx   = 3
+local MGEN_MUT_RATES = {0, 0.05, 0.12, 0.22, 0.40}
+local mgen_mut_rate  = MGEN_MUT_RATES[mgen_mut_idx]
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -854,6 +857,37 @@ local function mgen_gen_all()
   end
 end
 
+local function mgen_mutate_seq(ci)
+  local ch  = mgen_ch[ci]
+  local sn  = MGEN_STYLE_NAMES[ch.style_idx]
+  local def = MGEN_STYLE_DEF[sn]
+  local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+  for s = 1, #ch.seq do
+    if math.random() > mgen_mut_rate then goto next_step end
+    local step = ch.seq[s]
+    local r = math.random()
+    if r < 0.38 then
+      step.active = math.random() < def.density
+    elseif r < 0.72 then
+      local nm = ((step.note - mgen_root) % 12 + 12) % 12
+      local bd, bd_deg = math.huge, 1
+      for d, semi in ipairs(sc) do
+        local dd = math.min(math.abs(semi - nm), math.abs(semi - nm + 12), math.abs(semi - nm - 12))
+        if dd < bd then bd = dd ; bd_deg = d end
+      end
+      local dir = math.random() < 0.5 and 1 or -1
+      local nd  = ((bd_deg - 1 + dir) % #sc) + 1
+      local oct = math.floor((step.note - mgen_root) / 12)
+      step.note = math.max(0, math.min(127, mgen_root + oct * 12 + sc[nd]))
+    elseif r < 0.88 then
+      step.gate = math.max(0.05, math.min(2.5, step.gate * (0.75 + math.random() * 0.5)))
+    else
+      step.vel = def.vel(s)
+    end
+    ::next_step::
+  end
+end
+
 local function mgen_stop()
   mgen_running = false
   if midi_outs[1] then
@@ -947,7 +981,10 @@ local function mgen_start()
             end
           end
           ch.step_cur = (ch.step_cur % ch.steps) + 1
-          if ch.step_cur == 1 and ch.brk then ch.brk = false end
+          if ch.step_cur == 1 then
+            if ch.brk then ch.brk = false end
+            if mgen_mut_rate > 0 then mgen_mutate_seq(i) end
+          end
         end
       end
       -- sync : attend exactement 6 pulses MIDI si clock externe active
@@ -1547,6 +1584,9 @@ function key(n, z)
   if z == 0 then return end
   if n == 2 and page == 6 then
     os8_sync = not os8_sync
+  elseif n == 2 and page == 14 then
+    mgen_mut_idx  = (mgen_mut_idx % #MGEN_MUT_RATES) + 1
+    mgen_mut_rate = MGEN_MUT_RATES[mgen_mut_idx]
   elseif n == 2 and page == 13 then
     local now = util.time()
     if #mgen_tap_times > 0 and (now - mgen_tap_times[#mgen_tap_times]) > 3.0 then
@@ -1704,7 +1744,11 @@ function redraw()
       math.floor(cur_flatness * 100)))
   end
   -- indicateurs de mode sur la meme ligne, a droite
-  if p_voice or p_deaf then
+  if page == 14 then
+    screen.level(mgen_mut_rate > 0 and 9 or 3)
+    screen.move(84, 37)
+    screen.text(string.format("~%d%% K2", math.floor(mgen_mut_rate * 100)))
+  elseif p_voice or p_deaf then
     screen.level(12)
     screen.move(104, 37)
     screen.text((p_voice and "V" or "") .. (p_deaf and "D" or ""))
@@ -1879,6 +1923,9 @@ function redraw()
       screen.text(#mgen_tap_times >= 2 and
         string.format("TAP %d", #mgen_tap_times) or "K2:tap")
     end
+    screen.level(mgen_mut_rate > 0 and 8 or 3)
+    screen.move(80, 44)
+    screen.text(string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
 
   elseif page == 14 then
     local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL"}
