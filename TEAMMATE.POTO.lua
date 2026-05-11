@@ -105,6 +105,7 @@ local OS8_OFFSET  = 200.0   -- zone buffer (apres corpus 96s et POtO 104s)
 local OS8_DUR     = 20.0    -- 20s de buffer
 local OS8_MAX     = 64      -- grains max
 local os8_mode    = "OFF"   -- OFF / REC / TRANS
+local os8_sync    = false   -- sync grains TRANS sur clock Norns
 local os8_bank    = {}      -- {pos, dur, pitch, centroid, note}
 local os8_rec_n   = 0
 local os8_start_t = 0.0
@@ -118,6 +119,122 @@ local os8_rms_acc   = 0 ; local os8_rms_n   = 0
 local os8_pos_v5  = nil    -- position du grain joue par chaque voix
 local os8_pos_v6  = nil
 local os8_pos_v3  = nil
+
+---------------------------------------------------------------------
+-- MIDI GEN
+---------------------------------------------------------------------
+local MGEN_SCALE_NAMES = {"MINOR","PHRYG","BLUES","DORIC","MAJOR","PENMIN","PENMAJ"}
+local MGEN_SCALES = {
+  MINOR  = {0,2,3,5,7,8,10},
+  PHRYG  = {0,1,3,5,7,8,10},
+  BLUES  = {0,3,5,6,7,10},
+  DORIC  = {0,2,3,5,7,9,10},
+  MAJOR  = {0,2,4,5,7,9,11},
+  PENMIN = {0,3,5,7,10},
+  PENMAJ = {0,2,4,7,9},
+}
+local MGEN_STYLE_NAMES = {"TECHNO","DnB","JUNGLE","AMAPIANO","2STEP","BRKN","DUMB","TRAP","DRIL"}
+local MGEN_STYLE_DEF = {
+  TECHNO   = { steps=16, density=0.50, oct_lo=2, oct_hi=4,
+               intervals={0,0,2,3,5,7}, gate=0.45,
+               vel=function(s)
+                 if s%4==1 then return math.random(100,127)
+                 elseif s%2==1 then return math.random(70,95)
+                 else return math.random(50,75) end
+               end },
+  DnB      = { steps=32, density=0.35, oct_lo=2, oct_hi=4,
+               intervals={0,2,3,5,7,12}, gate=0.28,
+               vel=function(s)
+                 return s%8==1 and math.random(100,127) or math.random(60,100)
+               end },
+  JUNGLE   = { steps=32, density=0.42, oct_lo=2, oct_hi=5,
+               intervals={0,1,2,3,5,7,10}, gate=0.22,
+               vel=function(s) return math.random(55,115) end },
+  AMAPIANO = { steps=16, density=0.55, oct_lo=3, oct_hi=5,
+               intervals={0,2,4,5,7,9}, gate=0.65,
+               vel=function(s)
+                 if s%4==1 then return math.random(90,120)
+                 elseif s%4==3 then return math.random(75,100)
+                 else return math.random(55,85) end
+               end },
+  -- 2-step garage : syncopation off-beat, intervalles soulful
+  ["2STEP"]  = { steps=32, density=0.35, oct_lo=2, oct_hi=4,
+               intervals={0,2,3,5,7,10}, gate=0.32,
+               vel=function(s)
+                 if s%8==3 or s%8==7 then return math.random(90,118)
+                 elseif s%16==1      then return math.random(78,105)
+                 else                     return math.random(45,72) end
+               end },
+  -- brokenbeat : jazz, evite le downbeat, placement irregulier
+  BRKN       = { steps=32, density=0.27, oct_lo=3, oct_hi=5,
+               intervals={0,2,4,5,7,9,11,14}, gate=0.58,
+               vel=function(s) return math.random(52,112) end },
+  -- dumbstep : dubstep half-time, tres sparse, bass lourde
+  DUMB       = { steps=32, density=0.20, oct_lo=3, oct_hi=4,
+               intervals={0,0,0,5,12}, gate=0.78,
+               vel=function(s)
+                 if s==1 or s==17 then return math.random(108,127)
+                 else return math.random(50,82) end
+               end },
+  -- trap : 808 sparse, gate court, accents kick 1 et contretemps
+  TRAP       = { steps=32, density=0.18, oct_lo=3, oct_hi=5,
+               intervals={0,0,2,3,5,7}, gate=0.14,
+               vel=function(s)
+                 if s%32==1   then return math.random(105,127)
+                 elseif s%16==9 then return math.random(80,105)
+                 else            return math.random(38,78) end
+               end },
+  -- drill : chromatique sombre, 808 syncopee, registre moyen
+  DRIL       = { steps=32, density=0.28, oct_lo=3, oct_hi=5,
+               intervals={0,1,2,3,5,7}, gate=0.18,
+               vel=function(s)
+                 if s%16==1  then return math.random(100,127)
+                 elseif s%8==5 then return math.random(68,95)
+                 else            return math.random(38,73) end
+               end },
+}
+local MGEN_BREAK_NAMES = {
+  "RAND","ACNT","STUT",
+  "LP1","LP2","LP3","LP4",
+  "-OCT","+OCT","REV",
+  "F32","F16","F8","F4",
+  "CHOS","DRNK","SKIP",
+}
+local MGEN_BREAK_DESCS = {
+  "random step","all notes max vel","loop 2 + gate/2",
+  "loop step 1","loop 2 steps","loop 3 steps","loop 4 steps",
+  "-1 octave","+1 octave","seq backward",
+  "32nd flood","16th flood","8th legato","4th legato",
+  "random note","drunk ±2 steps","odd steps only",
+}
+
+local mgen_running   = false
+local mgen_bpm       = 128
+local mgen_scale_idx = 1
+local mgen_root      = 60   -- C4 fixe
+local mgen_sel_ch    = 1
+local mgen_break_idx = 1
+local mgen_clock_co  = nil
+local mgen_gen_id    = 0
+local mgen_tap_times = {}   -- tap tempo : horodatages des derniers taps
+local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
+local mclk_active      = false
+local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
+
+local mgen_ch = {}
+for i = 1, 16 do
+  mgen_ch[i] = {
+    on        = false,
+    style_idx = 1,
+    octave    = 3,
+    steps     = 16,
+    seq       = {},
+    midi_ch   = i,
+    step_cur  = 1,
+    brk       = false,
+    brk_type  = 1,
+  }
+end
 
 local splash_active = false
 
@@ -439,11 +556,16 @@ local function os8_set(mode)
     os8_pos_v5 = nil ; os8_pos_v6 = nil ; os8_pos_v3 = nil
 
     -- sleep interruptible : sort des que le gate tombe ou que le mode change
+    -- si os8_sync : quantize au prochain 1/16 sur la clock active
     local function grain_sleep(dur)
-      local t = 0
-      while t < dur and os8_mode == "TRANS" and cur_gate > 0.5 do
-        local step = math.min(0.02, dur - t)
-        clock.sleep(step) ; t = t + step
+      if os8_sync then
+        clock.sleep(60.0 / mgen_bpm / 4)   -- suit le BPM du MGEN
+      else
+        local t = 0
+        while t < dur and os8_mode == "TRANS" and cur_gate > 0.5 do
+          local step = math.min(0.02, dur - t)
+          clock.sleep(step) ; t = t + step
+        end
       end
     end
 
@@ -681,6 +803,167 @@ local function poto_set(on)
     softcut.loop(3, 0)
     softcut.fade_time(3, 0.02)
   end
+end
+
+---------------------------------------------------------------------
+-- MIDI GEN : sequenceur melodique generatif (pages 13-15)
+---------------------------------------------------------------------
+local function mgen_gen_seq(ci)
+  local ch  = mgen_ch[ci]
+  local sn  = MGEN_STYLE_NAMES[ch.style_idx]
+  local def = MGEN_STYLE_DEF[sn]
+  local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+  -- octave inchange : fixe par gen_all a l'init ou par E3 (page 15)
+  ch.steps  = def.steps
+  ch.seq    = {}
+  local root    = mgen_root + (ch.octave - 4) * 12
+  local cur_deg = math.random(#sc)
+  for s = 1, def.steps do
+    local note = math.max(0, math.min(127, root + sc[cur_deg]))
+    table.insert(ch.seq, {
+      active = math.random() < def.density,
+      note   = note,
+      vel    = def.vel(s),
+      gate   = def.gate,
+    })
+    if math.random() < 0.55 then
+      local iv = def.intervals[math.random(#def.intervals)]
+      if math.random() < 0.5 then iv = -iv end
+      local tgt = note + iv
+      local bd, bd_d = math.huge, cur_deg
+      for d2, semi in ipairs(sc) do
+        for o = -2, 2 do
+          local nn = root + semi + o * 12
+          if math.abs(nn - tgt) < bd then bd = math.abs(nn - tgt) ; bd_d = d2 end
+        end
+      end
+      cur_deg = bd_d
+    end
+  end
+  ch.step_cur = 1
+end
+
+local function mgen_gen_all()
+  for i = 1, 16 do
+    local si  = math.random(#MGEN_STYLE_NAMES)
+    local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
+    mgen_ch[i].style_idx = si
+    -- octave initialise ici (seul endroit), jamais ecrase par gen_seq
+    mgen_ch[i].octave = def.oct_lo + math.random(0, def.oct_hi - def.oct_lo)
+    mgen_gen_seq(i)
+  end
+end
+
+local function mgen_stop()
+  mgen_running = false
+  if midi_outs[1] then
+    for mc = 1, 16 do midi_outs[1]:cc(123, 0, mc) end
+  end
+end
+
+local function mgen_start()
+  if mgen_running then return end
+  mgen_running = true
+  mgen_gen_id  = mgen_gen_id + 1
+  local my_id  = mgen_gen_id
+  for i = 1, 16 do mgen_ch[i].step_cur = 1 ; mgen_ch[i].brk = false end
+  clock.run(function()
+    -- si clock externe active, attendre le prochain pulse avant le 1er step
+    -- garantit que le debut tombe sur une frontiere de pulse
+    if mclk_active then
+      local p0 = mclk_pulse_count
+      while mclk_pulse_count == p0 and mgen_running and mgen_gen_id == my_id do
+        clock.sleep(0.001)
+      end
+    end
+    while mgen_running and mgen_gen_id == my_id do
+      local sd = 60.0 / mgen_bpm / 4   -- 1/16 note (pour gate duration)
+      for i = 1, 16 do
+        local ch = mgen_ch[i]
+        if ch.on and #ch.seq > 0 then
+          local sv = ch.seq[ch.step_cur]
+          if sv then
+            local active, note, vel, gate = sv.active, sv.note, sv.vel, sv.gate
+            if ch.brk then
+              local bt  = ch.brk_type
+              local s   = ch.step_cur
+              if bt == 1 then          -- RAND : step aleatoire
+                local rs = ch.seq[math.random(ch.steps)]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 2 then      -- ACNT : toutes les notes, vel max
+                active = true ; vel = math.random(108, 127)
+              elseif bt == 3 then      -- STUT : boucle 2 premiers steps, gate reduit
+                local rs = ch.seq[(s - 1) % 2 + 1]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+                gate = gate * 0.5
+              elseif bt == 4 then      -- LP1 : boucle step 1
+                local rs = ch.seq[1]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 5 then      -- LP2 : boucle 2 steps
+                local rs = ch.seq[(s - 1) % 2 + 1]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 6 then      -- LP3 : boucle 3 steps
+                local rs = ch.seq[(s - 1) % 3 + 1]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 7 then      -- LP4 : boucle 4 steps
+                local rs = ch.seq[(s - 1) % 4 + 1]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 8 then      -- -OCT
+                note = math.max(0, note - 12)
+              elseif bt == 9 then      -- +OCT
+                note = math.min(127, note + 12)
+              elseif bt == 10 then     -- REV : sequence a l'envers
+                local rs = ch.seq[ch.steps - s + 1]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 11 then     -- F32 : flood de croches (gate tres court)
+                active = true ; gate = 0.20 ; vel = math.random(75, 115)
+              elseif bt == 12 then     -- F16 : flood de doubles croches
+                active = true ; gate = 0.52 ; vel = math.random(75, 115)
+              elseif bt == 13 then     -- F8 : notes aux temps pairs, gate legato 8th
+                if s % 2 == 1 then active = true ; gate = 1.80 ; vel = math.random(80,115)
+                else active = false end
+              elseif bt == 14 then     -- F4 : notes au quart, gate legato 4th
+                if s % 4 == 1 then active = true ; gate = 3.70 ; vel = math.random(85,120)
+                else active = false end
+              elseif bt == 15 then     -- CHOS : note aleatoire dans la gamme
+                local sc = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+                local root = mgen_root + (ch.octave - 4) * 12
+                note = math.max(0, math.min(127, root + sc[math.random(#sc)]))
+              elseif bt == 16 then     -- DRNK : drunk walk +-2 steps
+                local si = (s - 1 + math.random(-2, 2) + ch.steps) % ch.steps + 1
+                local rs = ch.seq[si]
+                if rs then active,note,vel,gate = rs.active,rs.note,rs.vel,rs.gate end
+              elseif bt == 17 then     -- SKIP : steps impairs seulement
+                if s % 2 == 0 then active = false end
+              end
+            end
+            if active and midi_outs[1] then
+              local nn, mc, gd = note, ch.midi_ch, sd * gate
+              midi_outs[1]:note_on(nn, vel, mc)
+              clock.run(function()
+                clock.sleep(gd)
+                if midi_outs[1] then midi_outs[1]:note_off(nn, 0, mc) end
+              end)
+            end
+          end
+          ch.step_cur = (ch.step_cur % ch.steps) + 1
+          if ch.step_cur == 1 and ch.brk then ch.brk = false end
+        end
+      end
+      -- sync : attend exactement 6 pulses MIDI si clock externe active
+      -- sinon sleep interne base sur mgen_bpm
+      if mclk_active then
+        local target = mclk_pulse_count + 6
+        while mclk_pulse_count < target
+              and mgen_running
+              and mgen_gen_id == my_id do
+          clock.sleep(0.001)
+        end
+      else
+        clock.sleep(sd)
+      end
+    end
+  end)
 end
 
 ---------------------------------------------------------------------
@@ -1096,16 +1379,54 @@ local function silence_loop()
 end
 
 ---------------------------------------------------------------------
+-- MIDI clock reader : recoit 0xF8 depuis n'importe quel device connecte
+-- calcule le BPM a partir de l'intervalle moyen entre pulses (24 PPQ)
+-- met a jour mgen_bpm en temps reel si le resultat est dans [60, 200]
+---------------------------------------------------------------------
+local function midi_clock_in(data)
+  local b = data[1]
+  if b == 0xFA then                -- transport start
+    mclk_t           = {}
+    mclk_pulse_count = 0
+    mclk_active      = true
+  elseif b == 0xFC then            -- transport stop
+    mclk_t           = {}
+    mclk_pulse_count = 0
+    mclk_active      = false
+  elseif b == 0xF8 then            -- timing clock pulse (24 par noire)
+    mclk_pulse_count = mclk_pulse_count + 1
+    local now = util.time()
+    table.insert(mclk_t, now)
+    if #mclk_t > 12 then table.remove(mclk_t, 1) end
+    if #mclk_t >= 4 then
+      local total = 0
+      for i = 2, #mclk_t do total = total + (mclk_t[i] - mclk_t[i-1]) end
+      local avg_pulse = total / (#mclk_t - 1)
+      local bpm = 60.0 / (avg_pulse * 24)
+      if bpm >= 60 and bpm <= 200 then
+        mgen_bpm    = math.floor(bpm + 0.5)
+        clock.tempo = mgen_bpm
+        mclk_active = true   -- active des que des pulses valides arrivent
+      end
+    end
+  end
+end
+
+---------------------------------------------------------------------
 -- norns
 ---------------------------------------------------------------------
 function init()
   math.randomseed(os.time())
+  mgen_gen_all()
   last_sound_t = util.time()
   splash_active = true
   clock.run(function() clock.sleep(3.0) ; splash_active = false end)
   for d = 1, 4 do
     local ok, md = pcall(midi.connect, d)
-    if ok then midi_outs[d] = md end
+    if ok then
+      midi_outs[d] = md
+      md.event = midi_clock_in   -- ecoute les pulses 0xF8 entrants
+    end
   end
   audio.level_adc(1.0)
   audio.level_monitor(1.0)
@@ -1133,6 +1454,7 @@ function init()
 end
 
 function cleanup()
+  mgen_stop()
   for v = 1, 6 do
     softcut.rec(v, 0)
     softcut.play(v, 0)
@@ -1141,23 +1463,27 @@ function cleanup()
 end
 
 ---------------------------------------------------------------------
--- navigation pages (11 pages)
--- Page 1  CORPUS : E2 learn    | E3 thr       | K3 clear corpus
--- Page 2  MAIN   : E2 density  | E3 sil_bias  | K3 force reply
--- Page 3  RESP   : E2 contrast | E3 reply     | K3 deaf on/off
--- Page 4  TIME   : E2 react    | E3 init      | K3 voice mode
--- Page 5  POtO   : E2 vol      | E3 monitor   | K3 POtO on/off
--- Page 6  GRAIN  : E2 grain ms | E3 spread    | K3 rate preset
--- Page 7  8OS    : E2 vol      | E3 grain ms  | K3 OFF->REC->TRANS
--- Page 8  CLR8OS : ---         | ---          | K3 clear bank 8OS
--- Page 9  MIDI I : E2 ch       | E3 dev       | K3 on/off
--- Page 10 MIDI P : E2 ch       | ---          | K3 on/off
--- Page 11 MIDI 8 : E2 ch       | ---          | K3 on/off
--- E1 : navigation pages | K2 : page suivante
+-- navigation pages (15 pages)
+-- Page  1  CORPUS   : E2 learn%     | E3 gate thr   | K3 clear corpus
+-- Page  2  MAIN     : E2 density    | E3 sil bias   | K3 force reply
+-- Page  3  RESP     : E2 contrast   | E3 reply%     | K3 deaf on/off
+-- Page  4  TIME     : E2 react      | E3 init       | K3 voice mode
+-- Page  5  POtO     : E2 vol        | E3 monitor    | K3 on/off
+-- Page  6  8OS      : E2 vol        | E3 grain ms   | K3 OFF->REC->TRANS | K2 clock sync
+-- Page  7  GRAIN    : E2 grain ms   | E3 spread     | K3 rate preset
+-- Page  8  CLR8OS   : ---           | ---           | K3 clear bank
+-- Page  9  MIDI DEV1: E2 stream     | E3 ch         | K3 route on/off
+-- Page 10  MIDI DEV2: E2 stream     | E3 ch         | K3 route on/off
+-- Page 11  MIDI DEV3: E2 stream     | E3 ch         | K3 route on/off
+-- Page 12  MIDI DEV4: E2 stream     | E3 ch         | K3 route on/off
+-- Page 13  MGEN     : E2 BPM        | E3 gamme      | K2 tap tempo  | K3 start/stop
+-- Page 14  MGEN CH  : E2 channel    | E3 style      | K3 on/off channel
+-- Page 15  MGEN BRK : E2 break type | E3 octave ch  | K3 fire break
+-- E1 : navigation pages (1->15->1)
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 12) + 1
+    page = ((page - 1 + d) % 15) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1175,6 +1501,13 @@ function enc(n, d)
       p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
     elseif page >= 9 and page <= 12 then
       midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 3)
+    elseif page == 13 then
+      mgen_bpm    = util.clamp(mgen_bpm + d, 60, 200)
+      clock.tempo = mgen_bpm
+    elseif page == 14 then
+      mgen_sel_ch = util.clamp(mgen_sel_ch + d, 1, 16)
+    elseif page == 15 then
+      mgen_break_idx = ((mgen_break_idx - 1 + d) % #MGEN_BREAK_NAMES) + 1
     end
   elseif n == 3 then
     if page == 1 then
@@ -1195,6 +1528,16 @@ function enc(n, d)
     elseif page >= 9 and page <= 12 then
       local dev = page - 8
       midi_ch[midi_cur_stream][dev] = util.clamp(midi_ch[midi_cur_stream][dev] + d, 1, 16)
+    elseif page == 13 then
+      mgen_scale_idx = ((mgen_scale_idx - 1 + d) % #MGEN_SCALE_NAMES) + 1
+    elseif page == 14 then
+      local ch = mgen_ch[mgen_sel_ch]
+      ch.style_idx = ((ch.style_idx - 1 + d) % #MGEN_STYLE_NAMES) + 1
+      mgen_gen_seq(mgen_sel_ch)
+    elseif page == 15 then
+      local ch = mgen_ch[mgen_sel_ch]
+      ch.octave = util.clamp(ch.octave + d, 1, 7)
+      mgen_gen_seq(mgen_sel_ch)
     end
   end
   redraw()
@@ -1202,6 +1545,25 @@ end
 
 function key(n, z)
   if z == 0 then return end
+  if n == 2 and page == 6 then
+    os8_sync = not os8_sync
+  elseif n == 2 and page == 13 then
+    local now = util.time()
+    if #mgen_tap_times > 0 and (now - mgen_tap_times[#mgen_tap_times]) > 3.0 then
+      mgen_tap_times = {}
+    end
+    table.insert(mgen_tap_times, now)
+    if #mgen_tap_times > 4 then table.remove(mgen_tap_times, 1) end
+    if #mgen_tap_times >= 2 then
+      local total = 0
+      for i = 2, #mgen_tap_times do
+        total = total + (mgen_tap_times[i] - mgen_tap_times[i-1])
+      end
+      local avg   = total / (#mgen_tap_times - 1)
+      mgen_bpm    = math.max(60, math.min(200, math.floor(60.0 / avg + 0.5)))
+      clock.tempo = mgen_bpm
+    end
+  end
   if n == 3 then
     if page == 1 then
       corpus = {} ; count = 0 ; head = 1 ; last_slot = 0
@@ -1240,6 +1602,16 @@ function key(n, z)
     elseif page >= 9 and page <= 12 then
       local dev = page - 8
       midi_route[midi_cur_stream][dev] = not midi_route[midi_cur_stream][dev]
+    elseif page == 13 then
+      if mgen_running then mgen_stop() else mgen_gen_all() ; mgen_start() end
+    elseif page == 14 then
+      mgen_ch[mgen_sel_ch].on = not mgen_ch[mgen_sel_ch].on
+    elseif page == 15 then
+      for i = 1, 16 do
+        if mgen_ch[i].on then
+          mgen_ch[i].brk = true ; mgen_ch[i].brk_type = mgen_break_idx
+        end
+      end
     end
   end
   redraw()
@@ -1286,7 +1658,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/12")
+  screen.text(page .. "/15")
 
   if rec_on then
     screen.level(15)
@@ -1423,6 +1795,9 @@ function redraw()
     screen.level(4)
     screen.move(0, 64)
     screen.text("8OS")
+    screen.level(os8_sync and 12 or 3)
+    screen.move(0, 44)
+    screen.text(os8_sync and "K2 SYNC" or "K2 sync")
     screen.level(5)
     screen.move(60, 50)
     screen.text(string.format("bank %d", os8_rec_n))
@@ -1475,6 +1850,65 @@ function redraw()
       screen.move(70, y[s])
       screen.text(string.format("ch:%2d", chs[s]))
     end
+
+  elseif page == 13 then
+    screen.level(mgen_running and 15 or 6)
+    screen.font_size(16)
+    screen.move(0, 56)
+    screen.text(mgen_running and "RUN" or "off")
+    screen.font_size(8)
+    screen.level(4)
+    screen.move(0, 64)
+    screen.text("MGEN")
+    local n_on = 0
+    for i = 1, 16 do if mgen_ch[i].on then n_on = n_on + 1 end end
+    screen.level(mclk_active and 15 or 10)
+    screen.move(48, 50)
+    screen.text(string.format("%s %d", mclk_active and "EXT" or "bpm", mgen_bpm))
+    screen.level(8)
+    screen.move(48, 57)
+    screen.text(MGEN_SCALE_NAMES[mgen_scale_idx])
+    screen.level(5)
+    screen.move(48, 64)
+    screen.text(string.format("%d/16 ch  K3:go", n_on))
+    screen.level(mclk_active and 12 or (#mgen_tap_times >= 2 and 12 or 3))
+    screen.move(0, 44)
+    if mclk_active then
+      screen.text("EXT CLK")
+    else
+      screen.text(#mgen_tap_times >= 2 and
+        string.format("TAP %d", #mgen_tap_times) or "K2:tap")
+    end
+
+  elseif page == 14 then
+    local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL"}
+    local vs = math.floor((mgen_sel_ch - 1) / 4) * 4 + 1
+    local ys = {44, 50, 57, 64}
+    for ri = 0, 3 do
+      local ci = vs + ri
+      if ci <= 16 then
+        local ch  = mgen_ch[ci]
+        local sel = (ci == mgen_sel_ch)
+        screen.level(sel and 15 or (ch.on and 8 or 3))
+        screen.move(0, ys[ri + 1])
+        screen.text(string.format("%sch%02d %s o%d %s",
+          sel and ">" or " ", ci,
+          abbrev[ch.style_idx], ch.octave,
+          ch.on and "[X]" or "[ ]"))
+      end
+    end
+
+  elseif page == 15 then
+    screen.level(12)
+    screen.move(0, 50)
+    screen.text("BREAK: " .. MGEN_BREAK_NAMES[mgen_break_idx])
+    screen.level(5)
+    screen.move(0, 57)
+    screen.text(MGEN_BREAK_DESCS[mgen_break_idx])
+    screen.level(8)
+    screen.move(0, 64)
+    local ch = mgen_ch[mgen_sel_ch]
+    screen.text(string.format("ch%02d oct%d  K3:fire", mgen_sel_ch, ch.octave))
   end
 
   screen.update()
