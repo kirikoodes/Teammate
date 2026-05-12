@@ -66,7 +66,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.7</td><td>Grain size (E2) · spread (E3) · K3 rate</td></tr>
       <tr><td>p.8</td><td>8OS bank info · K3 clear bank</td></tr>
       <tr><td>p.9–12</td><td>MIDI routing — E2 stream · E3 channel · K3 toggle</td></tr>
-      <tr><td>p.13</td><td>MGEN — BPM (E2) · scale (E3) · K2 tap · K3 start/stop</td></tr>
+      <tr><td>p.13</td><td>MGEN — BPM (E2) · scale (E3) · K2 tap/new theme · K3 start/stop</td></tr>
       <tr><td>p.14</td><td>MGEN channels — E2 select · E3 style · K2 evo rate · K3 on/off</td></tr>
       <tr><td>p.15</td><td>MGEN breaks — E2 type · E3 octave · K3 fire</td></tr>
     </table>
@@ -609,13 +609,15 @@ function mgenGenSeq(ci){
   }
   ch.step_cur=0;
 }
-function mgenGenAll(){
+function mgenGenAll(keep_pos){
   for(let i=0;i<16;i++){
     const si=rnd(0,MGEN_STYLE_NAMES.length-1);
     const def=SD[MGEN_STYLE_NAMES[si]];
     mgen_ch[i].style_idx=si;
     mgen_ch[i].octave=def.olo+rnd(0,def.ohi-def.olo);
+    const saved=mgen_ch[i].step_cur;
     mgenGenSeq(i);
+    if(keep_pos) mgen_ch[i].step_cur=Math.min(saved,mgen_ch[i].steps-1);
   }
 }
 function mgenMutateSeq(ci){
@@ -819,8 +821,12 @@ function drawP13(){
   S.level(mclk_active?15:10);S.move(48,50);S.text(`${mclk_active?'EXT':'bpm'}  ${mgen_bpm}`);
   S.level(8);S.move(48,57);S.text(MGEN_SCALE_NAMES[mgen_scale_idx]);
   S.level(5);S.move(48,64);S.text(`${non}/16 ch  K3:go`);
-  S.level(mclk_active?12:mgen_tap_times.length>=2?12:3);S.move(0,44);
-  S.text(mclk_active?'EXT CLK':mgen_tap_times.length>=2?`TAP ${mgen_tap_times.length}`:'K2:tap');
+  if(mgen_running){
+    S.level(10);S.move(0,44);S.text('K2:new');
+  }else{
+    S.level(mclk_active?12:mgen_tap_times.length>=2?12:3);S.move(0,44);
+    S.text(mclk_active?'EXT CLK':mgen_tap_times.length>=2?`TAP ${mgen_tap_times.length}`:'K2:tap');
+  }
   S.level(mgen_mut_rate>0?8:3);S.move(80,44);S.text('~'+Math.round(mgen_mut_rate*100)+'%');
 }
 function drawP14(){
@@ -879,13 +885,17 @@ function key(n,z){
     return;
   }
   if(n===2&&page===13){
-    const t=now();
-    if(mgen_tap_times.length&&t-mgen_tap_times[mgen_tap_times.length-1]>3) mgen_tap_times=[];
-    mgen_tap_times.push(t);
-    if(mgen_tap_times.length>4) mgen_tap_times.shift();
-    if(mgen_tap_times.length>=2){
-      let tot=0; for(let i=1;i<mgen_tap_times.length;i++) tot+=mgen_tap_times[i]-mgen_tap_times[i-1];
-      mgen_bpm=clamp(Math.round(60/(tot/(mgen_tap_times.length-1))),60,200);
+    if(mgen_running){
+      mgenGenAll(true);
+    }else{
+      const t=now();
+      if(mgen_tap_times.length&&t-mgen_tap_times[mgen_tap_times.length-1]>3) mgen_tap_times=[];
+      mgen_tap_times.push(t);
+      if(mgen_tap_times.length>4) mgen_tap_times.shift();
+      if(mgen_tap_times.length>=2){
+        let tot=0; for(let i=1;i<mgen_tap_times.length;i++) tot+=mgen_tap_times[i]-mgen_tap_times[i-1];
+        mgen_bpm=clamp(Math.round(60/(tot/(mgen_tap_times.length-1))),60,200);
+      }
     }
     return;
   }

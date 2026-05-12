@@ -846,14 +846,16 @@ local function mgen_gen_seq(ci)
   ch.step_cur = 1
 end
 
-local function mgen_gen_all()
+local function mgen_gen_all(keep_pos)
   for i = 1, 16 do
     local si  = math.random(#MGEN_STYLE_NAMES)
     local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
     mgen_ch[i].style_idx = si
     -- octave initialise ici (seul endroit), jamais ecrase par gen_seq
     mgen_ch[i].octave = def.oct_lo + math.random(0, def.oct_hi - def.oct_lo)
+    local saved = mgen_ch[i].step_cur
     mgen_gen_seq(i)
+    if keep_pos then mgen_ch[i].step_cur = math.min(saved, mgen_ch[i].steps) end
   end
 end
 
@@ -1588,20 +1590,24 @@ function key(n, z)
     mgen_mut_idx  = (mgen_mut_idx % #MGEN_MUT_RATES) + 1
     mgen_mut_rate = MGEN_MUT_RATES[mgen_mut_idx]
   elseif n == 2 and page == 13 then
-    local now = util.time()
-    if #mgen_tap_times > 0 and (now - mgen_tap_times[#mgen_tap_times]) > 3.0 then
-      mgen_tap_times = {}
-    end
-    table.insert(mgen_tap_times, now)
-    if #mgen_tap_times > 4 then table.remove(mgen_tap_times, 1) end
-    if #mgen_tap_times >= 2 then
-      local total = 0
-      for i = 2, #mgen_tap_times do
-        total = total + (mgen_tap_times[i] - mgen_tap_times[i-1])
+    if mgen_running then
+      mgen_gen_all(true)
+    else
+      local now = util.time()
+      if #mgen_tap_times > 0 and (now - mgen_tap_times[#mgen_tap_times]) > 3.0 then
+        mgen_tap_times = {}
       end
-      local avg   = total / (#mgen_tap_times - 1)
-      mgen_bpm    = math.max(60, math.min(200, math.floor(60.0 / avg + 0.5)))
-      clock.tempo = mgen_bpm
+      table.insert(mgen_tap_times, now)
+      if #mgen_tap_times > 4 then table.remove(mgen_tap_times, 1) end
+      if #mgen_tap_times >= 2 then
+        local total = 0
+        for i = 2, #mgen_tap_times do
+          total = total + (mgen_tap_times[i] - mgen_tap_times[i-1])
+        end
+        local avg   = total / (#mgen_tap_times - 1)
+        mgen_bpm    = math.max(60, math.min(200, math.floor(60.0 / avg + 0.5)))
+        clock.tempo = mgen_bpm
+      end
     end
   end
   if n == 3 then
@@ -1915,11 +1921,13 @@ function redraw()
     screen.level(5)
     screen.move(48, 64)
     screen.text(string.format("%d/16 ch  K3:go", n_on))
-    screen.level(mclk_active and 12 or (#mgen_tap_times >= 2 and 12 or 3))
-    screen.move(0, 44)
-    if mclk_active then
-      screen.text("EXT CLK")
+    if mgen_running then
+      screen.level(10) ; screen.move(0, 44) ; screen.text("K2:new")
+    elseif mclk_active then
+      screen.level(12) ; screen.move(0, 44) ; screen.text("EXT CLK")
     else
+      screen.level(#mgen_tap_times >= 2 and 12 or 3)
+      screen.move(0, 44)
       screen.text(#mgen_tap_times >= 2 and
         string.format("TAP %d", #mgen_tap_times) or "K2:tap")
     end
