@@ -133,7 +133,7 @@ local MGEN_SCALES = {
   PENMIN = {0,3,5,7,10},
   PENMAJ = {0,2,4,7,9},
 }
-local MGEN_STYLE_NAMES = {"TECHNO","DnB","JUNGLE","AMAPIANO","2STEP","BRKN","DUMB","TRAP","DRIL"}
+local MGEN_STYLE_NAMES = {"TECHNO","DnB","JUNGLE","AMAPIANO","2STEP","BRKN","DUMB","TRAP","DRIL","CLUB","KPOP","ORNTL","RAVE","TRNCE"}
 local MGEN_STYLE_DEF = {
   TECHNO   = { steps=16, density=0.50, oct_lo=2, oct_hi=4,
                intervals={0,0,2,3,5,7}, gate=0.45,
@@ -191,6 +191,39 @@ local MGEN_STYLE_DEF = {
                  if s%16==1  then return math.random(100,127)
                  elseif s%8==5 then return math.random(68,95)
                  else            return math.random(38,73) end
+               end },
+  CLUB       = { steps=16, density=0.62, oct_lo=3, oct_hi=5,
+               intervals={0,2,4,5,7,9,12}, gate=0.72,
+               vel=function(s)
+                 if s%4==1 then return math.random(100,120)
+                 elseif s%2==1 then return math.random(75,95)
+                 else return math.random(55,78) end
+               end },
+  KPOP       = { steps=32, density=0.60, oct_lo=3, oct_hi=5,
+               intervals={0,2,4,7,9,12,14}, gate=0.48,
+               vel=function(s)
+                 if s%8==1 then return math.random(100,120)
+                 elseif s%4==3 then return math.random(80,105)
+                 else return math.random(58,82) end
+               end },
+  ORNTL      = { steps=16, density=0.45, oct_lo=3, oct_hi=5,
+               intervals={0,1,3,5,6,8,11}, gate=0.35,
+               vel=function(s)
+                 return s%4==1 and math.random(95,120) or math.random(48,88)
+               end },
+  RAVE       = { steps=32, density=0.42, oct_lo=2, oct_hi=4,
+               intervals={0,0,0,3,5,7,12}, gate=0.14,
+               vel=function(s)
+                 if s%16==1 then return math.random(118,127)
+                 elseif s%8==1 then return math.random(90,115)
+                 else return math.random(52,82) end
+               end },
+  TRNCE      = { steps=16, density=0.70, oct_lo=3, oct_hi=5,
+               intervals={0,2,4,7,9,12}, gate=0.55,
+               vel=function(s)
+                 if s%4==1 then return math.random(95,118)
+                 elseif s%2==0 then return math.random(72,95)
+                 else return math.random(58,78) end
                end },
 }
 local MGEN_BREAK_NAMES = {
@@ -1936,7 +1969,7 @@ function redraw()
     screen.text(string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
 
   elseif page == 14 then
-    local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL"}
+    local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL","CLUB","KPOP","ORNT","RAVE","TRNC"}
     local vs = math.floor((mgen_sel_ch - 1) / 4) * 4 + 1
     local ys = {44, 50, 57, 64}
     for ri = 0, 3 do
