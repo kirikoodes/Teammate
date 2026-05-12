@@ -18,7 +18,7 @@ Four layers running in parallel:
 - **The dialogue** — phrase by phrase. TEAMMATE waits, listens, builds a portrait of what you just played, and responds from its own memory.
 - **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past.
 - **8OS** — record a sequence, let it slice itself into analyzed grains. In TRANS mode, three voices scan the bank and pull the grains that match your live pitch and energy in real time.
-- **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 9 styles: Techno, DnB, Jungle, Amapiano, 2-step garage, Brokenbeat, Dumbstep, Trap, Drill. 17 break types. Syncs to external MIDI clock automatically. Sends MIDI to your synths while TEAMMATE improvises.
+- **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically. Sends MIDI to your synths while TEAMMATE improvises.
 
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
@@ -37,7 +37,7 @@ Quatre couches en parallèle :
 - **Le dialogue** — phrase par phrase. TEAMMATE attend, écoute, construit un portrait de ce que tu viens de jouer, et répond depuis sa propre mémoire.
 - **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé.
 - **8OS** — enregistre une séquence, laisse-la se découper en grains analysés. En mode TRANS, trois voix scannent le bank et tirent les grains qui correspondent à ton pitch et ton énergie live en temps réel.
-- **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 9 styles : Techno, DnB, Jungle, Amapiano, 2-step garage, Brokenbeat, Dumbstep, Trap, Drill. 16 types de break. Sync automatique sur clock MIDI externe. Envoie du MIDI vers tes synthés pendant que TEAMMATE improvise.
+- **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe. Envoie du MIDI vers tes synthés pendant que TEAMMATE improvise.
 
 Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
 
@@ -118,13 +118,15 @@ Response quality.
 ### Page 4 — TIME
 Exchange timing.
 
-| Encoder | Function |
+| Encoder / Key | Function |
 |---|---|
 | E2 | `react` — minimum silence to seal a fragment (default 0.8s) |
 | E3 | `init` — minimum silence before TEAMMATE takes initiative (default 1.5s) |
+| K2 | Rhythmic phrase probability — cycle 0 / 15 / 30 / 50% |
 | K3 | Voice mode ON/OFF |
 
 - **Voice mode**: minimum syllable duration 120ms, adapted for singing and speech
+- **Rhy prob**: when > 0, each phrase has a chance of locking its inter-event gaps to a BPM grid subdivision (1/8 or 1/16 note at `mgen_bpm`). Adds rhythmic pulse to the improvisation without being systematic.
 
 ---
 
@@ -224,7 +226,7 @@ Generative MIDI sequencer — global controls. Runs in parallel with the corpus 
 |---|---|
 | E2 | BPM (60–200) |
 | E3 | Scale (MINOR / PHRYG / BLUES / DORIC / MAJOR / PENMIN / PENMAJ) |
-| K2 | Tap tempo — tap in rhythm to lock BPM (averages last 4 taps, resets after 3s) |
+| K2 | **Stopped**: tap tempo (averages last 4 taps, resets after 3s) · **Running**: new theme — regenerates all sequences live without stopping |
 | K3 | START (generates all sequences + launches) / STOP + all notes off |
 
 - Sends MIDI to **device 1**, one MIDI channel per generator channel (ch1→MIDI ch1, ch2→MIDI ch2…)
@@ -239,7 +241,7 @@ Generative MIDI sequencer — global controls. Runs in parallel with the corpus 
 |---|---|
 | E2 | BPM (60–200) |
 | E3 | Gamme (MINOR / PHRYG / BLUES / DORIC / MAJOR / PENMIN / PENMAJ) |
-| K2 | Tap tempo — tape en rythme pour verrouiller le BPM (moyenne sur 4 taps, reset après 3s) |
+| K2 | **Arrêté** : tap tempo (moyenne 4 taps, reset après 3s) · **En marche** : new theme — régénère toutes les séquences en live sans stopper |
 | K3 | START (génère toutes les séquences + lance) / STOP + all notes off |
 
 - Envoie le MIDI sur le **device 1**, un canal MIDI par channel générateur (ch1→MIDI ch1, ch2→MIDI ch2…)
@@ -253,50 +255,66 @@ Generative MIDI sequencer — global controls. Runs in parallel with the corpus 
 ### Page 14 — MGEN CHANNELS
 Per-channel configuration. Shows 4 channels at a time, scrolls automatically with E2.
 
-| Encoder | Function |
+| Encoder / Key | Function |
 |---|---|
 | E2 | Select channel (1–16) |
 | E3 | Style for selected channel — regenerates its sequence |
+| K2 | Evo rate — cycle 0 / 5 / 12 / 22 / 40% mutation per step per cycle |
 | K3 | Toggle selected channel ON / OFF |
+
+**Evo mode**: each time a channel completes a full cycle, each step has a chance of mutating — notes drift to an adjacent scale degree, gates and velocities shift slightly. At 12% (default) sequences evolve slowly and organically. At 40% they transform fast. At 0% they stay fixed.
 
 **Styles:**
 
-| Style | BPM range | Init octave | Character |
-|---|---|---|---|
-| **TECH** (Techno) | 130–150 | 2–4 | Ostinato, repetitive, heavy downbeats, tight syncopation |
-| **DnB** | 160–180 | 2–4 | Syncopated basslines, half-time feel, interval jumps |
-| **JGL** (Jungle) | 165–175 | 2–5 | Chromatic fills, irregular density, Amen-break energy |
-| **AMPR** (Amapiano) | 112–116 | 3–5 | Jazz harmonics, log-drum feel, melodic runs, wide gate |
-| **2STP** (2-step garage) | 128–135 | 2–4 | Off-beat syncopation, soulful intervals, UK garage feel |
-| **BRKN** (Brokenbeat) | 90–108 | 3–5 | Jazz harmony, avoids downbeat, irregular placement, wide gate |
-| **DUMB** (Dumbstep) | 138–150 | 3–4 | Half-time, very sparse, heavy hits, long sustain |
-| **TRAP** | 130–170 | 3–5 | Sparse hits, short gate, strong 1 and off-beat accents |
-| **DRIL** (Drill) | 140–155 | 3–5 | Chromatic dark intervals, syncopated, medium register |
+| Style | Init octave | Character |
+|---|---|---|
+| **TECH** (Techno) | 2–4 | Ostinato, repetitive, heavy downbeats, tight syncopation |
+| **DnB** | 2–4 | Syncopated basslines, half-time feel, interval jumps |
+| **JGL** (Jungle) | 2–5 | Chromatic fills, irregular density, Amen-break energy |
+| **AMPR** (Amapiano) | 3–5 | Jazz harmonics, log-drum feel, melodic runs, wide gate |
+| **2STP** (2-step garage) | 2–4 | Off-beat syncopation, soulful intervals, UK garage feel |
+| **BRKN** (Brokenbeat) | 3–5 | Jazz harmony, avoids downbeat, irregular placement, wide gate |
+| **DUMB** (Dumbstep) | 3–4 | Half-time, very sparse, heavy hits, long sustain |
+| **TRAP** | 3–5 | Sparse hits, short gate, strong 1 and off-beat accents |
+| **DRIL** (Drill) | 3–5 | Chromatic dark intervals, syncopated, medium register |
+| **CLUB** | 3–5 | Melodic house, legato, full-scale intervals, dense |
+| **KPOP** | 3–5 | Pentatonic + extensions, syncopated, punchy |
+| **ORNT** (Oriental) | 3–5 | Hijaz intervals (aug 2nd, tritone), ornamental, short gate |
+| **RAVE** | 2–4 | Acid/hardcore, ultra-short gate, heavy accents on 1 |
+| **TRNC** (Trance) | 3–5 | Flowing, high density, steady melodic pulse |
 
 - **Init octave** is set randomly at startup (K3 START) — never overwritten when changing style
 - Adjust octave freely per channel with **E3 on page 15** — style changes on page 14 leave octave untouched
 
 *Configuration par channel. Affiche 4 channels à la fois, scroll automatique avec E2.*
 
-| Encodeur | Fonction |
+| Encodeur / Touche | Fonction |
 |---|---|
 | E2 | Sélectionner le channel (1–16) |
 | E3 | Style du channel sélectionné — régénère sa séquence |
+| K2 | Taux Evo — cycle 0 / 5 / 12 / 22 / 40% de mutation par step par cycle |
 | K3 | Activer / désactiver le channel sélectionné |
+
+**Mode Evo** : à chaque fin de cycle, chaque step a une chance de muter — les notes glissent vers un degré voisin dans la gamme, gates et vélocités dérivent légèrement. À 12% (défaut) les séquences évoluent lentement. À 40% elles se transforment vite. À 0% elles restent fixes.
 
 **Styles :**
 
-| Style | Plage BPM | Octave init | Caractère |
-|---|---|---|---|
-| **TECH** (Techno) | 130–150 | 2–4 | Ostinato, répétitif, temps forts lourds, syncopes serrées |
-| **DnB** | 160–180 | 2–4 | Basslines syncopées, half-time feel, sauts d'intervalles |
-| **JGL** (Jungle) | 165–175 | 2–5 | Fills chromatiques, densité irrégulière, énergie Amen-break |
-| **AMPR** (Amapiano) | 112–116 | 3–5 | Harmonies jazz, log-drum feel, runs mélodiques, gate large |
-| **2STP** (2-step garage) | 128–135 | 2–4 | Syncopes off-beat, intervalles soul, feel UK garage |
-| **BRKN** (Brokenbeat) | 90–108 | 3–5 | Harmonie jazz, évite le downbeat, placement irrégulier, gate large |
-| **DUMB** (Dumbstep) | 138–150 | 3–4 | Half-time, très sparse, hits lourds, longue tenue |
-| **TRAP** | 130–170 | 3–5 | Hits sparse, gate court, fort accent 1 et contretemps |
-| **DRIL** (Drill) | 140–155 | 3–5 | Intervalles chromatiques sombres, syncopé, registre médium |
+| Style | Octave init | Caractère |
+|---|---|---|
+| **TECH** (Techno) | 2–4 | Ostinato, répétitif, temps forts lourds, syncopes serrées |
+| **DnB** | 2–4 | Basslines syncopées, half-time feel, sauts d'intervalles |
+| **JGL** (Jungle) | 2–5 | Fills chromatiques, densité irrégulière, énergie Amen-break |
+| **AMPR** (Amapiano) | 3–5 | Harmonies jazz, log-drum feel, runs mélodiques, gate large |
+| **2STP** (2-step garage) | 2–4 | Syncopes off-beat, intervalles soul, feel UK garage |
+| **BRKN** (Brokenbeat) | 3–5 | Harmonie jazz, évite le downbeat, placement irrégulier, gate large |
+| **DUMB** (Dumbstep) | 3–4 | Half-time, très sparse, hits lourds, longue tenue |
+| **TRAP** | 3–5 | Hits sparse, gate court, fort accent 1 et contretemps |
+| **DRIL** (Drill) | 3–5 | Intervalles chromatiques sombres, syncopé, registre médium |
+| **CLUB** | 3–5 | House mélodique, legato, intervalles pleine gamme, dense |
+| **KPOP** | 3–5 | Pentatonique + extensions, syncopé, punchy |
+| **ORNT** (Oriental) | 3–5 | Intervalles hijaz (2nde aug, triton), ornamental, gate court |
+| **RAVE** | 2–4 | Acid/hardcore, gate ultra-court, accents lourds sur le 1 |
+| **TRNC** (Trance) | 3–5 | Fluide, haute densité, pulse mélodique régulier |
 
 - **Octave init** : tiré aléatoirement au démarrage (K3 START) — jamais écrasé lors d'un changement de style
 - Ajuste l'octave librement par channel avec **E3 page 15** — changer de style page 14 ne touche pas à l'octave
