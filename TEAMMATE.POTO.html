@@ -60,7 +60,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.1</td><td>Corpus — learn prob (E2) · gate thr (E3) · K3 clear</td></tr>
       <tr><td>p.2</td><td>Density (E2) · silence bias (E3) · K3 force reply</td></tr>
       <tr><td>p.3</td><td>Contrast (E2) · reply prob (E3) · K3 deaf on/off</td></tr>
-      <tr><td>p.4</td><td>React time (E2) · init silence (E3) · K3 voice mode</td></tr>
+      <tr><td>p.4</td><td>React time (E2) · init silence (E3) · K2 rhy prob · K3 voice mode</td></tr>
       <tr><td>p.5</td><td>POtO granular — vol (E2) · monitor (E3) · K3 on/off</td></tr>
       <tr><td>p.6</td><td>8OS looper — vol (E2) · grain size (E3) · K3 OFF→REC→TRANS</td></tr>
       <tr><td>p.7</td><td>Grain size (E2) · spread (E3) · K3 rate</td></tr>
@@ -132,6 +132,9 @@ let last_sound_t=now();
 let p_rec_prob=1,p_gate_thr=0.003,p_density=0.55,p_sil_bias=0.14;
 let p_contrast=0.5,p_reply=0.75,p_sil_min=0.8,p_sil_max=1.5;
 let p_voice=false,p_deaf=false;
+let p_rhythm_idx=1;
+const RHYTHM_RATES=[0,0.15,0.30,0.50];
+let p_rhythm=RHYTHM_RATES[p_rhythm_idx];
 let p_poto_on=false,p_poto_vol=0.5,p_poto_rate=1.0,p_poto_spread=0.05,p_poto_size=0.15;
 let p_monitor=1.0;
 let os8_mode='OFF',os8_sync=false,os8_bank=[],os8_vol=0.7,os8_size=0.15,os8_rec_n=0;
@@ -504,12 +507,16 @@ function improvRate(strat){
   return 0.98+Math.random()*0.04;
 }
 async function playPhrase(phrase,strat){
-  const gap=strat==='IMITATION'&&phrase_analysis&&phrase_analysis.density>0
+  const rhythmic=p_rhythm>0&&Math.random()<p_rhythm;
+  const beat=60/mgen_bpm;
+  const subdiv=Math.random()<0.5?beat/2:beat/4;
+  const gap=rhythmic?subdiv
+    :strat==='IMITATION'&&phrase_analysis&&phrase_analysis.density>0
     ?Math.max(0.02,1/phrase_analysis.density*0.6):Math.max(0.02,(1-p_density)*0.18);
   for(let i=0;i<phrase.length;i++){
     playEvent(phrase[i],improvRate(strat));
     markPlayed(phrase[i].slot); last_slot=phrase[i].slot;
-    if(i<phrase.length-1) await sleep(gap*1000);
+    if(i<phrase.length-1) await sleep(Math.max(20,gap*1000));
   }
 }
 function respond(rn){
@@ -780,8 +787,10 @@ function drawP3(){
   S.level(p_deaf?12:5);S.move(0,64);S.text(`K3 deaf  ${p_deaf?'ON':'off'}`);
 }
 function drawP4(){
-  S.level(10);S.move(0,57);S.text(`E2 react ${p_sil_min.toFixed(1)}s  E3 init ${p_sil_max.toFixed(1)}s`);
+  S.level(10);S.move(0,50);S.text(`E2 react ${p_sil_min.toFixed(1)}s`);
+  S.move(0,57);S.text(`E3 init  ${p_sil_max.toFixed(1)}s`);
   S.level(p_voice?12:5);S.move(0,64);S.text(`K3 voice ${p_voice?'ON':'off'}`);
+  S.level(p_rhythm>0?9:3);S.move(70,64);S.text(`K2 rhy ${Math.round(p_rhythm*100)}%`);
 }
 function drawP5(){
   S.level(p_poto_on?15:5);S.font_size(16);S.move(0,56);S.text(p_poto_on?'ON':'off');
@@ -884,6 +893,7 @@ function enc(n,d){
 
 function key(n,z){
   if(!z) return;
+  if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
   if(n===2&&page===6){os8_sync=!os8_sync;return;}
   if(n===2&&page===14){
     mgen_mut_idx=(mgen_mut_idx+1)%MGEN_MUT_RATES.length;

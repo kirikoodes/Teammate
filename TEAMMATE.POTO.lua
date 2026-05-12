@@ -92,6 +92,9 @@ local p_reply     = 0.75
 local p_rec_prob  = 1.0   -- taux d'apprentissage (0=gele, 1=tout enregistre)
 local p_voice     = false  -- mode voix : syllabes min 120ms, pas de transposition
 local p_deaf      = false  -- mode sourd : ignore l'entree, impro autonome
+local p_rhythm_idx  = 2
+local RHYTHM_RATES  = {0, 0.15, 0.30, 0.50}
+local p_rhythm      = RHYTHM_RATES[p_rhythm_idx]
 local p_poto_on     = false
 local p_poto_vol    = 0.5
 local p_poto_rate   = 1.0    -- vitesse lecture grain (0.5-2.0)
@@ -1249,8 +1252,13 @@ local function improv_rate(strategy, i, n)
 end
 
 local function play_phrase(phrase, strategy)
+  local rhythmic = p_rhythm > 0 and math.random() < p_rhythm
+  local beat     = 60.0 / mgen_bpm
+  local subdiv   = math.random() < 0.5 and (beat / 2) or (beat / 4)
   local gap
-  if strategy == "IMITATION" and phrase_analysis and phrase_analysis.density > 0 then
+  if rhythmic then
+    gap = subdiv
+  elseif strategy == "IMITATION" and phrase_analysis and phrase_analysis.density > 0 then
     gap = math.max(0.02, 1.0 / phrase_analysis.density * 0.6)
   else
     gap = math.max(0.02, (1.0 - p_density) * 0.18)
@@ -1260,7 +1268,7 @@ local function play_phrase(phrase, strategy)
     play_event(ev, rm)
     mark_played(ev.slot)
     last_slot = ev.slot
-    if i < #phrase then clock.sleep(gap) end
+    if i < #phrase then clock.sleep(math.max(0.02, gap)) end
   end
 end
 
@@ -1539,7 +1547,7 @@ end
 -- Page  1  CORPUS   : E2 learn%     | E3 gate thr   | K3 clear corpus
 -- Page  2  MAIN     : E2 density    | E3 sil bias   | K3 force reply
 -- Page  3  RESP     : E2 contrast   | E3 reply%     | K3 deaf on/off
--- Page  4  TIME     : E2 react      | E3 init       | K3 voice mode
+-- Page  4  TIME     : E2 react      | E3 init       | K2 rhy prob   | K3 voice mode
 -- Page  5  POtO     : E2 vol        | E3 monitor    | K3 on/off
 -- Page  6  8OS      : E2 vol        | E3 grain ms   | K3 OFF->REC->TRANS | K2 clock sync
 -- Page  7  GRAIN    : E2 grain ms   | E3 spread     | K3 rate preset
@@ -1619,7 +1627,10 @@ end
 
 function key(n, z)
   if z == 0 then return end
-  if n == 2 and page == 6 then
+  if n == 2 and page == 4 then
+    p_rhythm_idx = (p_rhythm_idx % #RHYTHM_RATES) + 1
+    p_rhythm     = RHYTHM_RATES[p_rhythm_idx]
+  elseif n == 2 and page == 6 then
     os8_sync = not os8_sync
   elseif n == 2 and page == 14 then
     mgen_mut_idx  = (mgen_mut_idx % #MGEN_MUT_RATES) + 1
@@ -1846,11 +1857,16 @@ function redraw()
 
   elseif page == 4 then
     screen.level(10)
+    screen.move(0, 50)
+    screen.text(string.format("E2 react %.1fs", p_sil_min))
     screen.move(0, 57)
-    screen.text(string.format("E2 react %.1fs  E3 init %.1fs", p_sil_min, p_sil_max))
+    screen.text(string.format("E3 init  %.1fs", p_sil_max))
     screen.level(p_voice and 12 or 5)
     screen.move(0, 64)
     screen.text(string.format("K3 voice %s", p_voice and "ON" or "off"))
+    screen.level(p_rhythm > 0 and 9 or 3)
+    screen.move(70, 64)
+    screen.text(string.format("K2 rhy %d%%", math.floor(p_rhythm * 100)))
 
   elseif page == 5 then
     local col = p_poto_on and 15 or 5
