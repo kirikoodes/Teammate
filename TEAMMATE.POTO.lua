@@ -1547,7 +1547,7 @@ end
 -- Page  1  CORPUS   : E2 learn%     | E3 gate thr   | K3 clear corpus
 -- Page  2  MAIN     : E2 density    | E3 sil bias   | K3 force reply
 -- Page  3  RESP     : E2 contrast   | E3 reply%     | K3 deaf on/off
--- Page  4  TIME     : E2 react      | E3 init       | K2 rhy prob   | K3 voice mode
+-- Page  4  TIME     : E2 react      | E3 init       | K2 rhy prob 0/15/30/50% | K3 voice mode
 -- Page  5  POtO     : E2 vol        | E3 monitor    | K3 on/off
 -- Page  6  8OS      : E2 vol        | E3 grain ms   | K3 OFF->REC->TRANS | K2 clock sync
 -- Page  7  GRAIN    : E2 grain ms   | E3 spread     | K3 rate preset
