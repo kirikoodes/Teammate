@@ -1515,8 +1515,8 @@ end
 -- Page 10  MIDI DEV2: E2 stream     | E3 ch         | K3 route on/off
 -- Page 11  MIDI DEV3: E2 stream     | E3 ch         | K3 route on/off
 -- Page 12  MIDI DEV4: E2 stream     | E3 ch         | K3 route on/off
--- Page 13  MGEN     : E2 BPM        | E3 gamme      | K2 tap tempo  | K3 start/stop
--- Page 14  MGEN CH  : E2 channel    | E3 style      | K3 on/off channel
+-- Page 13  MGEN     : E2 BPM        | E3 gamme      | K2 tap/new theme | K3 start/stop
+-- Page 14  MGEN CH  : E2 channel    | E3 style      | K2 evo rate      | K3 on/off channel
 -- Page 15  MGEN BRK : E2 break type | E3 octave ch  | K3 fire break
 -- E1 : navigation pages (1->15->1)
 ---------------------------------------------------------------------
