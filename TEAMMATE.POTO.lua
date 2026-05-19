@@ -291,7 +291,7 @@ local splash_active = false
 -- MIDI routing [stream 1-4][device 1-4] : 1=IMPRO 2=POtO 3=8OS 4=MGEN
 local midi_outs  = {}
 local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false}}
-local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3},{4,4,4,4}}  -- canal par stream x device
+local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3}}  -- canal par stream x device (streams 1-3 seulement)
 local midi_cur_stream = 1   -- stream selectionne sur pages 9-12
 
 local rms_smooth     = 0
@@ -1028,9 +1028,9 @@ local function mgen_start()
             end
             if active then
               local nn, gd = note, sd * gate
+              local mc = ch.midi_ch
               for d = 1, 4 do
                 if midi_route[4][d] and midi_outs[d] then
-                  local mc = midi_ch[4][d]
                   local out = midi_outs[d]
                   out:note_on(nn, vel, mc)
                   clock.run(function()
@@ -1631,8 +1631,10 @@ function enc(n, d)
     elseif page == 7 then
       p_poto_spread = util.clamp(p_poto_spread + d * 0.01, 0.0, 0.30)
     elseif page >= 9 and page <= 12 then
-      local dev = page - 8
-      midi_ch[midi_cur_stream][dev] = util.clamp(midi_ch[midi_cur_stream][dev] + d, 1, 16)
+      if midi_cur_stream <= 3 then
+        local dev = page - 8
+        midi_ch[midi_cur_stream][dev] = util.clamp(midi_ch[midi_cur_stream][dev] + d, 1, 16)
+      end
     elseif page == 13 then
       mgen_scale_idx = ((mgen_scale_idx - 1 + d) % #MGEN_SCALE_NAMES) + 1
     elseif page == 14 then
@@ -1977,9 +1979,11 @@ function redraw()
       screen.level(routed and 15 or 3)
       screen.move(40, y[s])
       screen.text(routed and "[X]" or "[ ]")
-      screen.level(sel and 10 or 4)
-      screen.move(70, y[s])
-      screen.text(string.format("ch:%2d", midi_ch[s][dev]))
+      if s <= 3 then
+        screen.level(sel and 10 or 4)
+        screen.move(70, y[s])
+        screen.text(string.format("ch:%2d", midi_ch[s][dev]))
+      end
     end
 
   elseif page == 13 then
