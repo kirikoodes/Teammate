@@ -290,9 +290,13 @@ local splash_active = false
 
 -- MIDI routing [stream 1-4][device 1-4] : 1=IMPRO 2=POtO 3=8OS 4=MGEN
 local midi_outs  = {}
-local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false}}
-local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3}}  -- canal par stream x device (streams 1-3 seulement)
-local midi_cur_stream = 1   -- stream selectionne sur pages 9-12
+local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false}}
+local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3}}  -- canal par stream x device (streams 1-3)
+local midi_cur_stream    = 1   -- stream selectionne sur pages 9-12
+local midi_cur_dev       = 1   -- inutilise (ancienne nav colonne)
+local midi_ch_audio      = {5,5,5,5}  -- canal par device pour stream AUDIO
+local midi_audio_cur_dev = 1          -- device selectionne sur page 16
+local midi_audio_note    = nil        -- note MIDI audio active courante
 
 local rms_smooth     = 0
 local ply_idx        = 1
@@ -388,6 +392,20 @@ local function midi_cc_all(stream, cc, val)
   for d = 1, 4 do
     if midi_route[stream][d] and midi_outs[d] then
       midi_outs[d]:cc(cc, val, midi_ch[stream][d])
+    end
+  end
+end
+local function audio_midi_note_on(note, vel)
+  for d = 1, 4 do
+    if midi_route[5][d] and midi_outs[d] then
+      midi_outs[d]:note_on(note, vel, midi_ch_audio[d])
+    end
+  end
+end
+local function audio_midi_note_off(note)
+  for d = 1, 4 do
+    if midi_route[5][d] and midi_outs[d] then
+      midi_outs[d]:note_off(note, 0, midi_ch_audio[d])
     end
   end
 end
@@ -1329,11 +1347,23 @@ local function process_gate(new_gate)
     rms_sum  = 0 ; rms_n = 0
     rec_start(rec_slot)
     rec_on = true
+    -- stream 5 AUDIO : note on sur le pitch courant
+    local an = freq_to_midi(cur_freq)
+    if an then
+      midi_audio_note = an
+      local vel = math.max(1, math.min(127, math.floor(cur_rms * 800 + 20)))
+      audio_midi_note_on(an, vel)
+    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 then
     midi_cc_all(3, 123, 0)
     midi_cc_all(2, 123, 0)
+    -- stream 5 AUDIO : note off
+    if midi_audio_note then
+      audio_midi_note_off(midi_audio_note)
+      midi_audio_note = nil
+    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 and rec_on then
@@ -1566,7 +1596,7 @@ function cleanup()
 end
 
 ---------------------------------------------------------------------
--- navigation pages (15 pages)
+-- navigation pages (16 pages)
 -- Page  1  CORPUS   : E2 learn%     | E3 gate thr   | K3 clear corpus
 -- Page  2  MAIN     : E2 density    | E3 sil bias   | K3 force reply
 -- Page  3  RESP     : E2 contrast   | E3 reply%     | K3 deaf on/off
@@ -1584,11 +1614,12 @@ end
 --          14 styles : TECHNO DnB JUNGLE AMAPIANO 2STEP BRKN DUMB TRAP DRIL
 --                      CLUB KPOP ORNTL RAVE TRNCE
 -- Page 15  MGEN BRK : E2 break type | E3 octave ch  | K3 fire break
--- E1 : navigation pages (1->15->1)
+-- Page 16  AUDIO>MIDI: E2 device   | E3 channel    | K3 toggle route
+-- E1 : navigation pages (1->16->1)
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 15) + 1
+    page = ((page - 1 + d) % 16) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1613,6 +1644,8 @@ function enc(n, d)
       mgen_sel_ch = util.clamp(mgen_sel_ch + d, 1, 16)
     elseif page == 15 then
       mgen_break_idx = ((mgen_break_idx - 1 + d) % #MGEN_BREAK_NAMES) + 1
+    elseif page == 16 then
+      midi_audio_cur_dev = util.clamp(midi_audio_cur_dev + d, 1, 4)
     end
   elseif n == 3 then
     if page == 1 then
@@ -1635,6 +1668,8 @@ function enc(n, d)
         local dev = page - 8
         midi_ch[midi_cur_stream][dev] = util.clamp(midi_ch[midi_cur_stream][dev] + d, 1, 16)
       end
+    elseif page == 16 then
+      midi_ch_audio[midi_audio_cur_dev] = util.clamp(midi_ch_audio[midi_audio_cur_dev] + d, 1, 16)
     elseif page == 13 then
       mgen_scale_idx = ((mgen_scale_idx - 1 + d) % #MGEN_SCALE_NAMES) + 1
     elseif page == 14 then
@@ -1721,6 +1756,8 @@ function key(n, z)
     elseif page >= 9 and page <= 12 then
       local dev = page - 8
       midi_route[midi_cur_stream][dev] = not midi_route[midi_cur_stream][dev]
+    elseif page == 16 then
+      midi_route[5][midi_audio_cur_dev] = not midi_route[5][midi_audio_cur_dev]
     elseif page == 13 then
       if mgen_running then mgen_stop() else mgen_gen_all() ; mgen_start() end
     elseif page == 14 then
@@ -1777,7 +1814,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/15")
+  screen.text(page .. "/16")
 
   if rec_on then
     screen.level(15)
@@ -1818,6 +1855,9 @@ function redraw()
     local dname = (midi.vports[dev] and midi.vports[dev].name) or ("DEV " .. dev)
     if #dname > 21 then dname = string.sub(dname, 1, 20) .. "~" end
     screen.text(string.format("d%d %s", dev, dname))
+  elseif page == 16 then
+    local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
+    screen.text(string.format("AUDIO>MIDI  live:%s  E2 dev  E3 ch", an))
   elseif phrase_analysis then
     screen.text(string.format("ph rms%.2f  %devs/s",
       phrase_analysis.rms,
@@ -2049,6 +2089,24 @@ function redraw()
     screen.move(0, 64)
     local ch = mgen_ch[mgen_sel_ch]
     screen.text(string.format("ch%02d oct%d  K3:fire", mgen_sel_ch, ch.octave))
+
+  elseif page == 16 then
+    local ys = {44, 51, 57, 64}
+    for d = 1, 4 do
+      local sel    = (d == midi_audio_cur_dev)
+      local routed = midi_route[5][d]
+      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+      if #dname > 12 then dname = string.sub(dname, 1, 11) .. "~" end
+      screen.level(sel and 15 or (routed and 10 or 4))
+      screen.move(0, ys[d])
+      screen.text(string.format("d%d %s", d, dname))
+      screen.level(routed and 15 or 3)
+      screen.move(80, ys[d])
+      screen.text(routed and "[X]" or "[ ]")
+      screen.level(sel and 10 or 4)
+      screen.move(100, ys[d])
+      screen.text(string.format("ch%2d", midi_ch_audio[d]))
+    end
   end
 
   screen.update()

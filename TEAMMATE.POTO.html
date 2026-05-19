@@ -66,6 +66,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.7</td><td>Grain size (E2) · spread (E3) · K3 rate</td></tr>
       <tr><td>p.8</td><td>8OS bank info · K3 clear bank</td></tr>
       <tr><td>p.9–12</td><td>MIDI routing — E2 stream · E3 channel · K3 toggle</td></tr>
+      <tr><td>p.16</td><td>Audio→MIDI — pitch live polyphonique → MIDI · E2 device · E3 channel · K3 toggle</td></tr>
       <tr><td>p.13</td><td>MGEN — BPM (E2) · scale (E3) · K2 tap/new theme · K3 start/stop</td></tr>
       <tr><td>p.14</td><td>MGEN channels — E2 select · E3 style · K2 evo rate · K3 on/off</td></tr>
       <tr><td>p.15</td><td>MGEN breaks — E2 type · E3 octave · K3 fire</td></tr>
@@ -78,7 +79,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
     <p><b style="color:#444">8OS</b> — 20s looper. K3 → REC records. K3 → TRANS plays back as random grains.</p>
     <p><b style="color:#444">MGEN</b> — 16-channel MIDI sequencer. Enable channels on p.14, pick styles, start on p.13. Breaks (p.15) apply to active channels for one cycle. <b style="color:#444">Evo</b> (K2 on p.14) sets a per-step mutation rate — notes drift to adjacent scale degrees, gates and velocities shift gradually each cycle. K2 on p.13 changes theme live while running.</p>
     <p>14 styles: TECHNO · DnB · JUNGLE · AMAPIANO · 2STEP · BRKN · DUMB · TRAP · DRIL · CLUB · KPOP · ORNTL · RAVE · TRNCE.</p>
-    <p><b style="color:#444">MIDI routing</b> — each stream (IMPRO / POtO / 8OS / MGEN) can be routed to up to 4 MIDI devices on pages 9–12.</p>
+    <p><b style="color:#444">MIDI routing</b> — each stream (IMPRO / POtO / 8OS / MGEN) can be routed to up to 4 MIDI devices on pages 9–12. <b style="color:#444">Audio→MIDI</b> (p.16) converts live audio pitch to polyphonic MIDI notes in real time.</p>
     <p class="note">Requires Chrome/Edge + mic permission. MIDI requires HTTPS or localhost.</p>
   </div>
 </div>
@@ -152,8 +153,10 @@ setTimeout(()=>{splash_active=false;},3000);
 let midi_outs=[], midi_out_names=['---','---','---','---'];
 let midi_in_names=[];
 let audio_in_name='---', audio_out_name='---';
-let midi_route=[[true,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false]];
+let midi_route=[[true,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false]];
 let midi_ch_map=[[1,1,1,1],[2,2,2,2],[3,3,3,3]],midi_cur_stream=1;
+let midi_ch_audio=[5,5,5,5],midi_audio_cur_dev=1;
+let audio_midi_notes=[];  // notes MIDI audio actives (polyphonique)
 
 const RATE_PRESETS=[0.5,0.75,1.0,1.25,1.5,2.0];
 let rate_pidx=2;
@@ -377,12 +380,39 @@ function onRMS(v){
   if(ng!==cur_gate){processGate(ng);cur_gate=ng;}
 }
 
+function detectAudioPitches(){
+  if(!analyser||!audioCtx) return [];
+  const fftSize=analyser.frequencyBinCount;
+  const fftBuf=new Float32Array(fftSize);
+  analyser.getFloatFrequencyData(fftBuf);
+  const binHz=audioCtx.sampleRate/(fftSize*2);
+  const minBin=Math.ceil(60/binHz), maxBin=Math.min(fftSize-2,Math.floor(3000/binHz));
+  const thresh=-38;
+  const peaks=[];
+  for(let i=minBin+1;i<maxBin;i++){
+    if(fftBuf[i]>thresh&&fftBuf[i]>=fftBuf[i-1]&&fftBuf[i]>=fftBuf[i+1]){
+      const nn=freqToMidi(i*binHz);
+      if(nn!==null){
+        const dup=peaks.find(p=>Math.abs(p.n-nn)<3);
+        if(!dup){peaks.push({n:nn,a:fftBuf[i]});}
+        else if(fftBuf[i]>dup.a){dup.n=nn;dup.a=fftBuf[i];}
+      }
+    }
+  }
+  peaks.sort((a,b)=>b.a-a.a);
+  return peaks.slice(0,4).map(p=>p.n);
+}
+
 function processGate(ng){
   const t=now();
   if(ng>0.5&&cur_gate<0.5&&!rec_on&&state!=='REST'){
     last_sound_t=t; rec_slot=head; rec_t0=t;
     rms_sum=0; rms_n_acc=0; recBuffer=[]; rec_on=true;
+    // stream 5 AUDIO : note_on polyphonique
+    const vel=clamp(Math.floor(cur_rms*800+20),1,127);
+    detectAudioPitches().forEach(n=>{audioMidiNoteOn(n,vel);audio_midi_notes.push(n);});
   }
+  if(ng<0.5&&cur_gate>0.5){audioMidiFlush();}
   if(ng<0.5&&cur_gate>0.5&&rec_on){
     const dur=t-rec_t0; rec_on=false;
     const minD=p_voice?0.12:MIN_DUR;
@@ -620,6 +650,18 @@ function mgenMidiNoteOff(mc,note){
   for(let d=0;d<4;d++) if(midi_route[3]&&midi_route[3][d]&&midi_outs[d])
     midi_outs[d].send([0x80|(mc-1),clamp(note,0,127),0]);
 }
+function audioMidiNoteOn(note,vel){
+  for(let d=0;d<4;d++) if(midi_route[4]&&midi_route[4][d]&&midi_outs[d])
+    midi_outs[d].send([0x90|(midi_ch_audio[d]-1),clamp(note,0,127),clamp(vel,1,127)]);
+}
+function audioMidiNoteOff(note){
+  for(let d=0;d<4;d++) if(midi_route[4]&&midi_route[4][d]&&midi_outs[d])
+    midi_outs[d].send([0x80|(midi_ch_audio[d]-1),clamp(note,0,127),0]);
+}
+function audioMidiFlush(){
+  audio_midi_notes.forEach(n=>audioMidiNoteOff(n));
+  audio_midi_notes=[];
+}
 
 // ─── MIDI GEN ─────────────────────────────────────────────────────────────────
 function mgenGenSeq(ci){
@@ -757,7 +799,7 @@ function redraw(){
   S.font_size(8);
   S.level(15);S.move(0,8);S.text(state);
   S.level(5);S.move(42,8);S.text(`c:${count}/${CORPUS_SLOTS}`);
-  S.level(5);S.move(100,8);S.text(`${page}/15`);
+  S.level(5);S.move(100,8);S.text(`${page}/16`);
   if(rec_on){S.level(15);S.circle(124,5,3);S.fill();}
   S.level(state==='THINK'?15:5);S.move(0,18);S.text(strat_name);
   if(phrase_buf.length>0){S.level(10);S.move(76,18);S.text('+'+phrase_buf.length);}
@@ -771,6 +813,9 @@ function redraw(){
     const raw=midi_out_names[dv]||'---';
     const dname=`d${dv+1} ${raw}`;
     S.text(dname.length>22?dname.slice(0,21)+'~':dname);
+  }else if(page===16){
+    const an=audio_midi_notes.length?`n:${audio_midi_notes.join(',')}` :'---';
+    S.text(`AUDIO>MIDI  live:${an}`);
   }else if(phrase_analysis) S.text(`ph rms${phrase_analysis.rms.toFixed(2)}  ${Math.floor(phrase_analysis.density)}evs/s`);
   else S.text(`ctr ${Math.floor(cur_centroid/1000)}kHz  flat ${Math.floor(cur_flatness*100)}%`);
   if(page===14){S.level(mgen_mut_rate>0?9:3);S.move(84,37);S.text('~'+Math.round(mgen_mut_rate*100)+'% K2');}
@@ -787,6 +832,7 @@ function redraw(){
   else if(page===13) drawP13();
   else if(page===14) drawP14();
   else if(page===15) drawP15();
+  else if(page===16) drawP16();
 }
 
 function drawP1(){
@@ -884,10 +930,21 @@ function drawP15(){
   S.level(8);S.move(0,64);
   S.text(`ch${String(mgen_sel_ch).padStart(2,'0')} oct${mgen_ch[mgen_sel_ch-1].octave}  K3:fire`);
 }
+function drawP16(){
+  const ys=[44,51,57,64];
+  for(let d=0;d<4;d++){
+    const sel=(d+1===midi_audio_cur_dev),rt=midi_route[4][d];
+    const raw=midi_out_names[d]||'---';
+    const dname=raw.length>12?raw.slice(0,11)+'~':raw;
+    S.level(sel?15:rt?10:4);S.move(0,ys[d]);S.text(`d${d+1} ${dname}`);
+    S.level(rt?15:3);S.move(80,ys[d]);S.text(rt?'[X]':'[ ]');
+    S.level(sel?10:4);S.move(100,ys[d]);S.text(`ch${String(midi_ch_audio[d]).padStart(2,' ')}`);
+  }
+}
 
 // ─── INPUT ────────────────────────────────────────────────────────────────────
 function enc(n,d){
-  if(n===1){page=((page-1+d+15)%15)+1;return;}
+  if(n===1){page=((page-1+d+16)%16)+1;return;}
   if(n===2){
     if(page===1)  p_rec_prob=clamp(p_rec_prob+d*0.05,0,1);
     else if(page===2)  p_density=clamp(p_density+d*0.05,0,1);
@@ -900,6 +957,7 @@ function enc(n,d){
     else if(page===13) mgen_bpm=clamp(mgen_bpm+d,60,200);
     else if(page===14) mgen_sel_ch=clamp(mgen_sel_ch+d,1,16);
     else if(page===15) mgen_break_idx=((mgen_break_idx+d)%MGEN_BREAK_NAMES.length+MGEN_BREAK_NAMES.length)%MGEN_BREAK_NAMES.length;
+    else if(page===16) midi_audio_cur_dev=clamp(midi_audio_cur_dev+d,1,4);
   }else if(n===3){
     if(page===1)  p_gate_thr=clamp(p_gate_thr+d*0.001,0.0001,0.05);
     else if(page===2)  p_sil_bias=clamp(p_sil_bias+d*0.05,0,1);
@@ -912,6 +970,7 @@ function enc(n,d){
     else if(page===13) mgen_scale_idx=((mgen_scale_idx+d)%MGEN_SCALE_NAMES.length+MGEN_SCALE_NAMES.length)%MGEN_SCALE_NAMES.length;
     else if(page===14){const ch=mgen_ch[mgen_sel_ch-1];ch.style_idx=((ch.style_idx+d)%MGEN_STYLE_NAMES.length+MGEN_STYLE_NAMES.length)%MGEN_STYLE_NAMES.length;mgenGenSeq(mgen_sel_ch-1);}
     else if(page===15){const ch=mgen_ch[mgen_sel_ch-1];ch.octave=clamp(ch.octave+d,1,7);mgenGenSeq(mgen_sel_ch-1);}
+    else if(page===16) midi_ch_audio[midi_audio_cur_dev-1]=clamp(midi_ch_audio[midi_audio_cur_dev-1]+d,1,16);
   }
 }
 
@@ -959,6 +1018,7 @@ function key(n,z){
     else if(page===13){if(mgen_running) mgenStop(); else{mgenGenAll();mgenStart();}}
     else if(page===14){mgen_ch[mgen_sel_ch-1].on=!mgen_ch[mgen_sel_ch-1].on;}
     else if(page===15){mgen_ch.forEach(ch=>{if(ch.on){ch.brk=true;ch.brk_type=mgen_break_idx;}});}
+    else if(page===16){midi_route[4][midi_audio_cur_dev-1]=!midi_route[4][midi_audio_cur_dev-1];}
   }
 }
 
