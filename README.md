@@ -16,7 +16,7 @@ Everything you play gets sliced into a memory of 48 sound fragments: pitch, ener
 Five layers running in parallel:
 
 - **The dialogue** — phrase by phrase. TEAMMATE waits, listens, builds a portrait of what you just played, and responds from its own memory.
-- **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past. Four polyphony modes: MONO / 5th / CHRD / CLST.
+- **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past. Five polyphony modes: MONO / 5th / CHRD / CLST / SMRT.
 - **8OS** — record a sequence, let it slice itself into analyzed grains. In TRANS mode, three voices scan the bank and pull the grains that match your live pitch and energy in real time.
 - **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically.
 - **Audio→MIDI** — converts live audio pitch to polyphonic MIDI notes in real time, routable to any of the 4 MIDI devices with configurable channels.
@@ -36,7 +36,7 @@ Tout ce que tu joues est découpé en une mémoire de 48 fragments sonores : pit
 Cinq couches en parallèle :
 
 - **Le dialogue** — phrase par phrase. TEAMMATE attend, écoute, construit un portrait de ce que tu viens de jouer, et répond depuis sa propre mémoire.
-- **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé. Quatre modes de polyphonie : MONO / 5th / CHRD / CLST.
+- **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé. Cinq modes de polyphonie : MONO / 5th / CHRD / CLST / SMRT.
 - **8OS** — enregistre une séquence, laisse-la se découper en grains analysés. En mode TRANS, trois voix scannent le bank et tirent les grains qui correspondent à ton pitch et ton énergie live en temps réel.
 - **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe.
 - **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
@@ -138,12 +138,22 @@ Real-time granular texture over the last 4 seconds.
 | Encoder / Key | Function |
 |---|---|
 | E2 | POtO volume |
-| E3 | Monitor (direct signal volume at output) |
-| K2 | Poly mode — cycle **MONO** / **5th** / **CHRD** / **CLST** |
+| E3 | Monitor level — **or sensitivity in SMRT mode** (see below) |
+| K2 | Poly mode — cycle **MONO** / **5th** / **CHRD** / **CLST** / **SMRT** |
 | K3 | POtO ON/OFF |
 
 - Three readers: **LEAD** (fresh zone), **ATTRACTED** (drifts toward LEAD), **REPULSED** (pushed toward the past)
 - **Poly modes**: MONO = spread only; **5th** = LEAD + fifth above + octave below; **CHRD** = LEAD + minor third + fifth; **CLST** = LEAD + semitone cluster (dense beating)
+- **SMRT** — real-time technique detection. Classifies the incoming sound from two timbral descriptors (spectral flatness and brightness ratio) into four categories, then adapts harmonic intervals, grain size and voice balance accordingly:
+
+| Category | Detection | Harmonic intervals | Grain size | Character |
+|---|---|---|---|---|
+| **TONAL** | Low flatness, moderate brightness | minor 3rd + major 6th | −20% | Warm triad, precise |
+| **BRGHT** | High brightness (overtone-rich) | fifth + minor 3rd | ×1 | Open, luminous |
+| **NOISY** | High flatness (airy, flutter) | microtonal cluster ± | +40% | Grainy wash |
+| **WHSPR** | Very quiet / no gate | major 2nd ± | −40% | Subtle halo |
+
+  In **SMRT** mode, **E3 controls sensitivity** (0–100%, default 50%) instead of monitor level. Lower values make the system harder to trigger (stays TONAL more often — useful for voice or noisy sources). Higher values make it react to subtler timbral variations. The detected category is shown live on screen: `K2 SMRT:TONAL` etc.
 
 ---
 
