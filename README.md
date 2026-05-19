@@ -13,12 +13,13 @@ TEAMMATE takes that same core intuition — the machine learns only from you, in
 
 Everything you play gets sliced into a memory of 48 sound fragments: pitch, energy, timbre, texture. When you stop, TEAMMATE analyzes the whole phrase and decides what to do. Imitate. Contrast. Densify. Thin out. Stay silent. It never plays something it hasn't heard from you. No generative AI, no presets — pure *remémoration*.
 
-Four layers running in parallel:
+Five layers running in parallel:
 
 - **The dialogue** — phrase by phrase. TEAMMATE waits, listens, builds a portrait of what you just played, and responds from its own memory.
-- **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past.
+- **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past. Four polyphony modes: MONO / 5th / CHRD / CLST.
 - **8OS** — record a sequence, let it slice itself into analyzed grains. In TRANS mode, three voices scan the bank and pull the grains that match your live pitch and energy in real time.
-- **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically. Sends MIDI to your synths while TEAMMATE improvises.
+- **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically.
+- **Audio→MIDI** — converts live audio pitch to polyphonic MIDI notes in real time, routable to any of the 4 MIDI devices with configurable channels.
 
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
@@ -32,12 +33,13 @@ TEAMMATE part de la même intuition fondamentale — la machine n'apprend que de
 
 Tout ce que tu joues est découpé en une mémoire de 48 fragments sonores : pitch, énergie, timbre, texture. Quand tu t'arrêtes, TEAMMATE analyse la phrase entière et décide quoi faire. Imiter. Contraster. Densifier. Espacer. Se taire. Il ne joue jamais quelque chose qu'il n'a pas entendu de toi. Pas d'IA générative, pas de presets — de la **remémoration active**.
 
-Quatre couches en parallèle :
+Cinq couches en parallèle :
 
 - **Le dialogue** — phrase par phrase. TEAMMATE attend, écoute, construit un portrait de ce que tu viens de jouer, et répond depuis sa propre mémoire.
-- **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé.
+- **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé. Quatre modes de polyphonie : MONO / 5th / CHRD / CLST.
 - **8OS** — enregistre une séquence, laisse-la se découper en grains analysés. En mode TRANS, trois voix scannent le bank et tirent les grains qui correspondent à ton pitch et ton énergie live en temps réel.
-- **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe. Envoie du MIDI vers tes synthés pendant que TEAMMATE improvise.
+- **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe.
+- **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
 
 Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
 
@@ -68,13 +70,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→15)
+E1        — previous / next page (loops 1→16)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 15 pages
+## The 16 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -133,13 +135,15 @@ Exchange timing.
 ### Page 5 — POtO
 Real-time granular texture over the last 4 seconds.
 
-| Encoder | Function |
+| Encoder / Key | Function |
 |---|---|
 | E2 | POtO volume |
 | E3 | Monitor (direct signal volume at output) |
+| K2 | Poly mode — cycle **MONO** / **5th** / **CHRD** / **CLST** |
 | K3 | POtO ON/OFF |
 
 - Three readers: **LEAD** (fresh zone), **ATTRACTED** (drifts toward LEAD), **REPULSED** (pushed toward the past)
+- **Poly modes**: MONO = spread only; **5th** = LEAD + fifth above + octave below; **CHRD** = LEAD + minor third + fifth; **CLST** = LEAD + semitone cluster (dense beating)
 
 ---
 
@@ -207,15 +211,17 @@ Independent MIDI routing per device. Each page configures one physical MIDI outp
 
 | Encoder | Function |
 |---|---|
-| E2 | Select stream (IMPRO / POtO / 8OS) |
-| E3 | MIDI channel (1–16) for selected stream |
+| E2 | Select stream (IMPRO / POtO / 8OS / MGEN) |
+| E3 | MIDI channel (1–16) — active only for streams IMPRO / POtO / 8OS |
 | K3 | Toggle routing ON/OFF for selected stream on this device |
 
-- Each stream (IMPRO, POtO, 8OS) can be routed to any combination of the 4 devices
-- Each device has its own independent channel per stream
+- **4 streams**: IMPRO, POtO, 8OS, MGEN — each routable independently to any of the 4 devices
+- IMPRO / POtO / 8OS: channel configurable per device via E3
+- MGEN: no channel selector in the matrix — MGEN distributes channels 1–16 internally (one per generator channel)
 - `[X]` = stream routed to this device / `[ ]` = not routed
+- Device name shown on the info line while browsing pages 9–12
 
-> The 3 MIDI streams send notes tied to grain playback. IMPRO follows the corpus improvisation, POtO follows the granular halo, 8OS follows TRANS mode grain matching.
+> IMPRO follows corpus improvisation, POtO follows the granular halo, 8OS follows TRANS grain matching. MGEN sends its 16-channel sequences to all routed devices.
 
 ---
 
@@ -229,7 +235,7 @@ Generative MIDI sequencer — global controls. Runs in parallel with the corpus 
 | K2 | **Stopped**: tap tempo (averages last 4 taps, resets after 3s) · **Running**: new theme — regenerates all sequences live without stopping |
 | K3 | START (generates all sequences + launches) / STOP + all notes off |
 
-- Sends MIDI to **device 1**, one MIDI channel per generator channel (ch1→MIDI ch1, ch2→MIDI ch2…)
+- Routes MIDI through **stream 4** of the routing matrix (pages 9–12) — enable MGEN on any device(s) there. One MIDI channel per generator channel (ch1→MIDI ch1, ch2→MIDI ch2…)
 - All 16 sequences are generated randomly at startup and on each START
 - **External MIDI clock**: TEAMMATE listens for raw 0xF8 clock pulses on any connected USB MIDI device. When a valid pulse stream is detected (after 4 pulses), BPM is calculated automatically (24 pulses per beat) and the sequencer locks step advances directly to incoming pulses — 6 pulses per 1/16 step, phase-aligned. Works on Norns Shield without any `SYSTEM > CLOCK` setting.
 - **`EXT 128`** displayed (bright) on this page when external clock is active. **`bpm 128`** (dim) when running on internal clock.
@@ -244,7 +250,7 @@ Generative MIDI sequencer — global controls. Runs in parallel with the corpus 
 | K2 | **Arrêté** : tap tempo (moyenne 4 taps, reset après 3s) · **En marche** : new theme — régénère toutes les séquences en live sans stopper |
 | K3 | START (génère toutes les séquences + lance) / STOP + all notes off |
 
-- Envoie le MIDI sur le **device 1**, un canal MIDI par channel générateur (ch1→MIDI ch1, ch2→MIDI ch2…)
+- Route le MIDI via le **stream 4** de la matrice de routage (pages 9–12) — activer MGEN sur le(s) device(s) souhaités. Un canal MIDI par channel générateur (ch1→MIDI ch1, ch2→MIDI ch2…)
 - Les 16 séquences sont générées aléatoirement au démarrage et à chaque START
 - **Clock MIDI externe** : TEAMMATE écoute les pulses bruts 0xF8 sur tous les devices USB MIDI connectés. Dès que 4 pulses valides sont reçus, le BPM est calculé et le séquenceur cale chaque step directement sur les pulses entrants — 6 pulses par step 1/16, phase alignée. Fonctionne sur Norns Shield sans réglage `SYSTEM > CLOCK`.
 - **`EXT 128`** s'affiche en blanc sur cette page quand la clock externe est active. **`bpm 128`** en gris quand le clock est interne.
@@ -381,6 +387,34 @@ One-cycle rupture applied to all active channels simultaneously.
 | 15 | **CHOS** | Note aléatoire dans la gamme courante, rythme original |
 | 16 | **DRNK** | Drunk walk — index dévie de ±2 à chaque step |
 | 17 | **SKIP** | Steps pairs muets — grille impaire seulement |
+
+---
+
+### Page 16 — AUDIO→MIDI
+Real-time pitch-to-MIDI conversion. Converts live audio into MIDI notes and routes them to any of the 4 MIDI outputs.
+
+| Encoder | Function |
+|---|---|
+| E2 | Select device (d1–d4) |
+| E3 | MIDI channel for selected device (1–16) |
+| K3 | Toggle routing ON/OFF for selected device |
+
+- **Polyphonic** (HTML emulator): up to 4 simultaneous pitches detected from the FFT spectrum (peaks above −38 dBFS, minimum 3 semitones apart) → simultaneous note_on messages
+- **Monophonic** (Norns): current fundamental pitch → note_on on gate open, note_off on gate close
+- Active notes shown on the info line while on this page
+- Fully independent routing and channel from the other 4 streams
+
+*Conversion pitch audio → MIDI en temps réel.*
+
+| Encodeur | Fonction |
+|---|---|
+| E2 | Sélectionner le device (d1–d4) |
+| E3 | Canal MIDI pour le device sélectionné (1–16) |
+| K3 | Activer / désactiver le routage pour ce device |
+
+- **Polyphonique** (émulateur HTML) : jusqu'à 4 pitchs simultanés détectés par FFT (pics > −38 dBFS, séparation min 3 demi-tons) → note_on simultanées
+- **Monophonique** (Norns) : pitch fondamental courant → note_on à l'ouverture du gate, note_off à la fermeture
+- Notes actives affichées sur la ligne d'info pendant la navigation sur cette page
 
 ---
 
