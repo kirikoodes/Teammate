@@ -102,6 +102,17 @@ local p_poto_spread = 0.05   -- ecart detune entre voix (0.0-0.30)
 local p_poto_size   = 0.15   -- taille grain en secondes (0.05-0.40)
 local p_monitor     = 1.0
 
+-- modes polyphoniques POtO : multiplicateurs de rate [lead, attracted, repulsed]
+-- nil = garder la logique spread d'origine
+local POTO_POLY_RATES = {
+  {1.0, nil,   nil  },   -- 1 MONO  : spread
+  {1.0, 1.498, 0.5  },   -- 2 5th   : fondamentale + quinte + octave basse
+  {1.0, 1.260, 1.498},   -- 3 CHRD  : root + tierce majeure + quinte
+  {1.0, 1.059, 0.944},   -- 4 CLST  : cluster serre +1st / -1st (effet vocoder)
+}
+local POTO_POLY_NAMES = {"MONO", "5th", "CHRD", "CLST"}
+local p_poto_poly = 1
+
 -- 8OS : sampler grain avec matching pitch/timbre temps reel
 -- mutually exclusive avec POtO (memes voix V3,V4,V5,V6)
 local OS8_OFFSET  = 200.0   -- zone buffer (apres corpus 96s et POtO 104s)
@@ -277,10 +288,10 @@ end
 
 local splash_active = false
 
--- MIDI routing [stream 1-3][device 1-4] : 1=IMPRO 2=POtO 3=8OS
+-- MIDI routing [stream 1-4][device 1-4] : 1=IMPRO 2=POtO 3=8OS 4=MGEN
 local midi_outs  = {}
-local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false}}
-local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3}}  -- canal par stream x device
+local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false}}
+local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3},{4,4,4,4}}  -- canal par stream x device
 local midi_cur_stream = 1   -- stream selectionne sur pages 9-12
 
 local rms_smooth     = 0
@@ -785,7 +796,9 @@ local function poto_set(on)
           softcut.loop_start(av, bp)
           softcut.loop_end(av, bp + p_poto_size)
           softcut.position(av, bp)
-          softcut.rate(av, p_poto_rate * (1 + p_poto_spread))
+          local r_av = POTO_POLY_RATES[p_poto_poly][2]
+          r_av = r_av and (p_poto_rate * r_av) or (p_poto_rate * (1 + p_poto_spread))
+          softcut.rate(av, r_av)
           softcut.level(av, p_poto_vol * 0.65)
           softcut.play(av, 1)
           local pn_av = cur_freq > 0 and freq_to_midi(cur_freq) or nil
@@ -815,7 +828,9 @@ local function poto_set(on)
           softcut.loop_start(rv, bp)
           softcut.loop_end(rv, bp + p_poto_size)
           softcut.position(rv, bp)
-          softcut.rate(rv, math.max(0.5, p_poto_rate * (1 - p_poto_spread * 2)))
+          local r_rv = POTO_POLY_RATES[p_poto_poly][3]
+          r_rv = r_rv and (p_poto_rate * r_rv) or math.max(0.5, p_poto_rate * (1 - p_poto_spread * 2))
+          softcut.rate(rv, r_rv)
           softcut.level(rv, p_poto_vol * 0.40)
           softcut.play(rv, 1)
           local pn_rv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
@@ -928,8 +943,10 @@ end
 
 local function mgen_stop()
   mgen_running = false
-  if midi_outs[1] then
-    for mc = 1, 16 do midi_outs[1]:cc(123, 0, mc) end
+  for d = 1, 4 do
+    if midi_route[4][d] and midi_outs[d] then
+      for mc = 1, 16 do midi_outs[d]:cc(123, 0, mc) end
+    end
   end
 end
 
@@ -1009,13 +1026,19 @@ local function mgen_start()
                 if s % 2 == 0 then active = false end
               end
             end
-            if active and midi_outs[1] then
-              local nn, mc, gd = note, ch.midi_ch, sd * gate
-              midi_outs[1]:note_on(nn, vel, mc)
-              clock.run(function()
-                clock.sleep(gd)
-                if midi_outs[1] then midi_outs[1]:note_off(nn, 0, mc) end
-              end)
+            if active then
+              local nn, gd = note, sd * gate
+              for d = 1, 4 do
+                if midi_route[4][d] and midi_outs[d] then
+                  local mc = midi_ch[4][d]
+                  local out = midi_outs[d]
+                  out:note_on(nn, vel, mc)
+                  clock.run(function()
+                    clock.sleep(gd)
+                    if out then out:note_off(nn, 0, mc) end
+                  end)
+                end
+              end
             end
           end
           ch.step_cur = (ch.step_cur % ch.steps) + 1
@@ -1582,7 +1605,7 @@ function enc(n, d)
     elseif page == 7 then
       p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
     elseif page >= 9 and page <= 12 then
-      midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 3)
+      midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 4)
     elseif page == 13 then
       mgen_bpm    = util.clamp(mgen_bpm + d, 60, 200)
       clock.tempo = mgen_bpm
@@ -1630,6 +1653,8 @@ function key(n, z)
   if n == 2 and page == 4 then
     p_rhythm_idx = (p_rhythm_idx % #RHYTHM_RATES) + 1
     p_rhythm     = RHYTHM_RATES[p_rhythm_idx]
+  elseif n == 2 and page == 5 then
+    p_poto_poly = (p_poto_poly % #POTO_POLY_NAMES) + 1
   elseif n == 2 and page == 6 then
     os8_sync = not os8_sync
   elseif n == 2 and page == 14 then
@@ -1879,6 +1904,10 @@ function redraw()
     screen.move(0, 64)
     screen.text("POtO")
     screen.level(5)
+    screen.move(60, 44)
+    screen.level(p_poto_poly > 1 and 12 or 4)
+    screen.text(string.format("K2 %s", POTO_POLY_NAMES[p_poto_poly]))
+    screen.level(5)
     screen.move(60, 50)
     screen.text(string.format("vol  %d%%", math.floor(p_poto_vol * 100)))
     screen.move(60, 57)
@@ -1932,13 +1961,9 @@ function redraw()
 
   elseif page >= 9 and page <= 12 then
     local dev    = page - 8
-    local labels = {"IMPRO", "POtO ", "8OS  "}
-    local chs    = {midi_ch[1][dev], midi_ch[2][dev], midi_ch[3][dev]}
-    local y      = {50, 57, 64}
-    screen.level(10)
-    screen.move(0, 44)
-    screen.text("DEV " .. dev)
-    for s = 1, 3 do
+    local labels = {"IMPRO", "POtO ", "8OS  ", "MGEN "}
+    local y      = {44, 51, 57, 64}
+    for s = 1, 4 do
       local sel    = (s == midi_cur_stream)
       local routed = midi_route[s][dev]
       screen.level(sel and 15 or (routed and 10 or 4))
@@ -1949,7 +1974,7 @@ function redraw()
       screen.text(routed and "[X]" or "[ ]")
       screen.level(sel and 10 or 4)
       screen.move(70, y[s])
-      screen.text(string.format("ch:%2d", chs[s]))
+      screen.text(string.format("ch:%2d", midi_ch[s][dev]))
     end
 
   elseif page == 13 then
