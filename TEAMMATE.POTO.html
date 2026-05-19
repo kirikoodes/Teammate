@@ -408,11 +408,7 @@ function processGate(ng){
   if(ng>0.5&&cur_gate<0.5&&!rec_on&&state!=='REST'){
     last_sound_t=t; rec_slot=head; rec_t0=t;
     rms_sum=0; rms_n_acc=0; recBuffer=[]; rec_on=true;
-    // stream 5 AUDIO : note_on polyphonique
-    const vel=clamp(Math.floor(cur_rms*800+20),1,127);
-    detectAudioPitches().forEach(n=>{audioMidiNoteOn(n,vel);audio_midi_notes.push(n);});
   }
-  if(ng<0.5&&cur_gate>0.5){audioMidiFlush();}
   if(ng<0.5&&cur_gate>0.5&&rec_on){
     const dur=t-rec_t0; rec_on=false;
     const minD=p_voice?0.12:MIN_DUR;
@@ -662,6 +658,30 @@ function audioMidiFlush(){
   audio_midi_notes.forEach(n=>audioMidiNoteOff(n));
   audio_midi_notes=[];
 }
+
+// ─── AUDIO→MIDI suivi continu (50ms) ─────────────────────────────────────────
+setInterval(()=>{
+  if(!audioCtx) return;
+  const anyRouted=midi_route[4]&&midi_route[4].some((r,i)=>r&&midi_outs[i]);
+  if(!anyRouted){if(audio_midi_notes.length) audioMidiFlush(); return;}
+  if(cur_gate>0.5){
+    const notes=detectAudioPitches();
+    const vel=clamp(Math.floor(cur_rms*800+20),1,127);
+    // note_off des notes disparues
+    audio_midi_notes.filter(n=>!notes.includes(n)).forEach(n=>audioMidiNoteOff(n));
+    // note_on des nouvelles notes
+    notes.filter(n=>!audio_midi_notes.includes(n)).forEach(n=>audioMidiNoteOn(n,vel));
+    audio_midi_notes=notes;
+    // CC11 = expression (énergie) / CC74 = brillance (centroïde)
+    for(let d=0;d<4;d++) if(midi_route[4][d]&&midi_outs[d]){
+      const ch=midi_ch_audio[d]-1;
+      midi_outs[d].send([0xB0|ch,11,clamp(Math.floor(cur_rms*600),0,127)]);
+      midi_outs[d].send([0xB0|ch,74,clamp(Math.floor(cur_centroid/80),0,127)]);
+    }
+  }else if(audio_midi_notes.length){
+    audioMidiFlush();
+  }
+},50);
 
 // ─── MIDI GEN ─────────────────────────────────────────────────────────────────
 function mgenGenSeq(ci){

@@ -1347,23 +1347,11 @@ local function process_gate(new_gate)
     rms_sum  = 0 ; rms_n = 0
     rec_start(rec_slot)
     rec_on = true
-    -- stream 5 AUDIO : note on sur le pitch courant
-    local an = freq_to_midi(cur_freq)
-    if an then
-      midi_audio_note = an
-      local vel = math.max(1, math.min(127, math.floor(cur_rms * 800 + 20)))
-      audio_midi_note_on(an, vel)
-    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 then
     midi_cc_all(3, 123, 0)
     midi_cc_all(2, 123, 0)
-    -- stream 5 AUDIO : note off
-    if midi_audio_note then
-      audio_midi_note_off(midi_audio_note)
-      midi_audio_note = nil
-    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 and rec_on then
@@ -1548,12 +1536,55 @@ end
 ---------------------------------------------------------------------
 -- norns
 ---------------------------------------------------------------------
+---------------------------------------------------------------------
+-- Audio -> MIDI : suivi continu pitch + CC energie/timbre
+---------------------------------------------------------------------
+local function audio_midi_loop()
+  while true do
+    clock.sleep(0.05)   -- 50 ms
+    local any = false
+    for d = 1, 4 do
+      if midi_route[5][d] and midi_outs[d] then any = true ; break end
+    end
+    if not any then
+      if midi_audio_note then
+        audio_midi_note_off(midi_audio_note)
+        midi_audio_note = nil
+      end
+    elseif cur_gate > 0.5 and cur_freq > 20 then
+      local new_note = freq_to_midi(cur_freq)
+      if new_note then
+        if new_note ~= midi_audio_note then
+          if midi_audio_note then audio_midi_note_off(midi_audio_note) end
+          local vel = math.max(1, math.min(127, math.floor(cur_rms * 800 + 20)))
+          audio_midi_note_on(new_note, vel)
+          midi_audio_note = new_note
+        end
+        -- CC11 = expression (energie) / CC74 = brillance (centroide)
+        for d = 1, 4 do
+          if midi_route[5][d] and midi_outs[d] then
+            local ch = midi_ch_audio[d]
+            midi_outs[d]:cc(11, math.max(0, math.min(127, math.floor(cur_rms * 600))), ch)
+            midi_outs[d]:cc(74, math.max(0, math.min(127, math.floor(cur_centroid / 80))), ch)
+          end
+        end
+      end
+    else
+      if midi_audio_note then
+        audio_midi_note_off(midi_audio_note)
+        midi_audio_note = nil
+      end
+    end
+  end
+end
+
 function init()
   math.randomseed(os.time())
   mgen_gen_all()
   last_sound_t = util.time()
   splash_active = true
   clock.run(function() clock.sleep(3.0) ; splash_active = false end)
+  clock.run(audio_midi_loop)
   for d = 1, 4 do
     local ok, md = pcall(midi.connect, d)
     if ok then
