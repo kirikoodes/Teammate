@@ -110,7 +110,7 @@ local POTO_POLY_RATES = {
   {1.0, 1.260, 1.498},   -- 3 CHRD  : root + tierce majeure + quinte
   {1.0, 1.059, 0.944},   -- 4 CLST  : cluster serre +1st / -1st (effet vocoder)
 }
-local POTO_POLY_NAMES = {"MONO", "5th", "CHRD", "CLST"}
+local POTO_POLY_NAMES = {"MONO", "5th", "CHRD", "CLST", "SMRT"}
 local p_poto_poly = 1
 
 -- 8OS : sampler grain avec matching pitch/timbre temps reel
@@ -743,6 +743,42 @@ local function poto_write_pos_rel()
   return (util.time() - poto_start_t) % POTO_DUR
 end
 
+-- Mode SMRT : classification heuristique de la technique de jeu
+-- à partir de cur_flatness (bruit/tonal), cur_centroid/cur_freq (brillance)
+-- Retourne {r2, r3, size, av_lv, rv_lv, tech}
+--   r2/r3   : ratios de rate pour voix ATTRACTED / REPULSED
+--   size    : taille de grain adaptée (secondes)
+--   av_lv   : niveau ATTRACTED (0-1)
+--   rv_lv   : niveau REPULSED  (0-1)
+--   tech    : nom affiché (TONAL/BRGHT/NOISY/WHSPR)
+local function poto_smart_params()
+  -- silence / murmure → grains discrets, harmonie ouverte douce
+  if cur_gate < 0.3 or cur_rms < 0.005 then
+    return {r2=1.122, r3=0.891, size=math.max(0.05, p_poto_size*0.60),
+            av_lv=0.50, rv_lv=0.22, tech="WHSPR"}
+  end
+  local f = math.min(1.0, cur_flatness)   -- 0=tonal, 1=bruit blanc
+  local b = cur_centroid / math.max(cur_freq, 50)  -- ratio harmonique
+
+  if f > 0.55 then
+    -- technique aérienne / bruit (aeolian, flutter) → cluster microtonal, grains larges
+    local spread = 0.04 + f * 0.06      -- écart ~4-10 cents
+    return {r2=1.0+spread, r3=math.max(0.5, 1.0-spread*0.6),
+            size=math.min(0.40, p_poto_size*1.40),
+            av_lv=0.58, rv_lv=0.52, tech="NOISY"}
+  elseif b > 4.0 then
+    -- technique brillante / harmoniques élevés → quinte + tierce, équilibre ouvert
+    return {r2=1.498, r3=1.260,
+            size=p_poto_size,
+            av_lv=0.65, rv_lv=0.44, tech="BRGHT"}
+  else
+    -- jeu ordinaire / tonal → tierce mineure + sixte majeure, grains précis
+    return {r2=1.260, r3=0.794,
+            size=math.max(0.05, p_poto_size*0.80),
+            av_lv=0.72, rv_lv=0.36, tech="TONAL"}
+  end
+end
+
 local function poto_set(on)
   if on == p_poto_on then return end
   -- POtO et 8OS sont mutuellement exclusifs
@@ -773,28 +809,29 @@ local function poto_set(on)
     clock.run(function()
       local zone = 0.0
       while p_poto_on do
+        local gs  = (p_poto_poly == 5) and poto_smart_params().size or p_poto_size
         local wp  = poto_write_pos_rel()
         local tgt = (wp - 0.10 + POTO_DUR) % POTO_DUR
         zone = (zone * 0.85 + tgt * 0.15) % POTO_DUR
-        if zone + p_poto_size > POTO_DUR then zone = POTO_DUR - p_poto_size - 0.01 end
+        if zone + gs > POTO_DUR then zone = POTO_DUR - gs - 0.01 end
         poto_lead_zone = zone
         local dist = (wp - zone + POTO_DUR) % POTO_DUR
-        if dist > p_poto_size + 0.05 then
+        if dist > gs + 0.05 then
           local bp = POTO_OFFSET + zone
           softcut.loop_start(lv, bp)
-          softcut.loop_end(lv, bp + p_poto_size)
+          softcut.loop_end(lv, bp + gs)
           softcut.position(lv, bp)
           softcut.rate(lv, p_poto_rate)
           softcut.level(lv, p_poto_vol)
           softcut.play(lv, 1)
           local pn_lv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_lv then midi_note_on(2, pn_lv, math.floor(p_poto_vol * 127)) end
-          clock.sleep(p_poto_size)
+          clock.sleep(gs)
           if pn_lv then midi_note_off(2, pn_lv) end
           softcut.level(lv, 0)
           clock.sleep(0.02)
         else
-          clock.sleep(p_poto_size + 0.02)
+          clock.sleep(gs + 0.02)
         end
       end
       softcut.level(lv, 0) ; softcut.play(lv, 0)
@@ -814,10 +851,17 @@ local function poto_set(on)
           softcut.loop_start(av, bp)
           softcut.loop_end(av, bp + p_poto_size)
           softcut.position(av, bp)
-          local r_av = POTO_POLY_RATES[p_poto_poly][2]
-          r_av = r_av and (p_poto_rate * r_av) or (p_poto_rate * (1 + p_poto_spread))
+          local r_av, av_vol_mult
+          if p_poto_poly == 5 then
+            local sp = poto_smart_params()
+            r_av = p_poto_rate * sp.r2 ; av_vol_mult = sp.av_lv
+          else
+            local tbl = POTO_POLY_RATES[p_poto_poly][2]
+            r_av = tbl and (p_poto_rate * tbl) or (p_poto_rate * (1 + p_poto_spread))
+            av_vol_mult = 0.65
+          end
           softcut.rate(av, r_av)
-          softcut.level(av, p_poto_vol * 0.65)
+          softcut.level(av, p_poto_vol * av_vol_mult)
           softcut.play(av, 1)
           local pn_av = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_av then midi_note_on(2, pn_av, math.floor(p_poto_vol * 83)) end
@@ -846,10 +890,17 @@ local function poto_set(on)
           softcut.loop_start(rv, bp)
           softcut.loop_end(rv, bp + p_poto_size)
           softcut.position(rv, bp)
-          local r_rv = POTO_POLY_RATES[p_poto_poly][3]
-          r_rv = r_rv and (p_poto_rate * r_rv) or math.max(0.5, p_poto_rate * (1 - p_poto_spread * 2))
+          local r_rv, rv_vol_mult
+          if p_poto_poly == 5 then
+            local sp = poto_smart_params()
+            r_rv = p_poto_rate * sp.r3 ; rv_vol_mult = sp.rv_lv
+          else
+            local tbl = POTO_POLY_RATES[p_poto_poly][3]
+            r_rv = tbl and (p_poto_rate * tbl) or math.max(0.5, p_poto_rate * (1 - p_poto_spread * 2))
+            rv_vol_mult = 0.40
+          end
           softcut.rate(rv, r_rv)
-          softcut.level(rv, p_poto_vol * 0.40)
+          softcut.level(rv, p_poto_vol * rv_vol_mult)
           softcut.play(rv, 1)
           local pn_rv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_rv then midi_note_on(2, pn_rv, math.floor(p_poto_vol * 51)) end
@@ -1632,7 +1683,7 @@ end
 -- Page  2  MAIN     : E2 density    | E3 sil bias   | K3 force reply
 -- Page  3  RESP     : E2 contrast   | E3 reply%     | K3 deaf on/off
 -- Page  4  TIME     : E2 react      | E3 init       | K2 rhy prob 0/15/30/50% | K3 voice mode
--- Page  5  POtO     : E2 vol        | E3 monitor    | K3 on/off
+-- Page  5  POtO     : E2 vol        | E3 monitor    | K2 poly MONO/5th/CHRD/CLST/SMRT | K3 on/off
 -- Page  6  8OS      : E2 vol        | E3 grain ms   | K3 OFF->REC->TRANS | K2 clock sync
 -- Page  7  GRAIN    : E2 grain ms   | E3 spread     | K3 rate preset
 -- Page  8  CLR8OS   : ---           | ---           | K3 clear bank
@@ -1984,7 +2035,12 @@ function redraw()
     screen.level(5)
     screen.move(60, 44)
     screen.level(p_poto_poly > 1 and 12 or 4)
-    screen.text(string.format("K2 %s", POTO_POLY_NAMES[p_poto_poly]))
+    if p_poto_poly == 5 then
+      local sp = poto_smart_params()
+      screen.text(string.format("K2 SMRT:%s", sp.tech))
+    else
+      screen.text(string.format("K2 %s", POTO_POLY_NAMES[p_poto_poly]))
+    end
     screen.level(5)
     screen.move(60, 50)
     screen.text(string.format("vol  %d%%", math.floor(p_poto_vol * 100)))
