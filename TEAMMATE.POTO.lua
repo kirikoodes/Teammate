@@ -100,7 +100,8 @@ local p_poto_vol    = 0.5
 local p_poto_rate   = 1.0    -- vitesse lecture grain (0.5-2.0)
 local p_poto_spread = 0.05   -- ecart detune entre voix (0.0-0.30)
 local p_poto_size   = 0.15   -- taille grain en secondes (0.05-0.40)
-local p_monitor     = 1.0
+local p_monitor          = 1.0
+local p_poto_smrt_sens   = 0.5   -- sensibilité SMRT : 0=sourd, 1=très réactif
 
 -- modes polyphoniques POtO : multiplicateurs de rate [lead, attracted, repulsed]
 -- nil = garder la logique spread d'origine
@@ -757,10 +758,13 @@ local function poto_smart_params()
     return {r2=1.122, r3=0.891, size=math.max(0.05, p_poto_size*0.60),
             av_lv=0.50, rv_lv=0.22, tech="WHSPR"}
   end
-  local f = math.min(1.0, cur_flatness)   -- 0=tonal, 1=bruit blanc
-  local b = cur_centroid / math.max(cur_freq, 50)  -- ratio harmonique
+  local f = math.min(1.0, cur_flatness)
+  local b = cur_centroid / math.max(cur_freq, 50)
+  -- seuils calibrables : sens=0 → difficile à déclencher, sens=1 → très réactif
+  local flat_thr   = 0.30 + (1.0 - p_poto_smrt_sens) * 0.50   -- 0.30-0.80
+  local bright_thr = 2.0  + (1.0 - p_poto_smrt_sens) * 4.0    -- 2.0-6.0
 
-  if f > 0.55 then
+  if f > flat_thr then
     -- technique aérienne / bruit (aeolian, flutter) → cluster microtonal, grains larges
     local spread = 0.04 + f * 0.06      -- écart ~4-10 cents
     return {r2=1.0+spread, r3=math.max(0.5, 1.0-spread*0.6),
@@ -1739,8 +1743,12 @@ function enc(n, d)
     elseif page == 4 then
       p_sil_max     = util.clamp(p_sil_max     + d * 0.1,  0.5, 8.0)
     elseif page == 5 then
-      p_monitor     = util.clamp(p_monitor     + d * 0.05, 0.0, 1.0)
-      audio.level_monitor(p_monitor)
+      if p_poto_poly == 5 then
+        p_poto_smrt_sens = util.clamp(p_poto_smrt_sens + d * 0.05, 0.0, 1.0)
+      else
+        p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)
+        audio.level_monitor(p_monitor)
+      end
     elseif page == 6 then
       os8_size      = util.clamp(os8_size      + d * 0.01, 0.02, 0.50)
     elseif page == 7 then
@@ -2045,7 +2053,11 @@ function redraw()
     screen.move(60, 50)
     screen.text(string.format("vol  %d%%", math.floor(p_poto_vol * 100)))
     screen.move(60, 57)
-    screen.text(string.format("mon  %d%%", math.floor(p_monitor * 100)))
+    if p_poto_poly == 5 then
+      screen.text(string.format("sen  %d%%", math.floor(p_poto_smrt_sens * 100)))
+    else
+      screen.text(string.format("mon  %d%%", math.floor(p_monitor * 100)))
+    end
     screen.move(60, 64)
     screen.text("K3 on/off")
 

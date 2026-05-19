@@ -137,7 +137,7 @@ let p_rhythm_idx=1;
 const RHYTHM_RATES=[0,0.15,0.30,0.50];
 let p_rhythm=RHYTHM_RATES[p_rhythm_idx];
 let p_poto_on=false,p_poto_vol=0.5,p_poto_rate=1.0,p_poto_spread=0.05,p_poto_size=0.15;
-let p_monitor=1.0;
+let p_monitor=1.0,p_poto_smrt_sens=0.5;
 const POTO_POLY_RATES=[[1.0,null,null],[1.0,1.498,0.5],[1.0,1.260,1.498],[1.0,1.059,0.944]];
 const POTO_POLY_NAMES=['MONO','5th','CHRD','CLST','SMRT'];
 let p_poto_poly=0;
@@ -326,11 +326,13 @@ function potoSmartParams(){
     return{r2:1.122,r3:0.891,size:Math.max(0.05,p_poto_size*0.60),avLv:0.50,rvLv:0.22,tech:'WHSPR'};
   const f=Math.min(1.0,cur_flatness);
   const b=cur_centroid/Math.max(cur_freq,50);
-  if(f>0.55){
+  const flatThr=0.30+(1.0-p_poto_smrt_sens)*0.50;
+  const brightThr=2.0+(1.0-p_poto_smrt_sens)*4.0;
+  if(f>flatThr){
     const spread=0.04+f*0.06;
     return{r2:1.0+spread,r3:Math.max(0.5,1.0-spread*0.6),
            size:Math.min(0.40,p_poto_size*1.40),avLv:0.58,rvLv:0.52,tech:'NOISY'};
-  }else if(b>4.0){
+  }else if(b>brightThr){
     return{r2:1.498,r3:1.260,size:p_poto_size,avLv:0.65,rvLv:0.44,tech:'BRGHT'};
   }else{
     return{r2:1.260,r3:0.794,size:Math.max(0.05,p_poto_size*0.80),avLv:0.72,rvLv:0.36,tech:'TONAL'};
@@ -916,7 +918,9 @@ function drawP5(){
   if(p_poto_poly===4){const sp=potoSmartParams();S.text('K2 SMRT:'+sp.tech);}
   else S.text('K2 '+POTO_POLY_NAMES[p_poto_poly]);
   S.move(60,50);S.text(`vol  ${Math.floor(p_poto_vol*100)}%`);
-  S.move(60,57);S.text(`mon  ${Math.floor(p_monitor*100)}%`);
+  S.move(60,57);
+  if(p_poto_poly===4)S.text(`sen  ${Math.floor(p_poto_smrt_sens*100)}%`);
+  else S.text(`mon  ${Math.floor(p_monitor*100)}%`);
   S.move(60,64);S.text('K3 on/off');
 }
 function drawP6(){
@@ -1010,7 +1014,10 @@ function enc(n,d){
     else if(page===2)  p_sil_bias=clamp(p_sil_bias+d*0.05,0,1);
     else if(page===3)  p_reply=clamp(p_reply+d*0.05,0,1);
     else if(page===4)  p_sil_max=clamp(p_sil_max+d*0.1,0.5,8);
-    else if(page===5){p_monitor=clamp(p_monitor+d*0.05,0,1);if(monitorGain)monitorGain.gain.value=p_monitor;}
+    else if(page===5){
+      if(p_poto_poly===4)p_poto_smrt_sens=clamp(p_poto_smrt_sens+d*0.05,0,1);
+      else{p_monitor=clamp(p_monitor+d*0.05,0,1);if(monitorGain)monitorGain.gain.value=p_monitor;}
+    }
     else if(page===6)  os8_size=clamp(os8_size+d*0.01,0.02,0.50);
     else if(page===7)  p_poto_spread=clamp(p_poto_spread+d*0.01,0,0.30);
     else if(page>=9&&page<=12){if(midi_cur_stream<=3){const dv=page-9;midi_ch_map[midi_cur_stream-1][dv]=clamp(midi_ch_map[midi_cur_stream-1][dv]+d,1,16);}}
