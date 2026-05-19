@@ -1808,10 +1808,15 @@ function redraw()
   screen.rect(32, 22, bw, 4)
   screen.fill()
 
-  -- timbre live / portrait fragment
+  -- timbre live / portrait fragment (ou nom du device sur pages 9-12)
   screen.level(4)
   screen.move(0, 37)
-  if phrase_analysis then
+  if page >= 9 and page <= 12 then
+    local dev   = page - 8
+    local dname = (midi.vports[dev] and midi.vports[dev].name) or ("DEV " .. dev)
+    if #dname > 21 then dname = string.sub(dname, 1, 20) .. "~" end
+    screen.text(string.format("d%d %s", dev, dname))
+  elseif phrase_analysis then
     screen.text(string.format("ph rms%.2f  %devs/s",
       phrase_analysis.rms,
       math.floor(phrase_analysis.density)))

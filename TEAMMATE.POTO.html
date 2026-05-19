@@ -766,7 +766,12 @@ function redraw(){
   const bw=Math.min(Math.floor(rms_smooth*400),96);
   S.level(cur_gate>0.5?12:4);S.rect(32,22,bw,4);S.fill();
   S.level(4);S.move(0,37);
-  if(phrase_analysis) S.text(`ph rms${phrase_analysis.rms.toFixed(2)}  ${Math.floor(phrase_analysis.density)}evs/s`);
+  if(page>=9&&page<=12){
+    const dv=page-9;
+    const raw=midi_out_names[dv]||'---';
+    const dname=`d${dv+1} ${raw}`;
+    S.text(dname.length>22?dname.slice(0,21)+'~':dname);
+  }else if(phrase_analysis) S.text(`ph rms${phrase_analysis.rms.toFixed(2)}  ${Math.floor(phrase_analysis.density)}evs/s`);
   else S.text(`ctr ${Math.floor(cur_centroid/1000)}kHz  flat ${Math.floor(cur_flatness*100)}%`);
   if(page===14){S.level(mgen_mut_rate>0?9:3);S.move(84,37);S.text('~'+Math.round(mgen_mut_rate*100)+'% K2');}
   else if(p_voice||p_deaf){S.level(12);S.move(104,37);S.text((p_voice?'V':'')+(p_deaf?'D':''));}
