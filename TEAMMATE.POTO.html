@@ -319,24 +319,36 @@ function playGrain(samples,gainVal,rate,startPos,grainLen){
 }
 
 // ─── POTO SMART PARAMS ────────────────────────────────────────────────────────
-// Classification heuristique de la technique de jeu : TONAL / BRGHT / NOISY / WHSPR
-// Retourne {r2, r3, size, avLv, rvLv, tech} pour le mode SMRT (p_poto_poly===4)
-function potoSmartParams(){
-  if(cur_gate<0.3||cur_rms<0.005)
-    return{r2:1.122,r3:0.891,size:Math.max(0.05,p_poto_size*0.60),avLv:0.50,rvLv:0.22,tech:'WHSPR'};
+// Hystérèse : ne changer de technique que si la nouvelle est soutenue SMRT_HOLD_N ticks
+let poto_smrt_tech='TONAL',poto_smrt_cand='TONAL',poto_smrt_hold=0;
+const SMRT_HOLD_N=2;
+
+function potoDetectRaw(){
+  if(cur_gate<0.3||cur_rms<0.005) return 'WHSPR';
   const f=Math.min(1.0,cur_flatness);
   const b=cur_centroid/Math.max(cur_freq,50);
   const flatThr=0.30+(1.0-p_poto_smrt_sens)*0.50;
   const brightThr=2.0+(1.0-p_poto_smrt_sens)*4.0;
-  if(f>flatThr){
-    const spread=0.04+f*0.06;
-    return{r2:1.0+spread,r3:Math.max(0.5,1.0-spread*0.6),
-           size:Math.min(0.40,p_poto_size*1.40),avLv:0.58,rvLv:0.52,tech:'NOISY'};
-  }else if(b>brightThr){
-    return{r2:1.498,r3:1.260,size:p_poto_size,avLv:0.65,rvLv:0.44,tech:'BRGHT'};
-  }else{
-    return{r2:1.260,r3:0.794,size:Math.max(0.05,p_poto_size*0.80),avLv:0.72,rvLv:0.36,tech:'TONAL'};
-  }
+  if(f>flatThr)   return 'NOISY';
+  if(b>brightThr) return 'BRGHT';
+  return 'TONAL';
+}
+
+function potoSmrtUpdate(){
+  const raw=potoDetectRaw();
+  if(raw===poto_smrt_tech){poto_smrt_cand=raw;poto_smrt_hold=0;}
+  else if(raw===poto_smrt_cand){
+    if(++poto_smrt_hold>=SMRT_HOLD_N){poto_smrt_tech=poto_smrt_cand;poto_smrt_hold=0;}
+  }else{poto_smrt_cand=raw;poto_smrt_hold=1;}
+}
+
+function potoSmartParams(){
+  const tech=poto_smrt_tech;
+  if(tech==='WHSPR') return{r2:1.122,r3:0.891,size:Math.max(0.05,p_poto_size*0.60),avLv:0.50,rvLv:0.22,tech:'WHSPR'};
+  if(tech==='NOISY'){const spread=0.04+Math.min(1,cur_flatness)*0.06;
+    return{r2:1.0+spread,r3:Math.max(0.5,1.0-spread*0.6),size:Math.min(0.40,p_poto_size*1.40),avLv:0.58,rvLv:0.52,tech:'NOISY'};}
+  if(tech==='BRGHT') return{r2:1.498,r3:1.260,size:p_poto_size,avLv:0.65,rvLv:0.44,tech:'BRGHT'};
+  return{r2:1.260,r3:0.794,size:Math.max(0.05,p_poto_size*0.80),avLv:0.72,rvLv:0.36,tech:'TONAL'};
 }
 
 // ─── POTO GRANULAR ────────────────────────────────────────────────────────────
@@ -346,6 +358,7 @@ function potoGrain(){
   const bufLen=potoBuffer.length;
   let rates,grainSize,avLv,rvLv;
   if(p_poto_poly===4){
+    potoSmrtUpdate();
     const sp=potoSmartParams();
     rates=[1.0,sp.r2,sp.r3]; grainSize=sp.size; avLv=sp.avLv; rvLv=sp.rvLv;
   }else{

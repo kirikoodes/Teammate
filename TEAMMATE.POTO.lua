@@ -744,41 +744,58 @@ local function poto_write_pos_rel()
   return (util.time() - poto_start_t) % POTO_DUR
 end
 
--- Mode SMRT : classification heuristique de la technique de jeu
--- à partir de cur_flatness (bruit/tonal), cur_centroid/cur_freq (brillance)
--- Retourne {r2, r3, size, av_lv, rv_lv, tech}
---   r2/r3   : ratios de rate pour voix ATTRACTED / REPULSED
---   size    : taille de grain adaptée (secondes)
---   av_lv   : niveau ATTRACTED (0-1)
---   rv_lv   : niveau REPULSED  (0-1)
---   tech    : nom affiché (TONAL/BRGHT/NOISY/WHSPR)
+-- Mode SMRT : hystérèse sur la détection de technique de jeu
+-- Inspiré de la section 3.2 du papier Fiorini & Brochec (SMC 2024) :
+-- ne basculer vers une nouvelle catégorie que si elle est soutenue ~300ms
+-- (SMRT_HOLD_N ticks × p_poto_size ≈ 2 × 150ms = 300ms par défaut)
+local poto_smrt_tech = "TONAL"   -- technique confirmée (change avec délai)
+local poto_smrt_cand = "TONAL"   -- candidat en attente de confirmation
+local poto_smrt_hold = 0         -- ticks consécutifs pour le candidat
+local SMRT_HOLD_N    = 2         -- ticks nécessaires pour confirmer un changement
+
+-- Détection brute instantanée (jamais appelée directement hors de poto_smrt_update)
+local function poto_detect_raw()
+  if cur_gate < 0.3 or cur_rms < 0.005 then return "WHSPR" end
+  local f          = math.min(1.0, cur_flatness)
+  local b          = cur_centroid / math.max(cur_freq, 50)
+  local flat_thr   = 0.30 + (1.0 - p_poto_smrt_sens) * 0.50
+  local bright_thr = 2.0  + (1.0 - p_poto_smrt_sens) * 4.0
+  if f > flat_thr   then return "NOISY" end
+  if b > bright_thr then return "BRGHT" end
+  return "TONAL"
+end
+
+-- Mise à jour de l'hystérèse — appelée une fois par cycle grain (boucle LEAD)
+local function poto_smrt_update()
+  local raw = poto_detect_raw()
+  if raw == poto_smrt_tech then
+    poto_smrt_cand = raw ; poto_smrt_hold = 0
+  elseif raw == poto_smrt_cand then
+    poto_smrt_hold = poto_smrt_hold + 1
+    if poto_smrt_hold >= SMRT_HOLD_N then
+      poto_smrt_tech = poto_smrt_cand ; poto_smrt_hold = 0
+    end
+  else
+    poto_smrt_cand = raw ; poto_smrt_hold = 1
+  end
+end
+
+-- Paramètres grain basés sur la technique *confirmée* (lecture seule, sans effet de bord)
 local function poto_smart_params()
-  -- silence / murmure → grains discrets, harmonie ouverte douce
-  if cur_gate < 0.3 or cur_rms < 0.005 then
+  local tech = poto_smrt_tech
+  if tech == "WHSPR" then
     return {r2=1.122, r3=0.891, size=math.max(0.05, p_poto_size*0.60),
             av_lv=0.50, rv_lv=0.22, tech="WHSPR"}
-  end
-  local f = math.min(1.0, cur_flatness)
-  local b = cur_centroid / math.max(cur_freq, 50)
-  -- seuils calibrables : sens=0 → difficile à déclencher, sens=1 → très réactif
-  local flat_thr   = 0.30 + (1.0 - p_poto_smrt_sens) * 0.50   -- 0.30-0.80
-  local bright_thr = 2.0  + (1.0 - p_poto_smrt_sens) * 4.0    -- 2.0-6.0
-
-  if f > flat_thr then
-    -- technique aérienne / bruit (aeolian, flutter) → cluster microtonal, grains larges
-    local spread = 0.04 + f * 0.06      -- écart ~4-10 cents
+  elseif tech == "NOISY" then
+    local spread = 0.04 + math.min(1.0, cur_flatness) * 0.06
     return {r2=1.0+spread, r3=math.max(0.5, 1.0-spread*0.6),
             size=math.min(0.40, p_poto_size*1.40),
             av_lv=0.58, rv_lv=0.52, tech="NOISY"}
-  elseif b > 4.0 then
-    -- technique brillante / harmoniques élevés → quinte + tierce, équilibre ouvert
-    return {r2=1.498, r3=1.260,
-            size=p_poto_size,
+  elseif tech == "BRGHT" then
+    return {r2=1.498, r3=1.260, size=p_poto_size,
             av_lv=0.65, rv_lv=0.44, tech="BRGHT"}
   else
-    -- jeu ordinaire / tonal → tierce mineure + sixte majeure, grains précis
-    return {r2=1.260, r3=0.794,
-            size=math.max(0.05, p_poto_size*0.80),
+    return {r2=1.260, r3=0.794, size=math.max(0.05, p_poto_size*0.80),
             av_lv=0.72, rv_lv=0.36, tech="TONAL"}
   end
 end
@@ -813,6 +830,7 @@ local function poto_set(on)
     clock.run(function()
       local zone = 0.0
       while p_poto_on do
+        if p_poto_poly == 5 then poto_smrt_update() end
         local gs  = (p_poto_poly == 5) and poto_smart_params().size or p_poto_size
         local wp  = poto_write_pos_rel()
         local tgt = (wp - 0.10 + POTO_DUR) % POTO_DUR
