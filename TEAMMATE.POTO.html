@@ -61,7 +61,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.2</td><td>Density (E2) · silence bias (E3) · K3 force reply</td></tr>
       <tr><td>p.3</td><td>Contrast (E2) · reply prob (E3) · K3 deaf on/off</td></tr>
       <tr><td>p.4</td><td>React time (E2) · init silence (E3) · K2 rhy prob · K3 voice mode</td></tr>
-      <tr><td>p.5</td><td>POtO granular — vol (E2) · monitor (E3) · K2 poly MONO/5th/CHRD/CLST/<b>SMRT</b> · K3 on/off</td></tr>
+      <tr><td>p.5</td><td>POtO granular — vol (E2) · monitor/sens (E3) · K2 poly MONO/5th/CHRD/CLST/<b>SMRT</b> · K3 on/off</td></tr>
       <tr><td>p.6</td><td>8OS looper — vol (E2) · grain size (E3) · K3 OFF→REC→TRANS</td></tr>
       <tr><td>p.7</td><td>Grain size (E2) · spread (E3) · K3 rate</td></tr>
       <tr><td>p.8</td><td>8OS bank info · K3 clear bank</td></tr>
@@ -81,6 +81,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
     <p><b style="color:#444">MGEN</b> — 16-channel MIDI sequencer. Enable channels on p.14, pick styles, start on p.13. Breaks (p.15) apply to active channels for one cycle. <b style="color:#444">Evo</b> (K2 on p.14) sets a per-step mutation rate — notes drift to adjacent scale degrees, gates and velocities shift gradually each cycle. K2 on p.13 changes theme live while running.</p>
     <p>14 styles: TECHNO · DnB · JUNGLE · AMAPIANO · 2STEP · BRKN · DUMB · TRAP · DRIL · CLUB · KPOP · ORNTL · RAVE · TRNCE.</p>
     <p><b style="color:#444">MIDI routing</b> — each stream (IMPRO / POtO / 8OS / MGEN) can be routed to up to 4 MIDI devices on pages 9–12. <b style="color:#444">Audio→MIDI</b> (p.16) converts live audio pitch to polyphonic MIDI notes in real time.</p>
+    <p><b style="color:#444">SPAT</b> (p.17) — animates each voice in the stereo field using one of 6 physics models: <b style="color:#444">NEBULA</b> (Brownian), <b style="color:#444">ORBIT</b> (Keplerian), <b style="color:#444">PULSAR</b> (tanh arc sweep), <b style="color:#444">QUANTUM</b> (stable + RMS tunneling), <b style="color:#444">STRANGE</b> (Lorenz attractor), <b style="color:#444">ENTANGLE</b> (Lead↔Attracted mirrored). E2 = mass (amplitude), E3 = tempo (speed). When POtO <b style="color:#444">SMRT</b> is active, mass and tempo are auto-modulated by the detected technique. Markers on the L–C–R line: <b style="color:#444">*</b> IMPRO · <b style="color:#444">O</b> LEAD · <b style="color:#444">o</b> ATTRACTED · <b style="color:#444">.</b> REPULSED.</p>
     <p class="note">Requires Chrome/Edge + mic permission. MIDI requires HTTPS or localhost.</p>
   </div>
 </div>
