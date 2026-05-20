@@ -888,7 +888,7 @@ function spatDepthMult(k){return 0.55+0.45*(spat.dz[k]+1)*0.5;}
 function spatUpdate(){
   const s=spat.s,dt=spat.DT,m=spat.mode;
   let mass=spat.mass,tempo=spat.tempo;
-  if(poto_on&&p_poto_poly===4){
+  if(p_poto_on&&p_poto_poly===4){
     const mm={WHSPR:0.25,TONAL:0.60,BRGHT:0.90,NOISY:1.0};
     const tm={WHSPR:0.70,TONAL:0.85,BRGHT:1.00,NOISY:1.15};
     mass *=(mm[poto_smrt_tech]??1.0);
