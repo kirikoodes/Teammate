@@ -476,7 +476,7 @@ local function play_event(ev, rate_mult)
     softcut.position(v, base)
   end
 
-  softcut.fade_time(v, math.min(0.025, len * 0.12))
+  softcut.fade_time(v, math.min(0.050, len * 0.18))
   softcut.rate(v, rate * rate_mult)
   softcut.play(v, 1)
 

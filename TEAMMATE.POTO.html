@@ -507,7 +507,7 @@ function playEvent(ev,rm){
   const src=audioCtx.createBufferSource();
   const gn=audioCtx.createGain();
   const targetGain=spat.on?spatDepthMult('impro'):1;
-  const ft=Math.min(0.025,len*0.12);
+  const ft=Math.min(0.050,len*0.18);
   const now=audioCtx.currentTime;
   gn.gain.setValueAtTime(0,now);
   gn.gain.linearRampToValueAtTime(targetGain,now+ft);
