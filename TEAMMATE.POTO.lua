@@ -309,6 +309,7 @@ local poto_lead_zone = 0.0   -- zone actuelle du LEAD dans [0, POTO_DUR)
 local RATE_PRESETS = {0.5, 0.75, 1.0, 1.25, 1.5, 2.0}
 local rate_pidx    = 3   -- index par defaut = 1.0
 
+
 ---------------------------------------------------------------------
 -- softcut
 ---------------------------------------------------------------------
@@ -411,6 +412,32 @@ local function audio_midi_note_off(note)
   end
 end
 
+---------------------------------------------------------------------
+-- SPAT : declarations (fonctions definies plus bas, apres poto_set)
+---------------------------------------------------------------------
+local TAU        = math.pi * 2
+local SPAT_MODES = {"NEBULA","ORBIT","PULSAR","QUANTUM","STRANGE","ENTANGLE"}
+local spat = {
+  mode = 1, mass = 0.6, tempo = 0.4, on = false, co = nil,
+  DT   = 0.08,
+  KEYS = {"impro","lead","av","rv"},
+  az   = {impro=0.0, lead=0.0, av=0.0, rv=0.0},
+  dz   = {impro=0.0, lead=0.3, av=-0.2, rv=0.5},
+  s    = {
+    neb_vel = {0.0, 0.0, 0.0, 0.0},
+    orb_th  = {0.0, TAU*0.16, TAU*0.49, TAU*0.83},
+    puls_t  = 0.0,
+    q_tgt   = {0.0, 0.3, -0.5, 0.7},
+    q_lerp  = {1.0, 1.0,  1.0, 1.0},
+    lx=0.1, ly=0.0, lz=20.0,
+    lx2=1.5, ly2=0.8, lz2=19.5,
+    ent_th  = 0.0,
+    dz_vel  = {0.0, 0.0, 0.0, 0.0},
+  }
+}
+local spat_depth_mult  -- forward ref : definie apres poto_set
+local spat_eff_pan     -- forward ref
+
 local function play_event(ev, rate_mult)
   local vi  = ply_idx
   local v   = PLY_V[vi]
@@ -418,9 +445,11 @@ local function play_event(ev, rate_mult)
   ply_tokens[vi] = ply_tokens[vi] + 1
   local tok = ply_tokens[vi]
 
-  -- pre-silence : fade out du grain precedent avant le saut de position
-  softcut.level(v, 0)
-  clock.sleep(0.03)
+  -- pre-silence uniquement si voix unique (POtO actif)
+  if #PLY_V == 1 then
+    softcut.play(v, 0)
+    clock.sleep(0.022)
+  end
 
   rate_mult = rate_mult or 1.0
   local p   = slot_pos(ev.slot)
@@ -434,7 +463,9 @@ local function play_event(ev, rate_mult)
     len  = sl
   end
 
-  softcut.loop(v, 1)
+  softcut.level(v, spat.on and spat_depth_mult("impro") or 1.0)
+  if spat.on then softcut.pan(v, spat_eff_pan("impro")) end
+  softcut.loop(v, 0)
   softcut.loop_start(v, base)
   softcut.loop_end(v, base + len)
 
@@ -445,9 +476,9 @@ local function play_event(ev, rate_mult)
     softcut.position(v, base)
   end
 
+  softcut.fade_time(v, math.min(0.025, len * 0.12))
   softcut.rate(v, rate * rate_mult)
   softcut.play(v, 1)
-  softcut.level(v, 1.0)   -- fade in (fade_time = 20ms)
 
   local f = ev.freq > 0 and ev.freq or cur_freq
   local imp_note = freq_to_midi(f) or 60
@@ -455,13 +486,10 @@ local function play_event(ev, rate_mult)
   midi_note_on(1, imp_note, imp_vel)
 
   clock.run(function()
-    clock.sleep(len + 0.05)
+    clock.sleep(math.max(0.04, len - 0.025))
     midi_note_off(1, imp_note)
     if ply_tokens[vi] == tok then
-      softcut.level(v, 0)     -- fade out
-      clock.sleep(0.03)
       softcut.play(v, 0)
-      softcut.loop(v, 0)
     end
   end)
 
@@ -536,7 +564,7 @@ local function os8_set(mode)
   end
   if os8_mode == "TRANS" then
     for _, v in ipairs({3, 5, 6}) do
-      softcut.level(v, 0) ; softcut.play(v, 0)
+      softcut.play(v, 0)
     end
     -- rebranche POtO rec (arrete lors du passage en TRANS)
     softcut.loop(POTO_REC_V, 1)
@@ -617,7 +645,7 @@ local function os8_set(mode)
     -- config voix lecture
     for _, v in ipairs({3, 5, 6}) do
       softcut.buffer(v, 1)
-      softcut.loop(v, 1)
+      softcut.loop(v, 0)
       softcut.level(v, 0)
       softcut.rate(v, 1.0)
       softcut.fade_time(v, 0.02)
@@ -646,6 +674,7 @@ local function os8_set(mode)
           if g then
             os8_pos_v5 = g.pos
             local gs = math.min(os8_size, g.dur)
+            softcut.loop(5, 0)
             softcut.loop_start(5, g.pos)
             softcut.loop_end(5,   g.pos + gs)
             softcut.position(5, g.pos)
@@ -654,18 +683,18 @@ local function os8_set(mode)
             softcut.play(5, 1)
             local n5 = freq_to_midi(g.pitch)
             if n5 then midi_note_on(3, n5, math.floor(os8_vol * 127)) end
-            grain_sleep(gs)
+            grain_sleep(math.max(0.04, gs - 0.025))
             if n5 then midi_note_off(3, n5) end
-            softcut.level(5, 0) ; clock.sleep(0.02)
+            softcut.play(5, 0) ; clock.sleep(0.04)
           else
             clock.sleep(0.05)
           end
         else
-          softcut.level(5, 0) ; softcut.play(5, 0)
+          softcut.play(5, 0)
           clock.sleep(0.05)
         end
       end
-      softcut.level(5, 0) ; softcut.play(5, 0)
+      softcut.play(5, 0)
     end)
     -- boucle grain V6 ECHO (2e match, gate-driven)
     clock.run(function()
@@ -677,6 +706,7 @@ local function os8_set(mode)
           if g then
             os8_pos_v6 = g.pos
             local gs = math.min(os8_size, g.dur)
+            softcut.loop(6, 0)
             softcut.loop_start(6, g.pos)
             softcut.loop_end(6,   g.pos + gs)
             softcut.position(6, g.pos)
@@ -685,18 +715,18 @@ local function os8_set(mode)
             softcut.play(6, 1)
             local n6 = freq_to_midi(g.pitch)
             if n6 then midi_note_on(3, n6, math.floor(os8_vol * 83)) end
-            grain_sleep(gs)
+            grain_sleep(math.max(0.04, gs - 0.025))
             if n6 then midi_note_off(3, n6) end
-            softcut.level(6, 0) ; clock.sleep(0.02)
+            softcut.play(6, 0) ; clock.sleep(0.04)
           else
             clock.sleep(0.05)
           end
         else
-          softcut.level(6, 0) ; softcut.play(6, 0)
+          softcut.play(6, 0)
           clock.sleep(0.05)
         end
       end
-      softcut.level(6, 0) ; softcut.play(6, 0)
+      softcut.play(6, 0)
     end)
     -- boucle grain V3 LOCK (3e grain le plus proche, gate-driven)
     clock.run(function()
@@ -708,6 +738,7 @@ local function os8_set(mode)
           if g then
             os8_pos_v3 = g.pos
             local gs = math.min(os8_size, g.dur)
+            softcut.loop(3, 0)
             softcut.loop_start(3, g.pos)
             softcut.loop_end(3,   g.pos + gs)
             softcut.position(3, g.pos)
@@ -716,18 +747,18 @@ local function os8_set(mode)
             softcut.play(3, 1)
             local n3 = freq_to_midi(g.pitch)
             if n3 then midi_note_on(3, n3, math.floor(os8_vol * 51)) end
-            grain_sleep(gs)
+            grain_sleep(math.max(0.04, gs - 0.025))
             if n3 then midi_note_off(3, n3) end
-            softcut.level(3, 0) ; clock.sleep(0.02)
+            softcut.play(3, 0) ; clock.sleep(0.04)
           else
             clock.sleep(0.05)
           end
         else
-          softcut.level(3, 0) ; softcut.play(3, 0)
+          softcut.play(3, 0)
           clock.sleep(0.05)
         end
       end
-      softcut.level(3, 0) ; softcut.play(3, 0)
+      softcut.play(3, 0)
     end)
   end
 end
@@ -800,6 +831,7 @@ local function poto_smart_params()
   end
 end
 
+
 local function poto_set(on)
   if on == p_poto_on then return end
   -- POtO et 8OS sont mutuellement exclusifs
@@ -809,7 +841,7 @@ local function poto_set(on)
   if on then
     -- V3 emprunte : une seule voix corpus pendant POtO
     PLY_V = {2} ; ply_idx = 1
-    softcut.level(3, 0) ; softcut.play(3, 0)
+    softcut.play(3, 0)
 
     poto_lead_zone = 0.0
 
@@ -819,16 +851,16 @@ local function poto_set(on)
 
     for _, v in ipairs({lv, av, rv}) do
       softcut.buffer(v, 1)
-      softcut.loop(v, 1)
+      softcut.loop(v, 0)
       softcut.play(v, 0)
-      softcut.level(v, 0)
       softcut.rate(v, 1.0)
       softcut.fade_time(v, 0.02)
     end
 
     -- LEAD : colle a la zone la plus fraiche (< 100ms du present)
     clock.run(function()
-      local zone = 0.0
+      local zone   = 0.0
+      local active = false
       while p_poto_on do
         if p_poto_poly == 5 then poto_smrt_update() end
         local gs  = (p_poto_poly == 5) and poto_smart_params().size or p_poto_size
@@ -840,28 +872,35 @@ local function poto_set(on)
         local dist = (wp - zone + POTO_DUR) % POTO_DUR
         if dist > gs + 0.05 then
           local bp = POTO_OFFSET + zone
+          local ft = math.min(0.020, gs * 0.15)
+          softcut.fade_time(lv, ft)
           softcut.loop_start(lv, bp)
           softcut.loop_end(lv, bp + gs)
-          softcut.position(lv, bp)
-          softcut.rate(lv, p_poto_rate)
-          softcut.level(lv, p_poto_vol)
-          softcut.play(lv, 1)
+          softcut.level(lv, p_poto_vol * (spat.on and spat_depth_mult("lead") or 1.0))
+          if spat.on then softcut.pan(lv, spat_eff_pan("lead")) end
+          if not active then
+            softcut.loop(lv, 1)
+            softcut.position(lv, bp)
+            softcut.rate(lv, p_poto_rate)
+            softcut.play(lv, 1)
+            active = true
+          end
           local pn_lv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_lv then midi_note_on(2, pn_lv, math.floor(p_poto_vol * 127)) end
           clock.sleep(gs)
           if pn_lv then midi_note_off(2, pn_lv) end
-          softcut.level(lv, 0)
-          clock.sleep(0.02)
         else
-          clock.sleep(gs + 0.02)
+          if active then softcut.play(lv, 0) ; active = false end
+          clock.sleep(gs)
         end
       end
-      softcut.level(lv, 0) ; softcut.play(lv, 0)
+      if active then softcut.play(lv, 0) end
     end)
 
     -- ATTRACTED : derive lentement vers la zone LEAD
     clock.run(function()
-      local zone = POTO_DUR * 0.25
+      local zone   = POTO_DUR * 0.25
+      local active = false
       while p_poto_on do
         local wp  = poto_write_pos_rel()
         local tgt = (poto_lead_zone - 0.05 + POTO_DUR) % POTO_DUR
@@ -870,9 +909,6 @@ local function poto_set(on)
         local dist = (wp - zone + POTO_DUR) % POTO_DUR
         if dist > p_poto_size + 0.05 then
           local bp = POTO_OFFSET + zone
-          softcut.loop_start(av, bp)
-          softcut.loop_end(av, bp + p_poto_size)
-          softcut.position(av, bp)
           local r_av, av_vol_mult
           if p_poto_poly == 5 then
             local sp = poto_smart_params()
@@ -882,25 +918,37 @@ local function poto_set(on)
             r_av = tbl and (p_poto_rate * tbl) or (p_poto_rate * (1 + p_poto_spread))
             av_vol_mult = 0.65
           end
-          softcut.rate(av, r_av)
-          softcut.level(av, p_poto_vol * av_vol_mult)
-          softcut.play(av, 1)
+          local ft = math.min(0.020, p_poto_size * 0.15)
+          softcut.fade_time(av, ft)
+          softcut.loop_start(av, bp)
+          softcut.loop_end(av, bp + p_poto_size)
+          softcut.level(av, p_poto_vol * av_vol_mult * (spat.on and spat_depth_mult("av") or 1.0))
+          if spat.on then softcut.pan(av, spat_eff_pan("av")) end
+          if not active then
+            softcut.loop(av, 1)
+            softcut.position(av, bp)
+            softcut.rate(av, r_av)
+            softcut.play(av, 1)
+            active = true
+          else
+            softcut.rate(av, r_av)
+          end
           local pn_av = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_av then midi_note_on(2, pn_av, math.floor(p_poto_vol * 83)) end
-          clock.sleep(p_poto_size + 0.01)
+          clock.sleep(p_poto_size)
           if pn_av then midi_note_off(2, pn_av) end
-          softcut.level(av, 0)
-          clock.sleep(0.02)
         else
+          if active then softcut.play(av, 0) ; active = false end
           clock.sleep(p_poto_size + 0.03)
         end
       end
-      softcut.level(av, 0) ; softcut.play(av, 0)
+      if active then softcut.play(av, 0) end
     end)
 
     -- REPULSED : pousse vers le cote oppose de LEAD dans le buffer
     clock.run(function()
-      local zone = POTO_DUR * 0.5
+      local zone   = POTO_DUR * 0.5
+      local active = false
       while p_poto_on do
         local wp  = poto_write_pos_rel()
         local tgt = (poto_lead_zone + POTO_DUR * 0.5) % POTO_DUR
@@ -909,9 +957,6 @@ local function poto_set(on)
         local dist = (wp - zone + POTO_DUR) % POTO_DUR
         if dist > p_poto_size + 0.05 then
           local bp = POTO_OFFSET + zone
-          softcut.loop_start(rv, bp)
-          softcut.loop_end(rv, bp + p_poto_size)
-          softcut.position(rv, bp)
           local r_rv, rv_vol_mult
           if p_poto_poly == 5 then
             local sp = poto_smart_params()
@@ -921,33 +966,189 @@ local function poto_set(on)
             r_rv = tbl and (p_poto_rate * tbl) or math.max(0.5, p_poto_rate * (1 - p_poto_spread * 2))
             rv_vol_mult = 0.40
           end
-          softcut.rate(rv, r_rv)
-          softcut.level(rv, p_poto_vol * rv_vol_mult)
-          softcut.play(rv, 1)
+          local ft = math.min(0.020, p_poto_size * 0.15)
+          softcut.fade_time(rv, ft)
+          softcut.loop_start(rv, bp)
+          softcut.loop_end(rv, bp + p_poto_size)
+          softcut.level(rv, p_poto_vol * rv_vol_mult * (spat.on and spat_depth_mult("rv") or 1.0))
+          if spat.on then softcut.pan(rv, spat_eff_pan("rv")) end
+          if not active then
+            softcut.loop(rv, 1)
+            softcut.position(rv, bp)
+            softcut.rate(rv, r_rv)
+            softcut.play(rv, 1)
+            active = true
+          else
+            softcut.rate(rv, r_rv)
+          end
           local pn_rv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_rv then midi_note_on(2, pn_rv, math.floor(p_poto_vol * 51)) end
-          clock.sleep(p_poto_size + 0.03)
+          clock.sleep(p_poto_size)
           if pn_rv then midi_note_off(2, pn_rv) end
-          softcut.level(rv, 0)
-          clock.sleep(0.02)
         else
+          if active then softcut.play(rv, 0) ; active = false end
           clock.sleep(p_poto_size + 0.05)
         end
       end
-      softcut.level(rv, 0) ; softcut.play(rv, 0)
+      if active then softcut.play(rv, 0) end
     end)
 
   else
     -- arret immediat, les boucles grain s'arretent au prochain tour
     for _, v in ipairs({POTO_PLY_V[1], POTO_PLY_V[2], 3}) do
-      softcut.level(v, 0)
       softcut.play(v, 0)
+      softcut.loop(v, 0)
     end
     if os8_mode == "OFF" then PLY_V = {2, 3} else PLY_V = {2} end
     ply_idx = 1
     softcut.loop(3, 0)
     softcut.fade_time(3, 0.02)
   end
+end
+
+---------------------------------------------------------------------
+-- SPAT : moteur spatial 6 modes
+---------------------------------------------------------------------
+spat_depth_mult = function(k)
+  return 0.55 + 0.45 * (spat.dz[k] + 1) * 0.5
+end
+
+spat_eff_pan = function(k)
+  local w = 0.40 + 0.60 * (spat.dz[k] + 1) * 0.5
+  return spat.az[k] * w
+end
+
+local function spat_apply()
+  for _, v in ipairs(PLY_V) do
+    softcut.pan(v, spat_eff_pan("impro"))
+  end
+  if p_poto_on then
+    softcut.pan(POTO_PLY_V[1], spat_eff_pan("lead"))
+    softcut.pan(POTO_PLY_V[2], spat_eff_pan("av"))
+    softcut.pan(3,              spat_eff_pan("rv"))
+  end
+end
+
+local function spat_update()
+  local s    = spat.s
+  local dt   = spat.DT
+  local keys = spat.KEYS
+  local m    = spat.mode
+  -- valeurs effectives : modulees par SMRT si POtO SMRT actif
+  local mass, tempo = spat.mass, spat.tempo
+  if p_poto_on and p_poto_poly == 5 then
+    local mm = {WHSPR=0.25, TONAL=0.60, BRGHT=0.90, NOISY=1.0}
+    local tm = {WHSPR=0.70, TONAL=0.85, BRGHT=1.00, NOISY=1.15}
+    mass  = mass  * (mm[poto_smrt_tech]  or 1.0)
+    tempo = tempo * (tm[poto_smrt_tech] or 1.0)
+  end
+
+  if m == 1 then  -- NEBULA : brownien avec inertie
+    local damp = 1.0 - mass * 0.4
+    local kick = tempo * 0.6
+    for i, k in ipairs(keys) do
+      s.neb_vel[i] = s.neb_vel[i] * damp + (math.random() * 2 - 1) * kick * dt
+      spat.az[k]   = math.max(-1, math.min(1, spat.az[k] + s.neb_vel[i]))
+      s.dz_vel[i]  = s.dz_vel[i] * damp + (math.random() * 2 - 1) * kick * 0.5 * dt
+      spat.dz[k]   = math.max(-1, math.min(1, spat.dz[k] + s.dz_vel[i]))
+    end
+
+  elseif m == 2 then  -- ORBIT : keplerienne vitesse 1/r^2
+    local spd = tempo * 4.0
+    for i, k in ipairs(keys) do
+      local r = 0.3 + mass * 0.7 * (0.5 + 0.5 * math.sin(i * 1.3))
+      s.orb_th[i] = s.orb_th[i] + (spd / (r * r)) * dt
+      spat.az[k]  = math.sin(s.orb_th[i]) * r
+      spat.dz[k]  = math.cos(s.orb_th[i]) * r * 0.5
+    end
+
+  elseif m == 3 then  -- PULSAR : arc tanh avec dephasages
+    local spd = tempo * 5.0
+    s.puls_t = s.puls_t + spd * dt
+    for i, k in ipairs(keys) do
+      local ph = s.puls_t + (i - 1) * (TAU / #keys)
+      spat.az[k] = math.tanh(math.sin(ph) * (1 + mass * 3.0))
+      spat.dz[k] = math.tanh(math.cos(ph) * mass) * 0.6
+    end
+
+  elseif m == 4 then  -- QUANTUM : stable + tunneling RMS
+    for i, k in ipairs(keys) do
+      local rms_trig = rms_smooth > 0.08 + mass * 0.1
+      if rms_trig and s.q_lerp[i] >= 0.98 then
+        s.q_tgt[i]  = math.random() * 2 - 1
+        s.q_lerp[i] = 0.0
+      end
+      s.q_lerp[i] = math.min(1.0, s.q_lerp[i] + tempo * dt * 8)
+      spat.az[k]  = spat.az[k] + (s.q_tgt[i] - spat.az[k]) * s.q_lerp[i] * dt * 5
+      spat.dz[k]  = math.max(-1, math.min(1, spat.dz[k] + (0 - spat.dz[k]) * 0.1))
+    end
+
+  elseif m == 5 then  -- STRANGE : double attracteur de Lorenz
+    local sig, rho, beta = 10.0, 28.0, 8.0 / 3.0
+    local sc  = tempo * 0.5
+    local dx  = sig * (s.ly - s.lx)
+    local dy  = s.lx * (rho - s.lz) - s.ly
+    local dz_ = s.lx * s.ly - beta * s.lz
+    s.lx = s.lx + dx * dt * sc
+    s.ly = s.ly + dy * dt * sc
+    s.lz = s.lz + dz_ * dt * sc
+    local dx2 = sig * (s.ly2 - s.lx2)
+    local dy2 = s.lx2 * (rho - s.lz2) - s.ly2
+    local dz2 = s.lx2 * s.ly2 - beta * s.lz2
+    s.lx2 = s.lx2 + dx2 * dt * sc
+    s.ly2 = s.ly2 + dy2 * dt * sc
+    s.lz2 = s.lz2 + dz2 * dt * sc
+    spat.az[keys[1]] = math.tanh(s.lx  * 0.05)
+    spat.az[keys[2]] = math.tanh(s.ly  * 0.05)
+    spat.az[keys[3]] = math.tanh(s.lx2 * 0.05)
+    spat.az[keys[4]] = math.tanh(s.ly2 * 0.05)
+    spat.dz[keys[1]] = math.tanh(s.lz  * 0.01 - 1)
+    spat.dz[keys[2]] = math.tanh(s.lz  * 0.01 - 1) * 0.7
+    spat.dz[keys[3]] = math.tanh(s.lz2 * 0.01 - 1) * 0.5
+    spat.dz[keys[4]] = math.tanh(s.lz2 * 0.01 - 1) * 0.3
+
+  elseif m == 6 then  -- ENTANGLE : LEAD brownien, ATTRACTED miroir, REPULSED orbite
+    local damp = 1.0 - mass * 0.35
+    local kick = tempo * 0.7
+    s.neb_vel[1] = s.neb_vel[1] * damp + (math.random() * 2 - 1) * kick * dt
+    spat.az.lead  = math.max(-1, math.min(1, spat.az.lead + s.neb_vel[1]))
+    spat.az.av    = -spat.az.lead
+    s.dz_vel[1]   = s.dz_vel[1] * damp + (math.random() * 2 - 1) * kick * 0.3 * dt
+    spat.dz.lead  = math.max(-1, math.min(1, spat.dz.lead + s.dz_vel[1]))
+    spat.dz.av    = spat.dz.lead
+    s.ent_th      = s.ent_th + tempo * 3.0 * dt
+    spat.az.rv    = math.sin(s.ent_th) * (0.4 + mass * 0.5)
+    spat.dz.rv    = math.cos(s.ent_th * 0.7) * 0.4
+    spat.az.impro = spat.az.impro + (spat.az.lead * 0.5 - spat.az.impro) * 0.05
+  end
+end
+
+local function spat_stop()
+  if spat.co then clock.cancel(spat.co) ; spat.co = nil end
+  clock.run(function()
+    for step = 1, 6 do
+      local t = 1 - step / 6
+      for _, k in ipairs(spat.KEYS) do
+        spat.az[k] = spat.az[k] * t
+        spat.dz[k] = spat.dz[k] * t
+      end
+      spat_apply()
+      clock.sleep(0.08)
+    end
+    for _, k in ipairs(spat.KEYS) do spat.az[k] = 0 ; spat.dz[k] = 0 end
+    spat_apply()
+  end)
+end
+
+local function spat_start()
+  if spat.co then clock.cancel(spat.co) end
+  spat.co = clock.run(function()
+    while spat.on do
+      spat_update()
+      spat_apply()
+      clock.sleep(spat.DT)
+    end
+  end)
 end
 
 ---------------------------------------------------------------------
@@ -1700,7 +1901,7 @@ function cleanup()
 end
 
 ---------------------------------------------------------------------
--- navigation pages (16 pages)
+-- navigation pages (17 pages)
 -- Page  1  CORPUS   : E2 learn%     | E3 gate thr   | K3 clear corpus
 -- Page  2  MAIN     : E2 density    | E3 sil bias   | K3 force reply
 -- Page  3  RESP     : E2 contrast   | E3 reply%     | K3 deaf on/off
@@ -1719,11 +1920,12 @@ end
 --                      CLUB KPOP ORNTL RAVE TRNCE
 -- Page 15  MGEN BRK : E2 break type | E3 octave ch  | K3 fire break
 -- Page 16  AUDIO>MIDI: E2 device   | E3 channel    | K3 toggle route
--- E1 : navigation pages (1->16->1)
+-- Page 17  SPAT      : E2 masse    | E3 tempo      | K2 mode | K3 ON/OFF
+-- E1 : navigation pages (1->17->1)
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 16) + 1
+    page = ((page - 1 + d) % 17) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1750,6 +1952,8 @@ function enc(n, d)
       mgen_break_idx = ((mgen_break_idx - 1 + d) % #MGEN_BREAK_NAMES) + 1
     elseif page == 16 then
       midi_audio_cur_dev = util.clamp(midi_audio_cur_dev + d, 1, 4)
+    elseif page == 17 then
+      spat.mass = util.clamp(spat.mass + d * 0.05, 0.0, 1.0)
     end
   elseif n == 3 then
     if page == 1 then
@@ -1778,6 +1982,8 @@ function enc(n, d)
       end
     elseif page == 16 then
       midi_ch_audio[midi_audio_cur_dev] = util.clamp(midi_ch_audio[midi_audio_cur_dev] + d, 1, 16)
+    elseif page == 17 then
+      spat.tempo = util.clamp(spat.tempo + d * 0.05, 0.0, 1.0)
     elseif page == 13 then
       mgen_scale_idx = ((mgen_scale_idx - 1 + d) % #MGEN_SCALE_NAMES) + 1
     elseif page == 14 then
@@ -1805,6 +2011,8 @@ function key(n, z)
   elseif n == 2 and page == 14 then
     mgen_mut_idx  = (mgen_mut_idx % #MGEN_MUT_RATES) + 1
     mgen_mut_rate = MGEN_MUT_RATES[mgen_mut_idx]
+  elseif n == 2 and page == 17 then
+    spat.mode = (spat.mode % #SPAT_MODES) + 1
   elseif n == 2 and page == 13 then
     if mgen_running then
       mgen_gen_all(true)
@@ -1866,6 +2074,9 @@ function key(n, z)
       midi_route[midi_cur_stream][dev] = not midi_route[midi_cur_stream][dev]
     elseif page == 16 then
       midi_route[5][midi_audio_cur_dev] = not midi_route[5][midi_audio_cur_dev]
+    elseif page == 17 then
+      spat.on = not spat.on
+      if spat.on then spat_start() else spat_stop() end
     elseif page == 13 then
       if mgen_running then mgen_stop() else mgen_gen_all() ; mgen_start() end
     elseif page == 14 then
@@ -1922,7 +2133,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/16")
+  screen.text(page .. "/17")
 
   if rec_on then
     screen.level(15)
@@ -2224,6 +2435,32 @@ function redraw()
       screen.move(100, ys[d])
       screen.text(string.format("ch%2d", midi_ch_audio[d]))
     end
+
+  elseif page == 17 then
+    screen.level(spat.on and 15 or 5)
+    screen.font_size(16)
+    screen.move(0, 38)
+    screen.text(SPAT_MODES[spat.mode])
+    screen.font_size(8)
+    screen.level(6)
+    screen.move(0, 48)
+    screen.text(string.format("mass:%.2f  spd:%.2f", spat.mass, spat.tempo))
+    screen.level(3)
+    screen.move(4, 56) ; screen.line(124, 56) ; screen.stroke()
+    local sym = {impro="*", lead="O", av="o", rv="."}
+    for _, k in ipairs(spat.KEYS) do
+      local x = math.floor((spat_eff_pan(k) + 1) * 0.5 * 118) + 5
+      screen.level(spat.on and (k == "lead" and 15 or 10) or 4)
+      screen.move(x, 56)
+      screen.text(sym[k])
+    end
+    screen.level(spat.on and 15 or 4)
+    screen.move(100, 64)
+    screen.text(spat.on and "ON" or "off")
+    screen.level(4)
+    screen.move(0, 64)
+    screen.text(string.format("K2:mode K3:%s", spat.on and "off" or "on"))
+
   end
 
   screen.update()

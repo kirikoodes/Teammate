@@ -70,13 +70,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→16)
+E1        — previous / next page (loops 1→17)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 16 pages
+## The 17 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -425,6 +425,69 @@ Real-time pitch-to-MIDI conversion. Converts live audio into MIDI notes and rout
 - **Polyphonique** (émulateur HTML) : jusqu'à 4 pitchs simultanés détectés par FFT (pics > −38 dBFS, séparation min 3 demi-tons) → note_on simultanées
 - **Monophonique** (Norns) : pitch fondamental courant → note_on à l'ouverture du gate, note_off à la fermeture
 - Notes actives affichées sur la ligne d'info pendant la navigation sur cette page
+
+---
+
+### Page 17 — SPAT
+Cosmic / quantum spatialization. Each sound source gets its own position in the stereo field, animated by one of six orbital or physical movement models.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Mass — movement amplitude (0–100%) |
+| E3 | Tempo — movement speed (0–100%) |
+| K2 | Cycle mode: **NEBULA** → **ORBIT** → **PULSAR** → **QUANTUM** → **STRANGE** → **ENTANGLE** |
+| K3 | SPAT ON / OFF |
+
+The display shows a horizontal spatial field (L ← center → R) with four voice markers:
+- `*` asterisk = IMPRO corpus playback
+- `O` large letter = POtO LEAD
+- `o` small letter = POtO ATTRACTED
+- `.` dot = POtO REPULSED
+
+**Movement modes:**
+
+| Mode | Physics | Character |
+|---|---|---|
+| **NEBULA** | Brownian motion with inertia and boundary reflection | Slow, organic, never repeating — like gas clouds drifting |
+| **ORBIT** | Keplerian elliptical orbits (Kepler's second law: faster at periapsis) | Regular but non-uniform — speed varies with distance |
+| **PULSAR** | Tanh-shaped arc sweep with phase offsets per voice | Sharp sweeping arcs, like a pulsar beam rotating |
+| **QUANTUM** | Stable position + random tunneling triggered by signal energy | Mostly still, then instantaneous jumps — probability driven by RMS |
+| **STRANGE** | Two-point Lorenz attractor (σ=10, ρ=28, β=8/3) | Chaotic, deterministic, never repeating — projected from 3D to stereo |
+| **ENTANGLE** | Lead drifts (Brownian), Attracted = quantum mirror of Lead, Repulsed orbits independently | Lead and Attracted are entangled — move in opposite directions always |
+
+When **POtO SMRT** mode is active, the movement parameters are modulated automatically by the detected technique:
+- **WHSPR** → very subtle, slow movement (mass ×0.25)
+- **TONAL** → moderate movement (mass ×0.60)
+- **BRGHT** → wide, expressive movement (mass ×0.90)
+- **NOISY** → maximum amplitude, slightly faster (mass ×1.0, tempo ×1.15)
+
+*Spatialisation cosmique / quantique. Chaque source reçoit sa propre position dans le champ stéréo, animée par l'un des six modèles de mouvement orbital ou physique.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Masse — amplitude du mouvement (0–100%) |
+| E3 | Tempo — vitesse du mouvement (0–100%) |
+| K2 | Cycle mode : **NEBULA** → **ORBIT** → **PULSAR** → **QUANTUM** → **STRANGE** → **ENTANGLE** |
+| K3 | SPAT ON / OFF |
+
+L'affichage montre le champ stéréo (G ← centre → D) avec quatre marqueurs de voix :
+- `*` astérisque = playback corpus IMPRO
+- `O` grande lettre = POtO LEAD
+- `o` petite lettre = POtO ATTRACTED
+- `.` point = POtO REPULSED
+
+**Modes de mouvement :**
+
+| Mode | Physique | Caractère |
+|---|---|---|
+| **NEBULA** | Mouvement brownien avec inertie et réflexion aux bords | Lent, organique, jamais identique — comme des nuages de gaz |
+| **ORBIT** | Orbites képlériennes (2e loi de Kepler : plus vite au périhélie) | Régulier mais non-uniforme — la vitesse varie avec la distance |
+| **PULSAR** | Balayage en arc tanh avec déphasages par voix | Arcs nets et nets, comme un pulsar qui balaie |
+| **QUANTUM** | Position stable + tunneling aléatoire déclenché par l'énergie | Stable la plupart du temps, puis sauts instantanés — probabilité pilotée par le RMS |
+| **STRANGE** | Double attracteur de Lorenz (σ=10, ρ=28, β=8/3) | Chaotique, déterministe, jamais identique — projeté de 3D en stéréo |
+| **ENTANGLE** | Lead dérive (Brownien), Attracted = miroir quantique de Lead, Repulsed orbite seul | Lead et Attracted sont intriqués — bougent toujours en sens inverse |
+
+Quand le mode **SMRT de POtO** est actif, les paramètres de mouvement sont modulés automatiquement par la technique détectée.
 
 ---
 

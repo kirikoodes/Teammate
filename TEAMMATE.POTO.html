@@ -70,6 +70,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.14</td><td>MGEN channels — E2 select · E3 style · K2 evo rate · K3 on/off</td></tr>
       <tr><td>p.15</td><td>MGEN breaks — E2 type · E3 octave · K3 fire</td></tr>
       <tr><td>p.16</td><td>Audio→MIDI — pitch polyphonique live · E2 device · E3 channel · K3 toggle</td></tr>
+      <tr><td>p.17</td><td>SPAT — spatialisation 6 modes · E2 masse · E3 tempo · K2 mode · K3 ON/OFF</td></tr>
     </table>
   </div>
   <div class="doc-col">
@@ -161,6 +162,22 @@ let audio_midi_notes=[];  // notes MIDI audio actives (polyphonique)
 const RATE_PRESETS=[0.5,0.75,1.0,1.25,1.5,2.0];
 let rate_pidx=2;
 
+// ─── SPAT ─────────────────────────────────────────────────────────────────────
+const SPAT_MODES=['NEBULA','ORBIT','PULSAR','QUANTUM','STRANGE','ENTANGLE'];
+const SPAT_TAU=Math.PI*2;
+const SPAT_KEYS=['impro','lead','av','rv'];
+let spat={
+  mode:0,mass:0.6,tempo:0.4,on:false,timer:null,DT:0.08,
+  az:{impro:0,lead:0,av:0,rv:0},
+  dz:{impro:0,lead:0.3,av:-0.2,rv:0.5},
+  s:{
+    nebVel:[0,0,0,0],orbTh:[0,SPAT_TAU*0.16,SPAT_TAU*0.49,SPAT_TAU*0.83],
+    pulsT:0,qTgt:[0,0.3,-0.5,0.7],qLerp:[1,1,1,1],
+    lx:0.1,ly:0,lz:20,lx2:1.5,ly2:0.8,lz2:19.5,
+    entTh:0,dzVel:[0,0,0,0]
+  }
+};
+
 // ─── MIDI GEN DEFS ────────────────────────────────────────────────────────────
 const MGEN_SCALE_NAMES=['MINOR','PHRYG','BLUES','DORIC','MAJOR','PENMIN','PENMAJ'];
 const MGEN_SCALES={
@@ -201,8 +218,9 @@ let audioCtx=null,analyser=null,monitorGain=null;
 let corpusBufs=new Array(CORPUS_SLOTS).fill(null),recBuffer=[];
 let potoBuffer=null,potoWritePos=0;
 let os8Buffer=null,os8WritePos=0;
-let plyNodes=[null,null],plyIdx=0;
+let plyNodes=[null,null],plyGains=[null,null],plyIdx=0;
 let potoGrainActive=false,os8GrainActive=false;
+
 
 async function initAudio(){
   try{
@@ -299,7 +317,7 @@ function hannWindow(grain){
   for(let i=0;i<n;i++) grain[i]*=0.5*(1-Math.cos(2*Math.PI*i/Math.max(1,n-1)));
 }
 
-function playGrain(samples,gainVal,rate,startPos,grainLen){
+function playGrain(samples,gainVal,rate,startPos,grainLen,pan=0){
   if(!audioCtx) return;
   const sr=audioCtx.sampleRate;
   const len=Math.floor(grainLen*sr);
@@ -312,8 +330,10 @@ function playGrain(samples,gainVal,rate,startPos,grainLen){
   ab.copyToChannel(grain,0);
   const src=audioCtx.createBufferSource();
   const gn=audioCtx.createGain(); gn.gain.value=gainVal;
+  const panner=audioCtx.createStereoPanner();
+  panner.pan.value=Math.max(-1,Math.min(1,pan));
   src.buffer=ab; src.playbackRate.value=Math.max(0.1,rate);
-  src.connect(gn); gn.connect(audioCtx.destination);
+  src.connect(gn); gn.connect(panner); panner.connect(audioCtx.destination);
   src.start();
   return len/sr/rate;
 }
@@ -370,16 +390,17 @@ function potoGrain(){
   const voiceGain=rates[1]!=null?p_poto_vol*0.7:p_poto_vol;
   const jitter0=spreadSamp>0?rnd(-spreadSamp,spreadSamp):0;
   const startPos=Math.floor((center+jitter0+bufLen)%bufLen);
-  const dur=playGrain(potoBuffer,voiceGain,p_poto_rate,startPos,grainSize);
+  const leadGain=voiceGain*(spat.on?spatDepthMult('lead'):1);
+  const dur=playGrain(potoBuffer,leadGain,p_poto_rate,startPos,grainSize,spat.on?spatEffPan('lead'):0);
   if(rates[1]!=null){
     const jitter1=spreadSamp>0?rnd(-spreadSamp,spreadSamp):0;
     const sp1=Math.floor((center+jitter1+bufLen)%bufLen);
-    playGrain(potoBuffer,p_poto_vol*avLv,p_poto_rate*rates[1],sp1,grainSize);
+    playGrain(potoBuffer,p_poto_vol*avLv*(spat.on?spatDepthMult('av'):1),p_poto_rate*rates[1],sp1,grainSize,spat.on?spatEffPan('av'):0);
   }
   if(rates[2]!=null){
     const jitter2=spreadSamp>0?rnd(-spreadSamp,spreadSamp):0;
     const sp2=Math.floor((center+jitter2+bufLen)%bufLen);
-    playGrain(potoBuffer,p_poto_vol*rvLv,p_poto_rate*rates[2],sp2,grainSize);
+    playGrain(potoBuffer,p_poto_vol*rvLv*(spat.on?spatDepthMult('rv'):1),p_poto_rate*rates[2],sp2,grainSize,spat.on?spatEffPan('rv'):0);
   }
   const note=freqToMidi(cur_freq);
   if(note){
@@ -478,20 +499,30 @@ function playEvent(ev,rm){
     base=Math.random()*Math.max(0,dur-sl); len=sl;
   }
   const vi=plyIdx%2; plyIdx++;
-  if(plyNodes[vi]) try{plyNodes[vi].stop();}catch(e){}
+  if(plyNodes[vi]) try{
+    const t=audioCtx.currentTime+0.02;
+    if(plyGains[vi]) plyGains[vi].gain.linearRampToValueAtTime(0,t);
+    plyNodes[vi].stop(t);
+  }catch(e){}
   const src=audioCtx.createBufferSource();
-  const gn=audioCtx.createGain(); gn.gain.value=1;
+  const gn=audioCtx.createGain(); gn.gain.value=spat.on?spatDepthMult('impro'):1;
   src.buffer=ab; src.loop=true;
   src.loopStart=base; src.loopEnd=base+len;
   src.playbackRate.value=Math.abs(rm);
-  src.connect(gn); gn.connect(audioCtx.destination);
+  const improPanner=audioCtx.createStereoPanner();
+  improPanner.pan.value=spat.on?spatEffPan('impro'):0;
+  src.connect(gn); gn.connect(improPanner); improPanner.connect(audioCtx.destination);
   src.start(0,Math.random()<REV_PROB?base+len-0.001:base);
-  plyNodes[vi]=src;
+  plyNodes[vi]=src; plyGains[vi]=gn;
   const note=freqToMidi(ev.freq||cur_freq);
   if(note) midiNoteOn(1,note,Math.max(1,Math.min(127,Math.floor(ev.rms*800))));
   setTimeout(()=>{
     if(note) midiNoteOff(1,note);
-    try{src.stop();}catch(e){}
+    try{
+      const t=audioCtx.currentTime+0.02;
+      gn.gain.linearRampToValueAtTime(0,t);
+      src.stop(t);
+    }catch(e){}
   },(len+0.05)*1000);
   return len;
 }
@@ -846,6 +877,87 @@ function mgenStart(){
   }else schedule();
 }
 
+// ─── SPAT FONCTIONS ───────────────────────────────────────────────────────────
+function spatEffPan(k){const w=0.40+0.60*(spat.dz[k]+1)*0.5;return Math.max(-1,Math.min(1,spat.az[k]*w));}
+function spatDepthMult(k){return 0.55+0.45*(spat.dz[k]+1)*0.5;}
+function spatUpdate(){
+  const s=spat.s,dt=spat.DT,m=spat.mode;
+  let mass=spat.mass,tempo=spat.tempo;
+  if(poto_on&&p_poto_poly===4){
+    const mm={WHSPR:0.25,TONAL:0.60,BRGHT:0.90,NOISY:1.0};
+    const tm={WHSPR:0.70,TONAL:0.85,BRGHT:1.00,NOISY:1.15};
+    mass *=(mm[poto_smrt_tech]??1.0);
+    tempo*=(tm[poto_smrt_tech]??1.0);
+  }
+  if(m===0){
+    const damp=1-mass*0.4,kick=tempo*0.6;
+    SPAT_KEYS.forEach((k,i)=>{
+      s.nebVel[i]=s.nebVel[i]*damp+(Math.random()*2-1)*kick*dt;
+      spat.az[k]=Math.max(-1,Math.min(1,spat.az[k]+s.nebVel[i]));
+      s.dzVel[i]=s.dzVel[i]*damp+(Math.random()*2-1)*kick*0.5*dt;
+      spat.dz[k]=Math.max(-1,Math.min(1,spat.dz[k]+s.dzVel[i]));
+    });
+  }else if(m===1){
+    const spd=tempo*4;
+    SPAT_KEYS.forEach((k,i)=>{
+      const r=0.3+mass*0.7*(0.5+0.5*Math.sin(i*1.3));
+      s.orbTh[i]+=spd/(r*r)*dt;
+      spat.az[k]=Math.sin(s.orbTh[i])*r;
+      spat.dz[k]=Math.cos(s.orbTh[i])*r*0.5;
+    });
+  }else if(m===2){
+    const spd=tempo*5;s.pulsT+=spd*dt;
+    SPAT_KEYS.forEach((k,i)=>{
+      const ph=s.pulsT+i*(SPAT_TAU/SPAT_KEYS.length);
+      spat.az[k]=Math.tanh(Math.sin(ph)*(1+mass*3));
+      spat.dz[k]=Math.tanh(Math.cos(ph)*mass)*0.6;
+    });
+  }else if(m===3){
+    SPAT_KEYS.forEach((k,i)=>{
+      const trig=rms_smooth>0.08+mass*0.1;
+      if(trig&&s.qLerp[i]>=0.98){s.qTgt[i]=Math.random()*2-1;s.qLerp[i]=0;}
+      s.qLerp[i]=Math.min(1,s.qLerp[i]+tempo*dt*8);
+      spat.az[k]=Math.max(-1,Math.min(1,spat.az[k]+(s.qTgt[i]-spat.az[k])*s.qLerp[i]*dt*5));
+      spat.dz[k]=Math.max(-1,Math.min(1,spat.dz[k]+(0-spat.dz[k])*0.1));
+    });
+  }else if(m===4){
+    const sig=10,rho=28,beta=8/3,sc=tempo*0.5;
+    const dx=sig*(s.ly-s.lx),dy=s.lx*(rho-s.lz)-s.ly,dz_=s.lx*s.ly-beta*s.lz;
+    s.lx+=dx*dt*sc;s.ly+=dy*dt*sc;s.lz+=dz_*dt*sc;
+    const dx2=sig*(s.ly2-s.lx2),dy2=s.lx2*(rho-s.lz2)-s.ly2,dz2=s.lx2*s.ly2-beta*s.lz2;
+    s.lx2+=dx2*dt*sc;s.ly2+=dy2*dt*sc;s.lz2+=dz2*dt*sc;
+    spat.az[SPAT_KEYS[0]]=Math.tanh(s.lx*0.05);spat.az[SPAT_KEYS[1]]=Math.tanh(s.ly*0.05);
+    spat.az[SPAT_KEYS[2]]=Math.tanh(s.lx2*0.05);spat.az[SPAT_KEYS[3]]=Math.tanh(s.ly2*0.05);
+    spat.dz[SPAT_KEYS[0]]=Math.tanh(s.lz*0.01-1);spat.dz[SPAT_KEYS[1]]=Math.tanh(s.lz*0.01-1)*0.7;
+    spat.dz[SPAT_KEYS[2]]=Math.tanh(s.lz2*0.01-1)*0.5;spat.dz[SPAT_KEYS[3]]=Math.tanh(s.lz2*0.01-1)*0.3;
+  }else if(m===5){
+    const damp=1-mass*0.35,kick=tempo*0.7;
+    s.nebVel[0]=s.nebVel[0]*damp+(Math.random()*2-1)*kick*dt;
+    spat.az.lead=Math.max(-1,Math.min(1,spat.az.lead+s.nebVel[0]));
+    spat.az.av=-spat.az.lead;
+    s.dzVel[0]=s.dzVel[0]*damp+(Math.random()*2-1)*kick*0.3*dt;
+    spat.dz.lead=Math.max(-1,Math.min(1,spat.dz.lead+s.dzVel[0]));
+    spat.dz.av=spat.dz.lead;
+    s.entTh+=tempo*3*dt;
+    spat.az.rv=Math.sin(s.entTh)*(0.4+mass*0.5);
+    spat.dz.rv=Math.cos(s.entTh*0.7)*0.4;
+    spat.az.impro+=(spat.az.lead*0.5-spat.az.impro)*0.05;
+  }
+}
+function spatStop(){
+  if(spat.timer){clearInterval(spat.timer);spat.timer=null;}
+  let step=0;
+  const fade=setInterval(()=>{
+    step++;const t=1-step/6;
+    SPAT_KEYS.forEach(k=>{spat.az[k]*=t;spat.dz[k]*=t;});
+    if(step>=6){SPAT_KEYS.forEach(k=>{spat.az[k]=0;spat.dz[k]=0;});clearInterval(fade);}
+  },80);
+}
+function spatStart(){
+  if(spat.timer) clearInterval(spat.timer);
+  spat.timer=setInterval(spatUpdate,Math.round(spat.DT*1000));
+}
+
 // ─── REDRAW ───────────────────────────────────────────────────────────────────
 function redraw(){
   S.clear(); S.aa(0);
@@ -859,7 +971,7 @@ function redraw(){
   S.font_size(8);
   S.level(15);S.move(0,8);S.text(state);
   S.level(5);S.move(42,8);S.text(`c:${count}/${CORPUS_SLOTS}`);
-  S.level(5);S.move(100,8);S.text(`${page}/16`);
+  S.level(5);S.move(100,8);S.text(`${page}/17`);
   if(rec_on){S.level(15);S.circle(124,5,3);S.fill();}
   S.level(state==='THINK'?15:5);S.move(0,18);S.text(strat_name);
   if(phrase_buf.length>0){S.level(10);S.move(76,18);S.text('+'+phrase_buf.length);}
@@ -893,6 +1005,7 @@ function redraw(){
   else if(page===14) drawP14();
   else if(page===15) drawP15();
   else if(page===16) drawP16();
+  else if(page===17) drawP17();
 }
 
 function drawP1(){
@@ -1006,9 +1119,24 @@ function drawP16(){
   }
 }
 
+function drawP17(){
+  S.level(spat.on?15:5);S.font_size(16);S.move(0,38);S.text(SPAT_MODES[spat.mode]);
+  S.font_size(8);S.level(6);S.move(0,48);
+  S.text(`mass:${spat.mass.toFixed(2)}  spd:${spat.tempo.toFixed(2)}`);
+  S.level(3);S.move(4,56);S.line(124,56);S.stroke();
+  const sym={impro:'*',lead:'O',av:'o',rv:'.'};
+  SPAT_KEYS.forEach(k=>{
+    const x=Math.floor((spatEffPan(k)+1)*0.5*118)+5;
+    S.level(spat.on?(k==='lead'?15:10):4);
+    S.move(x,56);S.text(sym[k]);
+  });
+  S.level(spat.on?15:4);S.move(100,64);S.text(spat.on?'ON':'off');
+  S.level(4);S.move(0,64);S.text(`K2:mode K3:${spat.on?'off':'on'}`);
+}
+
 // ─── INPUT ────────────────────────────────────────────────────────────────────
 function enc(n,d){
-  if(n===1){page=((page-1+d+16)%16)+1;return;}
+  if(n===1){page=((page-1+d+17)%17)+1;return;}
   if(n===2){
     if(page===1)  p_rec_prob=clamp(p_rec_prob+d*0.05,0,1);
     else if(page===2)  p_density=clamp(p_density+d*0.05,0,1);
@@ -1022,6 +1150,7 @@ function enc(n,d){
     else if(page===14) mgen_sel_ch=clamp(mgen_sel_ch+d,1,16);
     else if(page===15) mgen_break_idx=((mgen_break_idx+d)%MGEN_BREAK_NAMES.length+MGEN_BREAK_NAMES.length)%MGEN_BREAK_NAMES.length;
     else if(page===16) midi_audio_cur_dev=clamp(midi_audio_cur_dev+d,1,4);
+    else if(page===17) spat.mass=clamp(spat.mass+d*0.05,0,1);
   }else if(n===3){
     if(page===1)  p_gate_thr=clamp(p_gate_thr+d*0.001,0.0001,0.05);
     else if(page===2)  p_sil_bias=clamp(p_sil_bias+d*0.05,0,1);
@@ -1038,6 +1167,7 @@ function enc(n,d){
     else if(page===14){const ch=mgen_ch[mgen_sel_ch-1];ch.style_idx=((ch.style_idx+d)%MGEN_STYLE_NAMES.length+MGEN_STYLE_NAMES.length)%MGEN_STYLE_NAMES.length;mgenGenSeq(mgen_sel_ch-1);}
     else if(page===15){const ch=mgen_ch[mgen_sel_ch-1];ch.octave=clamp(ch.octave+d,1,7);mgenGenSeq(mgen_sel_ch-1);}
     else if(page===16) midi_ch_audio[midi_audio_cur_dev-1]=clamp(midi_ch_audio[midi_audio_cur_dev-1]+d,1,16);
+    else if(page===17) spat.tempo=clamp(spat.tempo+d*0.05,0,1);
   }
 }
 
@@ -1046,6 +1176,7 @@ function key(n,z){
   if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
   if(n===2&&page===5){p_poto_poly=(p_poto_poly+1)%POTO_POLY_NAMES.length;return;}
   if(n===2&&page===6){os8_sync=!os8_sync;return;}
+  if(n===2&&page===17){spat.mode=(spat.mode+1)%SPAT_MODES.length;return;}
   if(n===2&&page===14){
     mgen_mut_idx=(mgen_mut_idx+1)%MGEN_MUT_RATES.length;
     mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx];
@@ -1086,6 +1217,7 @@ function key(n,z){
     else if(page===14){mgen_ch[mgen_sel_ch-1].on=!mgen_ch[mgen_sel_ch-1].on;}
     else if(page===15){mgen_ch.forEach(ch=>{if(ch.on){ch.brk=true;ch.brk_type=mgen_break_idx;}});}
     else if(page===16){midi_route[4][midi_audio_cur_dev-1]=!midi_route[4][midi_audio_cur_dev-1];}
+    else if(page===17){spat.on=!spat.on;if(spat.on)spatStart();else spatStop();}
   }
 }
 
