@@ -505,7 +505,12 @@ function playEvent(ev,rm){
     plyNodes[vi].stop(t);
   }catch(e){}
   const src=audioCtx.createBufferSource();
-  const gn=audioCtx.createGain(); gn.gain.value=spat.on?spatDepthMult('impro'):1;
+  const gn=audioCtx.createGain();
+  const targetGain=spat.on?spatDepthMult('impro'):1;
+  const ft=Math.min(0.025,len*0.12);
+  const now=audioCtx.currentTime;
+  gn.gain.setValueAtTime(0,now);
+  gn.gain.linearRampToValueAtTime(targetGain,now+ft);
   src.buffer=ab; src.loop=true;
   src.loopStart=base; src.loopEnd=base+len;
   src.playbackRate.value=Math.abs(rm);
@@ -519,11 +524,11 @@ function playEvent(ev,rm){
   setTimeout(()=>{
     if(note) midiNoteOff(1,note);
     try{
-      const t=audioCtx.currentTime+0.02;
+      const t=audioCtx.currentTime+ft;
       gn.gain.linearRampToValueAtTime(0,t);
       src.stop(t);
     }catch(e){}
-  },(len+0.05)*1000);
+  },(len+ft)*1000);
   return len;
 }
 
