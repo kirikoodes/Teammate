@@ -1017,17 +1017,15 @@ function redraw(){
 }
 
 function drawP1(){
-  const inShort=audio_in_name.length>20?audio_in_name.slice(0,19)+'…':audio_in_name;
-  S.level(3);S.move(0,44);S.text(inShort);
   const rp=Math.floor(p_rec_prob*100);
-  S.level(rp===0?15:8);S.move(0,50);S.text(rp===0?'E2 FROZEN':`E2 ${rp}%`);
-  S.level(5);S.move(52,50);S.text(`E3 thr ${p_gate_thr.toFixed(3)}`);
-  S.level(6);S.move(0,56);S.text(`corpus ${count}/${CORPUS_SLOTS}`);
-  S.level(3);S.move(96,56);S.text('K3:clr');
+  S.level(rp===0?15:10);S.move(0,44);S.text(rp===0?'E2 FROZEN':`E2 learn ${rp}%`);
+  S.level(5);S.move(72,44);S.text(`E3 thr ${p_gate_thr.toFixed(3)}`);
+  S.level(7);S.move(0,50);S.text(`corpus ${count}/${CORPUS_SLOTS}`);
+  S.level(3);S.move(96,50);S.text('K3:clr');
   for(let i=1;i<=CORPUS_SLOTS;i++){
-    const col=(i-1)%16,row=Math.floor((i-1)/16),x=col*8,y=59+row*3;
+    const col=(i-1)%16,row=Math.floor((i-1)/16),x=col*8,y=53+row*4;
     S.level(corpus[i]?Math.min(Math.floor(corpus[i].rms*200)+5,15):2);
-    S.rect(x,y,6,2);S.fill();
+    S.rect(x,y,6,3);S.fill();
   }
 }
 function drawP2(){
