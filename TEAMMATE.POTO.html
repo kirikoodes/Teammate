@@ -988,6 +988,8 @@ function redraw(){
   }else if(page===16){
     const an=audio_midi_notes.length?`n:${audio_midi_notes.join(',')}` :'---';
     S.text(`AUDIO>MIDI  live:${an}`);
+  }else if(page===17){
+    S.level(spat.on?15:6);S.text(SPAT_MODES[spat.mode]);
   }else if(phrase_analysis) S.text(`ph rms${phrase_analysis.rms.toFixed(2)}  ${Math.floor(phrase_analysis.density)}evs/s`);
   else S.text(`ctr ${Math.floor(cur_centroid/1000)}kHz  flat ${Math.floor(cur_flatness*100)}%`);
   if(page===14){S.level(mgen_mut_rate>0?9:3);S.move(84,37);S.text('~'+Math.round(mgen_mut_rate*100)+'% K2');}
@@ -1120,18 +1122,17 @@ function drawP16(){
 }
 
 function drawP17(){
-  S.level(spat.on?15:5);S.font_size(16);S.move(0,38);S.text(SPAT_MODES[spat.mode]);
-  S.font_size(8);S.level(6);S.move(0,48);
+  S.level(6);S.move(0,46);
   S.text(`mass:${spat.mass.toFixed(2)}  spd:${spat.tempo.toFixed(2)}`);
-  S.level(3);S.move(4,56);S.line(124,56);S.stroke();
+  S.level(3);S.move(4,54);S.line(124,54);S.stroke();
   const sym={impro:'*',lead:'O',av:'o',rv:'.'};
   SPAT_KEYS.forEach(k=>{
     const x=Math.floor((spatEffPan(k)+1)*0.5*118)+5;
     S.level(spat.on?(k==='lead'?15:10):4);
-    S.move(x,56);S.text(sym[k]);
+    S.move(x,54);S.text(sym[k]);
   });
-  S.level(spat.on?15:4);S.move(100,64);S.text(spat.on?'ON':'off');
-  S.level(4);S.move(0,64);S.text(`K2:mode K3:${spat.on?'off':'on'}`);
+  S.level(spat.on?15:4);S.move(100,63);S.text(spat.on?'ON':'off');
+  S.level(4);S.move(0,63);S.text(`K2:mode K3:${spat.on?'off':'on'}`);
 }
 
 // ─── INPUT ────────────────────────────────────────────────────────────────────

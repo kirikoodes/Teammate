@@ -2177,6 +2177,9 @@ function redraw()
   elseif page == 16 then
     local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
     screen.text(string.format("AUDIO>MIDI  live:%s  E2 dev  E3 ch", an))
+  elseif page == 17 then
+    screen.level(spat.on and 15 or 6)
+    screen.text(SPAT_MODES[spat.mode])
   elseif phrase_analysis then
     screen.text(string.format("ph rms%.2f  %devs/s",
       phrase_analysis.rms,
@@ -2437,28 +2440,23 @@ function redraw()
     end
 
   elseif page == 17 then
-    screen.level(spat.on and 15 or 5)
-    screen.font_size(16)
-    screen.move(0, 38)
-    screen.text(SPAT_MODES[spat.mode])
-    screen.font_size(8)
     screen.level(6)
-    screen.move(0, 48)
+    screen.move(0, 46)
     screen.text(string.format("mass:%.2f  spd:%.2f", spat.mass, spat.tempo))
     screen.level(3)
-    screen.move(4, 56) ; screen.line(124, 56) ; screen.stroke()
+    screen.move(4, 54) ; screen.line(124, 54) ; screen.stroke()
     local sym = {impro="*", lead="O", av="o", rv="."}
     for _, k in ipairs(spat.KEYS) do
       local x = math.floor((spat_eff_pan(k) + 1) * 0.5 * 118) + 5
       screen.level(spat.on and (k == "lead" and 15 or 10) or 4)
-      screen.move(x, 56)
+      screen.move(x, 54)
       screen.text(sym[k])
     end
     screen.level(spat.on and 15 or 4)
-    screen.move(100, 64)
+    screen.move(100, 63)
     screen.text(spat.on and "ON" or "off")
     screen.level(4)
-    screen.move(0, 64)
+    screen.move(0, 63)
     screen.text(string.format("K2:mode K3:%s", spat.on and "off" or "on"))
 
   end
