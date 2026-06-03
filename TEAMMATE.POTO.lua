@@ -296,6 +296,9 @@ local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3}}  -- canal par stream x device
 local midi_cur_stream    = 1   -- stream selectionne sur pages 9-12
 local midi_cur_dev       = 1   -- inutilise (ancienne nav colonne)
 local midi_ch_audio      = {5,5,5,5}  -- canal par device pour stream AUDIO
+midi_route[6] = {false, false, false, false}   -- METABO = stream 6 (matrice de routage)
+midi_ch[6]    = {16, 16, 16, 16}               -- canal METABO par device
+metabo_cur_dev = 1                              -- device selectionne (page 19 METABO MIDI ; global)
 local midi_audio_cur_dev = 1          -- device selectionne sur page 16
 local midi_audio_note    = nil        -- note MIDI audio active courante
 
@@ -1852,7 +1855,7 @@ local function audio_midi_loop()
   end
 end
 
-local metabolik = include('lib/metabolik')   -- AVATAR METABOLIK (mode METABO, couche autonome)
+metabolik = include('lib/metabolik')   -- AVATAR METABOLIK (mode METABO, couche autonome ; global pour eviter la limite de locals)
 
 function init()
   math.randomseed(os.time())
@@ -1885,9 +1888,9 @@ function init()
 
   silence_loop()
 
-  -- AVATAR METABOLIK (mode METABO) : voix MIDI dediee (canal metabolik.midi_ch) + maj ~30 Hz
-  metabolik.note_on  = function(note, vel) for d = 1, 4 do if midi_outs[d] then midi_outs[d]:note_on(note, vel, metabolik.midi_ch) end end end
-  metabolik.note_off = function(note)      for d = 1, 4 do if midi_outs[d] then midi_outs[d]:note_off(note, 0, metabolik.midi_ch) end end end
+  -- AVATAR METABOLIK (mode METABO) : voix routee par la MATRICE (stream 6) + maj ~30 Hz
+  metabolik.note_on  = function(note, vel) midi_note_on(6, note, vel) end
+  metabolik.note_off = function(note)      midi_note_off(6, note) end
   clock.run(metabolik.player)
   clock.run(function() while true do clock.sleep(1/30) ; metabolik.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30) end end)
 
@@ -1933,7 +1936,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 18) + 1
+    page = ((page - 1 + d) % 19) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1964,6 +1967,8 @@ function enc(n, d)
       spat.mass = util.clamp(spat.mass + d * 0.05, 0.0, 1.0)
     elseif page == 18 then
       metabolik.enc(2, d)
+    elseif page == 19 then
+      metabo_cur_dev = util.clamp(metabo_cur_dev + d, 1, 4)
     end
   elseif n == 3 then
     if page == 1 then
@@ -2006,6 +2011,8 @@ function enc(n, d)
       mgen_gen_seq(mgen_sel_ch)
     elseif page == 18 then
       metabolik.enc(3, d)
+    elseif page == 19 then
+      midi_ch[6][metabo_cur_dev] = util.clamp(midi_ch[6][metabo_cur_dev] + d, 1, 16)
     end
   end
   redraw()
@@ -2014,6 +2021,10 @@ end
 function key(n, z)
   if z == 0 then return end
   if page == 18 then metabolik.key(n) ; redraw() ; return end
+  if page == 19 then
+    if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
+    redraw() ; return
+  end
   if n == 2 and page == 4 then
     p_rhythm_idx = (p_rhythm_idx % #RHYTHM_RATES) + 1
     p_rhythm     = RHYTHM_RATES[p_rhythm_idx]
@@ -2148,7 +2159,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/17")
+  screen.text(page .. "/19")
 
   if rec_on then
     screen.level(15)
@@ -2452,6 +2463,24 @@ function redraw()
       screen.level(sel and 10 or 4)
       screen.move(100, ys[d])
       screen.text(string.format("ch%2d", midi_ch_audio[d]))
+    end
+
+  elseif page == 19 then
+    local ys = {44, 51, 57, 64}
+    for d = 1, 4 do
+      local sel    = (d == metabo_cur_dev)
+      local routed = midi_route[6][d]
+      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+      if #dname > 12 then dname = string.sub(dname, 1, 11) .. "~" end
+      screen.level(sel and 15 or (routed and 10 or 4))
+      screen.move(0, ys[d])
+      screen.text(string.format("d%d %s", d, dname))
+      screen.level(routed and 15 or 3)
+      screen.move(80, ys[d])
+      screen.text(routed and "[X]" or "[ ]")
+      screen.level(sel and 10 or 4)
+      screen.move(100, ys[d])
+      screen.text(string.format("ch%2d", midi_ch[6][d]))
     end
 
   elseif page == 17 then

@@ -118,36 +118,53 @@ local function ranked_voices()
   return t
 end
 
--- ===== boucle de jeu (lancee par le script principal via clock.run) =====
+-- joue UNE phrase : notes des voies actives, mono/poly organique
+function M.play_phrase()
+  local rk = ranked_voices()
+  local pool = {}
+  for i = 1, math.min(4, #rk) do pool[#pool + 1] = rk[i].b end
+  if #pool == 0 then return end
+  local pSolo = 0.48 - M.stressFx * 0.28      -- mono/poly non systematique, biaise par le stress
+  local size  = (math.random() < pSolo) and 1 or math.min(#pool, 2 + math.random(0, 2))
+  local vel   = math.floor(38 + (M.ch.growth * 0.4 + M.stressFx * 0.5) * 55) + math.random(-8, 8)
+  if vel < 1 then vel = 1 elseif vel > 127 then vel = 127 end
+  local beat  = 60 / M.bpm()
+  -- une phrase = 1 a quelques evenements espaces de maniere irreguliere (pas 4/4)
+  local events = (math.random() < (0.4 + M.stressFx * 0.4)) and (2 + math.random(0, 2)) or 1
+  local subs = { 0.33, 0.5, 0.5, 0.75, 1, 1.5 }
+  M.flash = 1
+  for e = 1, events do
+    for kk = 1, size do
+      local b    = pool[(((e + kk) % #pool)) + 1]
+      local note = M.bio_note(b)
+      local dur  = math.max(0.12, beat * (0.4 + math.random() * 0.4))
+      M.note_on(note, vel)
+      clock.run(function() clock.sleep(dur); if M.note_off then M.note_off(note) end end)
+      if size > 1 then clock.sleep(0.005 + math.random() * 0.012) end   -- leger strum
+    end
+    if e < events then
+      clock.sleep(math.max(0.06, beat * subs[math.random(#subs)] * (0.85 + math.random() * 0.3)))
+    end
+  end
+end
+
+-- ===== boucle : alterne PHRASES et SILENCES (le silence c'est beau) =====
 function M.player()
   while true do
-    if M.on and M.note_on then
-      local rk = ranked_voices()
-      local pool = {}
-      for i = 1, math.min(4, #rk) do pool[#pool + 1] = rk[i].b end
-      if #pool > 0 then
-        -- mono/poly non systematique, biaise par le stress
-        local pSolo = 0.48 - M.stressFx * 0.28
-        local size  = (math.random() < pSolo) and 1 or math.min(#pool, 2 + math.random(0, 2))
-        local vel   = math.floor(38 + (M.ch.growth * 0.4 + M.stressFx * 0.5) * 55) + math.random(-8, 8)
-        if vel < 1 then vel = 1 elseif vel > 127 then vel = 127 end
-        local beat  = 60 / M.bpm()
-        local dur   = math.max(0.12, beat * (0.5 + math.random() * 0.4))
-        M.flash = 1
-        for kk = 1, size do
-          local b    = pool[((kk - 1) % #pool) + 1]
-          local note = M.bio_note(b)
-          M.note_on(note, vel)
-          clock.run(function() clock.sleep(dur); if M.note_off then M.note_off(note) end end)
-          if size > 1 then clock.sleep(0.005 + math.random() * 0.012) end  -- leger strum
-        end
-      end
-    end
-    -- gap organique (subdivisions melees) au BPM du stress -> pas de 4/4 droit
     local beat = 60 / M.bpm()
-    local subs = { 0.33, 0.5, 0.5, 0.75, 1, 1.5 }
-    local gap  = math.max(0.07, beat * subs[math.random(#subs)] * (0.85 + math.random() * 0.3))
-    clock.sleep(gap)
+    if M.on and M.note_on and (M.ch.growth or 0) > 0.05 then
+      -- jouer ou se taire : calme/sain -> plus de silences ; stress -> joue plus
+      local p_play = math.min(0.9, 0.22 + M.stressFx * 0.55 + (M.ch.growth or 0) * 0.15)
+      if math.random() < p_play then
+        M.play_phrase()
+        clock.sleep(math.max(0.1, beat * (0.6 + math.random() * 1.4)))            -- court repos apres la phrase
+      else
+        local sil = beat * (1.5 + math.random() * 3.0) * (1.4 - M.stressFx)        -- SILENCE : respiration, plus longue si calme
+        clock.sleep(math.max(0.4, sil))
+      end
+    else
+      clock.sleep(0.3)   -- off / pas d'entree : on ecoute en silence (miroir)
+    end
   end
 end
 
