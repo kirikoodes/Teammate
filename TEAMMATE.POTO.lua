@@ -1852,6 +1852,8 @@ local function audio_midi_loop()
   end
 end
 
+local metabolik = include('lib/metabolik')   -- AVATAR METABOLIK (mode METABO, couche autonome)
+
 function init()
   math.randomseed(os.time())
   mgen_gen_all()
@@ -1882,6 +1884,12 @@ function init()
   if pfl then pfl.time = 1/30.0 ; pfl:start() end
 
   silence_loop()
+
+  -- AVATAR METABOLIK (mode METABO) : voix MIDI dediee (canal metabolik.midi_ch) + maj ~30 Hz
+  metabolik.note_on  = function(note, vel) for d = 1, 4 do if midi_outs[d] then midi_outs[d]:note_on(note, vel, metabolik.midi_ch) end end end
+  metabolik.note_off = function(note)      for d = 1, 4 do if midi_outs[d] then midi_outs[d]:note_off(note, 0, metabolik.midi_ch) end end end
+  clock.run(metabolik.player)
+  clock.run(function() while true do clock.sleep(1/30) ; metabolik.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30) end end)
 
   clock.run(function()
     while true do
@@ -1925,7 +1933,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 17) + 1
+    page = ((page - 1 + d) % 18) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1954,6 +1962,8 @@ function enc(n, d)
       midi_audio_cur_dev = util.clamp(midi_audio_cur_dev + d, 1, 4)
     elseif page == 17 then
       spat.mass = util.clamp(spat.mass + d * 0.05, 0.0, 1.0)
+    elseif page == 18 then
+      metabolik.enc(2, d)
     end
   elseif n == 3 then
     if page == 1 then
@@ -1994,6 +2004,8 @@ function enc(n, d)
       local ch = mgen_ch[mgen_sel_ch]
       ch.octave = util.clamp(ch.octave + d, 1, 7)
       mgen_gen_seq(mgen_sel_ch)
+    elseif page == 18 then
+      metabolik.enc(3, d)
     end
   end
   redraw()
@@ -2001,6 +2013,7 @@ end
 
 function key(n, z)
   if z == 0 then return end
+  if page == 18 then metabolik.key(n) ; redraw() ; return end
   if n == 2 and page == 4 then
     p_rhythm_idx = (p_rhythm_idx % #RHYTHM_RATES) + 1
     p_rhythm     = RHYTHM_RATES[p_rhythm_idx]
@@ -2098,6 +2111,8 @@ end
 function redraw()
   screen.clear()
   screen.aa(0)
+
+  if page == 18 then metabolik.redraw() ; return end
 
   if splash_active then
     screen.font_size(16)
