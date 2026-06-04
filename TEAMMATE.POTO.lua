@@ -1855,7 +1855,33 @@ local function audio_midi_loop()
   end
 end
 
-metabolik = include('lib/metabolik')   -- AVATAR METABOLIK (mode METABO, couche autonome ; global pour eviter la limite de locals)
+-- AVATAR METABOLIK (mode METABO) : chargement DEFENSIF.
+-- Si lib/metabolik.lua manque sur le norns ou contient une erreur, TEAMMATE
+-- doit continuer a tourner normalement (on ne casse JAMAIS le compagnon).
+-- Variables temporaires en GLOBAL pour ne pas toucher a la limite de locals.
+metabolik = nil
+_metabo_ok, _metabo_mod = pcall(include, 'lib/metabolik')
+if _metabo_ok and type(_metabo_mod) == "table" then
+  metabolik = _metabo_mod
+else
+  print("METABO indisponible (lib/metabolik.lua manquant ou en erreur) : " .. tostring(_metabo_mod))
+  metabolik = {
+    on = false, scale_idx = 1, octave = 0, ok = false,
+    update = function() end,
+    player = function() end,
+    enc    = function() end,
+    key    = function() end,
+    redraw = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("METABO")
+      screen.level(4)
+      screen.move(2, 36) ; screen.text("lib/metabolik.lua")
+      screen.move(2, 46) ; screen.text("absent sur le norns")
+      screen.update()
+    end,
+  }
+end
+_metabo_ok = nil ; _metabo_mod = nil
 
 function init()
   math.randomseed(os.time())
