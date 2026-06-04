@@ -508,6 +508,8 @@ A separate, autonomous mode — **independent from the companion**. Incoming sou
 - **Display**: a cell circle pulsing with `growth`, pathway dots brightening with activity, a STRESS bar, the live BPM, the cell state (`STABLE` / `PERTURBE` / `MONOTONE`), and the dominant pathway → its note.
 - **Routing**: the METABO voice goes out on **stream 6** of the matrix, configured on page 19 — completely separate from the companion's streams (IMPRO / POtO / 8OS / MGEN) and from Audio→MIDI.
 
+**Inspiration** — METABO grows out of **_Avatar métabolique sonore_**, a collaboration between **NSDOS** and **Damien Eveillard** (Professor of Computer Science at Nantes Université / LS2N–CNRS; a systems-biology and microbial-ecology researcher specialized in **constraint-based metabolic network modeling**). The idea: treat a living cell's metabolism as an instrument. In the full installation, audio drives the nutrient uptake of a real genome-scale metabolic model solved by **Flux Balance Analysis (FBA / COBRA)**, and the resulting metabolic fluxes become sound. On Norns, METABO is a lightweight real-time embodiment of that idea — the pathways are simulated rather than solved by FBA, but the principle is identical: **the cell's chemistry is the music**. ▶ [Avatar métabolique sonore (video)](https://www.youtube.com/watch?v=TbVlwrFNA8E)
+
 *Un mode séparé et autonome — **indépendant du compagnon**. Le son entrant nourrit un métabolisme cellulaire vivant ; la cellule répond en notes MIDI où **les notes sont ses voies métaboliques actives**.*
 
 | Encodeur / Touche | Fonction |
@@ -521,6 +523,8 @@ A separate, autonomous mode — **independent from the companion**. Incoming sou
 - **Elle respire** : la voix alterne phrases et **silences** — plus de silence quand la cellule est calme, plus dense sous stress. Le mélange mono/poly est organique et volontairement non-4/4.
 - **Affichage** : un cercle-cellule qui pulse avec `growth`, des points-voies qui s'illuminent selon l'activité, une barre STRESS, le BPM live, l'état (`STABLE` / `PERTURBE` / `MONOTONE`), et la voie dominante → sa note.
 - **Routage** : la voix METABO sort sur le **stream 6** de la matrice, configuré en page 19 — totalement séparé des streams du compagnon (IMPRO / POtO / 8OS / MGEN) et de l'Audio→MIDI.
+
+**Inspiration** — METABO est issu d'**_Avatar métabolique sonore_**, une collaboration entre **NSDOS** et **Damien Eveillard** (professeur d'informatique à Nantes Université / LS2N–CNRS ; chercheur en biologie des systèmes et écologie microbienne, spécialiste de la **modélisation des réseaux métaboliques sous contraintes**). L'idée : faire du métabolisme d'une cellule vivante un instrument. Dans l'installation complète, l'audio pilote l'absorption de nutriments d'un véritable modèle métabolique à l'échelle du génome, résolu par **analyse de balance des flux (FBA / COBRA)**, et les flux métaboliques obtenus deviennent du son. Sur Norns, METABO est une incarnation temps réel allégée de cette idée — les voies sont simulées plutôt que résolues par FBA, mais le principe est identique : **la chimie de la cellule est la musique**. ▶ [Avatar métabolique sonore (vidéo)](https://www.youtube.com/watch?v=TbVlwrFNA8E&t=477s)
 
 ---
 
