@@ -13,13 +13,14 @@ TEAMMATE takes that same core intuition — the machine learns only from you, in
 
 Everything you play gets sliced into a memory of 48 sound fragments: pitch, energy, timbre, texture. When you stop, TEAMMATE analyzes the whole phrase and decides what to do. Imitate. Contrast. Densify. Thin out. Stay silent. It never plays something it hasn't heard from you. No generative AI, no presets — pure *remémoration*.
 
-Five layers running in parallel:
+Six layers running in parallel:
 
 - **The dialogue** — phrase by phrase. TEAMMATE waits, listens, builds a portrait of what you just played, and responds from its own memory.
 - **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past. Five polyphony modes: MONO / 5th / CHRD / CLST / SMRT.
 - **8OS** — record a sequence, let it slice itself into analyzed grains. In TRANS mode, three voices scan the bank and pull the grains that match your live pitch and energy in real time.
 - **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically.
 - **Audio→MIDI** — converts live audio pitch to polyphonic MIDI notes in real time, routable to any of the 4 MIDI devices with configurable channels.
+- **METABO** — a separate, autonomous mode (it does **not** touch the companion). Incoming sound feeds a living **cell metabolism**; the cell answers in MIDI notes where the notes **are** its active metabolic pathways. Monotonous, repetitive playing raises the cell's **stress** and the tempo races; varied, rich playing keeps it calm — homeostatic regulation. It breathes: phrases alternate with **silences**, longer when calm. Routed through its own matrix stream (stream 6), on its own channel.
 
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
@@ -33,13 +34,14 @@ TEAMMATE part de la même intuition fondamentale — la machine n'apprend que de
 
 Tout ce que tu joues est découpé en une mémoire de 48 fragments sonores : pitch, énergie, timbre, texture. Quand tu t'arrêtes, TEAMMATE analyse la phrase entière et décide quoi faire. Imiter. Contraster. Densifier. Espacer. Se taire. Il ne joue jamais quelque chose qu'il n'a pas entendu de toi. Pas d'IA générative, pas de presets — de la **remémoration active**.
 
-Cinq couches en parallèle :
+Six couches en parallèle :
 
 - **Le dialogue** — phrase par phrase. TEAMMATE attend, écoute, construit un portrait de ce que tu viens de jouer, et répond depuis sa propre mémoire.
 - **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé. Cinq modes de polyphonie : MONO / 5th / CHRD / CLST / SMRT.
 - **8OS** — enregistre une séquence, laisse-la se découper en grains analysés. En mode TRANS, trois voix scannent le bank et tirent les grains qui correspondent à ton pitch et ton énergie live en temps réel.
 - **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe.
 - **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
+- **METABO** — un mode **séparé et autonome** (il ne **touche pas** au compagnon). Le son entrant nourrit un **métabolisme cellulaire** vivant ; la cellule répond en notes MIDI où les notes **sont** ses voies métaboliques actives. Un jeu monotone et répétitif fait monter le **stress** de la cellule et le tempo s'emballe ; un jeu varié et riche la garde calme — régulation homéostatique. Elle respire : les phrases alternent avec des **silences**, plus longs quand elle est calme. Routé via son propre stream de matrice (stream 6), sur son propre canal.
 
 Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
 
@@ -70,13 +72,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→17)
+E1        — previous / next page (loops 1→19)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 17 pages
+## The 19 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -488,6 +490,64 @@ L'affichage montre le champ stéréo (G ← centre → D) avec quatre marqueurs 
 | **ENTANGLE** | Lead dérive (Brownien), Attracted = miroir quantique de Lead, Repulsed orbite seul | Lead et Attracted sont intriqués — bougent toujours en sens inverse |
 
 Quand le mode **SMRT de POtO** est actif, les paramètres de mouvement sont modulés automatiquement par la technique détectée.
+
+---
+
+### Page 18 — METABO
+A separate, autonomous mode — **independent from the companion**. Incoming sound feeds a living cell metabolism; the cell answers in MIDI notes where **the notes are its active metabolic pathways**.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Scale (PENMIN / PENMAJ / MINOR / HIRA / INSEN / HIJAZ / PHRYG / DORIC / MAJOR) |
+| E3 | Octave (−2 … +2) |
+| K3 | METABO ON / OFF |
+
+- **The metabolism**: four live audio features (energy, brightness, pitch height, texture) feed seven pathways — `growth`, `glycolysis`, `respiration`, `fermentation`, `byproduct`, `co2`, `lactate`. Each pathway maps to **one fixed note** (a scale degree + octave), so the cell's chemistry *is* the harmony. The most active pathways are the ones voiced.
+- **Stress = monotony**: stress is driven by how repetitive your playing is. Monotonous / repetitive input → stress rises; varied, diverse input → stress falls. A homeostatic regulation smooths it (fast rise, slow recovery). Stress sets the tempo: **BPM ≈ 60 + stress × 120**.
+- **It breathes**: the voice alternates phrases and **silences** — more silence when the cell is calm, denser when stressed. Mono/poly mix is organic and deliberately non-4/4.
+- **Display**: a cell circle pulsing with `growth`, pathway dots brightening with activity, a STRESS bar, the live BPM, the cell state (`STABLE` / `PERTURBE` / `MONOTONE`), and the dominant pathway → its note.
+- **Routing**: the METABO voice goes out on **stream 6** of the matrix, configured on page 19 — completely separate from the companion's streams (IMPRO / POtO / 8OS / MGEN) and from Audio→MIDI.
+
+*Un mode séparé et autonome — **indépendant du compagnon**. Le son entrant nourrit un métabolisme cellulaire vivant ; la cellule répond en notes MIDI où **les notes sont ses voies métaboliques actives**.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Gamme (PENMIN / PENMAJ / MINOR / HIRA / INSEN / HIJAZ / PHRYG / DORIC / MAJOR) |
+| E3 | Octave (−2 … +2) |
+| K3 | METABO ON / OFF |
+
+- **Le métabolisme** : quatre descripteurs audio live (énergie, brillance, hauteur, texture) nourrissent sept voies — `growth`, `glycolysis`, `respiration`, `fermentation`, `byproduct`, `co2`, `lactate`. Chaque voie correspond à **une note fixe** (degré de gamme + octave) : la chimie de la cellule *est* l'harmonie. Les voies les plus actives sont celles qui sonnent.
+- **Stress = monotonie** : le stress vient de la répétitivité de ton jeu. Entrée monotone / répétitive → le stress monte ; jeu varié, divers → le stress baisse. Une régulation homéostatique le lisse (montée rapide, récupération lente). Le stress fixe le tempo : **BPM ≈ 60 + stress × 120**.
+- **Elle respire** : la voix alterne phrases et **silences** — plus de silence quand la cellule est calme, plus dense sous stress. Le mélange mono/poly est organique et volontairement non-4/4.
+- **Affichage** : un cercle-cellule qui pulse avec `growth`, des points-voies qui s'illuminent selon l'activité, une barre STRESS, le BPM live, l'état (`STABLE` / `PERTURBE` / `MONOTONE`), et la voie dominante → sa note.
+- **Routage** : la voix METABO sort sur le **stream 6** de la matrice, configuré en page 19 — totalement séparé des streams du compagnon (IMPRO / POtO / 8OS / MGEN) et de l'Audio→MIDI.
+
+---
+
+### Page 19 — METABO MIDI
+Routing matrix for the METABO voice (stream 6). Same logic as the device pages — METABO is just its own independent stream.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Select device (d1–d4) |
+| E3 | MIDI channel for selected device (1–16) |
+| K3 | Toggle METABO routing ON/OFF for selected device |
+
+- Route the METABO voice to any of the 4 MIDI devices, each with its own channel.
+- `[X]` = METABO routed to this device / `[ ]` = not routed.
+- Fully independent from the companion's routing (pages 9–12) and from Audio→MIDI (page 16). Enable at least one device here to hear METABO.
+
+*Matrice de routage pour la voix METABO (stream 6). Même logique que les pages device — METABO est simplement son propre stream indépendant.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Sélectionner le device (d1–d4) |
+| E3 | Canal MIDI pour le device sélectionné (1–16) |
+| K3 | Activer / désactiver le routage METABO pour ce device |
+
+- Route la voix METABO sur n'importe lequel des 4 devices MIDI, chacun avec son canal.
+- `[X]` = METABO routé sur ce device / `[ ]` = non routé.
+- Totalement indépendant du routage du compagnon (pages 9–12) et de l'Audio→MIDI (page 16). Active au moins un device ici pour entendre METABO.
 
 ---
 
