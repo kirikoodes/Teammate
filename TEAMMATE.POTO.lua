@@ -1881,10 +1881,14 @@ function init()
   pa.time = 1/60.0 ; pa:start()
   pp.time = 1/30.0 ; pp:start()
 
-  local pc  = poll.set("tm_centroid", on_centroid)
-  local pfl = poll.set("tm_flatness", on_flatness)
-  if pc  then pc.time  = 1/30.0 ; pc:start()  end
-  if pfl then pfl.time = 1/30.0 ; pfl:start() end
+  -- polls du MOTEUR SC : attendre que le moteur les ait enregistres (evite le flood "couldn't find poll")
+  clock.run(function()
+    clock.sleep(1.0)
+    local pc  = poll.set("tm_centroid", on_centroid)
+    local pfl = poll.set("tm_flatness", on_flatness)
+    if pc  then pc.time  = 1/30.0 ; pc:start()  end
+    if pfl then pfl.time = 1/30.0 ; pfl:start() end
+  end)
 
   silence_loop()
 
