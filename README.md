@@ -500,11 +500,13 @@ A separate, autonomous mode — **independent from the companion**. Incoming sou
 |---|---|
 | E2 | Scale (PENMIN / PENMAJ / MINOR / HIRA / INSEN / HIJAZ / PHRYG / DORIC / MAJOR) |
 | E3 | Octave (−2 … +2) |
+| K2 | Density — cycle **SPARSE** / **FLOW** / **DENSE** |
 | K3 | METABO ON / OFF |
 
 - **The metabolism**: four live audio features (energy, brightness, pitch height, texture) feed seven pathways — `growth`, `glycolysis`, `respiration`, `fermentation`, `byproduct`, `co2`, `lactate`. Each pathway maps to **one fixed note** (a scale degree + octave), so the cell's chemistry *is* the harmony. The most active pathways are the ones voiced.
 - **Stress = monotony**: stress is driven by how repetitive your playing is. Monotonous / repetitive input → stress rises; varied, diverse input → stress falls. A homeostatic regulation smooths it (fast rise, slow recovery). Stress sets the tempo: **BPM ≈ 60 + stress × 120**.
 - **It breathes**: the voice alternates phrases and **silences** — more silence when the cell is calm, denser when stressed. Mono/poly mix is organic and deliberately non-4/4.
+- **Phrasing**: METABO doesn't just stack notes — it builds **chords, arpeggios, melodic lines and ostinatos** from the active pathways, following melodic contours (motifs) and rhythmic cells that recur for a few phrases then mutate. Note count and density follow stress and growth; **K2** sets an overall density (SPARSE / FLOW / DENSE).
 - **Display**: a cell circle pulsing with `growth`, pathway dots brightening with activity, a STRESS bar, the live BPM, the cell state (`STABLE` / `PERTURBE` / `MONOTONE`), and the dominant pathway → its note.
 - **Routing**: the METABO voice goes out on **stream 6** of the matrix, configured on page 19 — completely separate from the companion's streams (IMPRO / POtO / 8OS / MGEN) and from Audio→MIDI.
 
@@ -516,11 +518,13 @@ A separate, autonomous mode — **independent from the companion**. Incoming sou
 |---|---|
 | E2 | Gamme (PENMIN / PENMAJ / MINOR / HIRA / INSEN / HIJAZ / PHRYG / DORIC / MAJOR) |
 | E3 | Octave (−2 … +2) |
+| K2 | Densité — cycle **SPARSE** / **FLOW** / **DENSE** |
 | K3 | METABO ON / OFF |
 
 - **Le métabolisme** : quatre descripteurs audio live (énergie, brillance, hauteur, texture) nourrissent sept voies — `growth`, `glycolysis`, `respiration`, `fermentation`, `byproduct`, `co2`, `lactate`. Chaque voie correspond à **une note fixe** (degré de gamme + octave) : la chimie de la cellule *est* l'harmonie. Les voies les plus actives sont celles qui sonnent.
 - **Stress = monotonie** : le stress vient de la répétitivité de ton jeu. Entrée monotone / répétitive → le stress monte ; jeu varié, divers → le stress baisse. Une régulation homéostatique le lisse (montée rapide, récupération lente). Le stress fixe le tempo : **BPM ≈ 60 + stress × 120**.
 - **Elle respire** : la voix alterne phrases et **silences** — plus de silence quand la cellule est calme, plus dense sous stress. Le mélange mono/poly est organique et volontairement non-4/4.
+- **Phrasé** : METABO n'empile pas que des notes — il construit **accords, arpèges, lignes mélodiques et ostinatos** à partir des voies actives, en suivant des contours mélodiques (motifs) et des cellules rythmiques qui reviennent quelques phrases puis mutent. Le nombre de notes et la densité suivent le stress et la croissance ; **K2** règle une densité globale (SPARSE / FLOW / DENSE).
 - **Affichage** : un cercle-cellule qui pulse avec `growth`, des points-voies qui s'illuminent selon l'activité, une barre STRESS, le BPM live, l'état (`STABLE` / `PERTURBE` / `MONOTONE`), et la voie dominante → sa note.
 - **Routage** : la voix METABO sort sur le **stream 6** de la matrice, configuré en page 19 — totalement séparé des streams du compagnon (IMPRO / POtO / 8OS / MGEN) et de l'Audio→MIDI.
 
