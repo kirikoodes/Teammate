@@ -330,10 +330,14 @@ function M.redraw()
   screen.move(2, 49); screen.text(M.state)
   screen.level(8); screen.move(46, 49); screen.text("K2 " .. M.density_names[M.density_idx])
 
+  -- reglages encodeurs : retour visuel E2 gamme / E3 octave
+  screen.level(10); screen.move(2, 57)
+  screen.text(string.format("E2 %s  o%+d", M.scale_names[M.scale_idx], M.octave))
+
   -- voie dominante -> sa note
   local rk = ranked_voices()
   if rk[1] then
-    screen.level(15); screen.move(2, 60)
+    screen.level(15); screen.move(2, 64)
     screen.text(string.upper(string.sub(rk[1].b.ch, 1, 5)) .. " " .. note_name(M.bio_note(rk[1].b)))
   end
   screen.update()
