@@ -30,6 +30,10 @@ M.BIO = {
   { ch = "lactate",      deg = 2, oct = 1 },
 }
 
+-- index par voie (pour la spatialisation : chaque voie a sa position dans le champ)
+local BIO_INDEX = {}
+for i, b in ipairs(M.BIO) do BIO_INDEX[b.ch] = i end
+
 -- ===== etat =====
 M.on       = false
 M.ch       = { growth=0, glycolysis=0, respiration=0, fermentation=0, byproduct=0, co2=0, lactate=0 }
@@ -50,6 +54,10 @@ M.motif_age = 0
 -- entite musicienne : PERSONA = idiome de jeu (le metabolisme decide QUOI, la persona decide COMMENT)
 M.persona_names = {"CELL","PIANO","POLY","BASS"}
 M.persona_idx   = 1
+
+-- spatialisation MIDI : chaque voie a sa position dans le champ stereo (Pan CC10) + mouvement
+M.spat = true
+M.cc   = nil          -- callback fourni par le script principal : function(cc, val)
 
 -- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
 M.follow_amt = 0.6    -- 0..1 : a quel point METABO suit la hauteur du son entrant
@@ -237,7 +245,18 @@ function M.play_phrase()
             + ((i == 1) and 18 or 0) + math.random(-6, 6)
     return math.max(1, math.min(127, v))
   end
-  local function hit(notes, vel, dur)
+  -- spatialisation : position dans le champ par voie + lent mouvement (Pan CC10)
+  local now = (util and util.time) and util.time() or 0
+  local function pan_send(b)
+    if not (M.spat and M.cc and b) then return end
+    local i    = BIO_INDEX[b.ch] or 1
+    local base = (i - 1) / math.max(1, #M.BIO - 1)              -- 0..1 etale par voie
+    local p    = base * 0.7 + 0.15 + math.sin(now * 0.25 + i) * 0.18
+    if p < 0 then p = 0 elseif p > 1 then p = 1 end
+    M.cc(10, math.floor(p * 127))
+  end
+  local function hit(notes, vel, dur, b)
+    pan_send(b)
     for _, nn in ipairs(notes) do
       M.note_on(nn, vel)
       clock.run(function() clock.sleep(dur) ; if M.note_off then M.note_off(nn) end end)
@@ -263,6 +282,7 @@ function M.play_phrase()
           -- note pitchee : la voie, dans la gamme, registre suivi ; echo de ta note parfois
           local n = (in_n and math.random() < 0.25) and in_n or deg_note(b, 0)
           local v = math.max(1, math.min(127, math.floor(38 + act * 70 + ((t == 0) and 14 or 0) + math.random(-6, 6))))
+          pan_send(b)                                          -- chaque couche a sa position
           M.note_on(n, v)
           local dur = base * (1.0 + math.random() * 0.8)       -- un peu plus long que des percus
           clock.run(function() clock.sleep(math.max(0.05, dur)) ; if M.note_off then M.note_off(n) end end)
@@ -285,7 +305,7 @@ function M.play_phrase()
         local off = (math.random() < 0.6) and 0 or (math.random() < 0.5 and 4 or 7)   -- fond. / 5te / 8ve (degres)
         local n   = deg_note(b, off, -1)
         while n > 55 do n = n - 12 end                  -- reste grave
-        hit({ n }, math.min(127, vel_at(i) + 12), math.max(0.10, beat * cell * 0.9))
+        hit({ n }, math.min(127, vel_at(i) + 12), math.max(0.10, beat * cell * 0.9), b)
       end
       clock.sleep(math.max(0.06, beat * (cell > 0 and cell or 0.5)))
     end
@@ -316,6 +336,7 @@ function M.play_phrase()
     if math.random() < 0.5 then notes[#notes + 1] = deg_note(pool[1], M.motif[#M.motif] or 2) end
     local reps = 1 + ((dens == 3) and math.random(0, 2) or 0)
     for _ = 1, reps do
+      pan_send(pool[1])                                                        -- position de l'accord
       if piano then
         for _, nn in ipairs(notes) do                                          -- accord roule + legato
           local mm = nn
@@ -347,7 +368,7 @@ function M.play_phrase()
       local b   = pool[order[((i - 1) % #order) + 1]]
       local off = (math.random() < 0.30) and (M.motif[((i - 1) % #M.motif) + 1]) or 0
       local nn  = (in_n and i == 1 and math.random() < 0.5) and in_n or deg_note(b, off)
-      hit({ nn }, vel_at(i), math.max(0.06, gap * 0.9))
+      hit({ nn }, vel_at(i), math.max(0.06, gap * 0.9), b)
       clock.sleep(math.max(0.05, gap))
     end
 
@@ -361,7 +382,7 @@ function M.play_phrase()
         local off = M.motif[((i - 1) % #M.motif) + 1]
         local b   = pool[((i - 1) % #pool) + 1]
         local nn  = (in_n and math.random() < 0.3) and in_n or deg_note(b, off)   -- echo occasionnel
-        hit({ nn }, vel_at(i), math.max(0.06, beat * cell * 0.85))
+        hit({ nn }, vel_at(i), math.max(0.06, beat * cell * 0.85), b)
       end
       clock.sleep(math.max(0.05, beat * (cell > 0 and cell or 0.5)))
     end
@@ -376,7 +397,7 @@ function M.play_phrase()
           local off = M.motif[((i - 1) % #M.motif) + 1]
           if rep > 1 and math.random() < 0.2 then off = off + (math.random() < 0.5 and 1 or -1) end
           local b = pool[((i - 1) % #pool) + 1]
-          hit({ deg_note(b, off) }, vel_at(i), math.max(0.06, beat * cell * 0.8))
+          hit({ deg_note(b, off) }, vel_at(i), math.max(0.06, beat * cell * 0.8), b)
         end
         clock.sleep(math.max(0.05, beat * (cell > 0 and cell or 0.4)))
       end
