@@ -572,8 +572,14 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 |---|---|
 | E2 | Persona — **CELL** / **PIANO** / **POLY** / **BASS** |
 | E3 | Follow — how much METABO follows the incoming pitch (0–100%) |
-| K2 | Density — SPARSE / FLOW / DENSE |
+| K2 | Feed source — **INPUT** / **COMP** / **MIX** |
 | K3 | METABO ON / OFF |
+
+- **Feed source** (K2): what nourishes the cell's metabolism.
+  - **INPUT** — the live audio in (mic / line), as before.
+  - **COMP** — **the companion feeds METABO**: TEAMMATE's own playing (corpus improv + MIDI GEN) drives the metabolism, so METABO breathes with the companion and falls silent when it rests.
+  - **MIX** — both at once (whichever is louder leads).
+  - *(Density SPARSE/FLOW/DENSE is on page 18, K2.)*
 
 **Personas:**
 
@@ -592,8 +598,14 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 |---|---|
 | E2 | Persona — **CELL** / **PIANO** / **POLY** / **BASS** |
 | E3 | Follow — à quel point METABO suit le pitch entrant (0–100%) |
-| K2 | Densité — SPARSE / FLOW / DENSE |
+| K2 | Source — **INPUT** / **COMP** / **MIX** |
 | K3 | METABO ON / OFF |
+
+- **Source** (K2) : ce qui nourrit le métabolisme de la cellule.
+  - **INPUT** — l'audio live (micro / ligne), comme avant.
+  - **COMP** — **le compagnon nourrit METABO** : le jeu de TEAMMATE (impro corpus + MIDI GEN) pilote le métabolisme, donc METABO respire avec le compagnon et se tait quand il se repose.
+  - **MIX** — les deux à la fois (le plus fort mène).
+  - *(La densité SPARSE/FLOW/DENSE est sur la page 18, K2.)*
 
 **Personas :**
 

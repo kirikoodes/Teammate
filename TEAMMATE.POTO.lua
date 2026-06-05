@@ -442,6 +442,16 @@ local spat = {
 local spat_depth_mult  -- forward ref : definie apres poto_set
 local spat_eff_pan     -- forward ref
 
+-- METABO « feed COMP » : ce que joue le compagnon nourrit la cellule.
+-- Variables + fonction en GLOBAL (evite la limite de locals du chunk).
+comp_rms = 0 ; comp_freq = 0 ; comp_centroid = 0 ; comp_flatness = 0
+function companion_feed(rms, freq, centroid, flatness)
+  if (rms or 0) > comp_rms then comp_rms = rms end        -- attaque (le decay est dans la boucle metabo)
+  if freq and freq > 0 then comp_freq = freq end
+  if centroid and centroid > 0 then comp_centroid = centroid end
+  if flatness then comp_flatness = flatness end
+end
+
 local function play_event(ev, rate_mult)
   local vi  = ply_idx
   local v   = PLY_V[vi]
@@ -488,6 +498,7 @@ local function play_event(ev, rate_mult)
   local imp_note = freq_to_midi(f) or 60
   local imp_vel  = math.max(1, math.min(127, math.floor(ev.rms * 800)))
   midi_note_on(1, imp_note, imp_vel)
+  companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
 
   clock.run(function()
     clock.sleep(math.max(0.04, len - 0.025))
@@ -1351,6 +1362,8 @@ local function mgen_start()
             if active then
               local nn, gd = note, sd * gate
               local mc = ch.midi_ch
+              -- nourrit METABO (mode COMP) : note -> freq, vel -> energie
+              companion_feed(vel / 700, 440 * 2 ^ ((nn - 69) / 12), nn * 45, 0.1)
               for d = 1, 4 do
                 if midi_route[4][d] and midi_outs[d] then
                   local out = midi_outs[d]
@@ -1958,7 +1971,23 @@ function init()
   metabolik.note_on  = function(note, vel) midi_note_on(6, note, vel) end
   metabolik.note_off = function(note)      midi_note_off(6, note) end
   clock.run(metabolik.player)
-  clock.run(function() while true do clock.sleep(1/30) ; metabolik.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30) end end)
+  clock.run(function()
+    while true do
+      clock.sleep(1/30)
+      comp_rms = comp_rms * 0.90   -- decay de l'energie compagnon (silences quand il se tait)
+      local fi = metabolik.feed_idx or 1
+      if fi == 2 then        -- COMP : le compagnon nourrit la cellule
+        metabolik.update(comp_rms, comp_freq, comp_centroid, comp_flatness, 1/30)
+      elseif fi == 3 then    -- MIX : entree + compagnon
+        metabolik.update(math.max(cur_rms, comp_rms),
+                         (comp_freq > 0 and comp_rms > cur_rms) and comp_freq or cur_freq,
+                         math.max(cur_centroid, comp_centroid),
+                         math.max(cur_flatness, comp_flatness), 1/30)
+      else                   -- INPUT : micro / ligne (defaut)
+        metabolik.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
+      end
+    end
+  end)
 
   clock.run(function()
     while true do

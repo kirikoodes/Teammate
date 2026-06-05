@@ -59,6 +59,10 @@ M.persona_idx   = 1
 M.spat = false
 M.cc   = nil
 
+-- source qui nourrit le metabolisme : INPUT (micro/ligne) / COMP (le compagnon) / MIX (les deux)
+M.feed_names = {"INPUT","COMP","MIX"}
+M.feed_idx   = 1
+
 -- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
 M.follow_amt = 0.6    -- 0..1 : a quel point METABO suit la hauteur du son entrant
 M.in_note    = nil    -- note MIDI live de l'entree (nil si pas de pitch)
@@ -510,7 +514,7 @@ function M.key_play(n)
   if n == 3 then
     M.on = not M.on
   elseif n == 2 then
-    M.density_idx = (M.density_idx % #M.density_names) + 1
+    M.feed_idx = (M.feed_idx % #M.feed_names) + 1   -- source : INPUT / COMP / MIX
   end
 end
 
@@ -541,7 +545,7 @@ function M.redraw_play()
   screen.level(3); screen.move(70, 40); screen.text("E3 follow")
   if M.in_note then screen.level(6); screen.move(70, 48); screen.text("in " .. note_name(M.in_note)) end
 
-  screen.level(8); screen.move(2, 62); screen.text("K2 " .. M.density_names[M.density_idx] .. "   K3 on/off")
+  screen.level(8); screen.move(2, 62); screen.text("K2 feed:" .. M.feed_names[M.feed_idx] .. "  K3 on/off")
   screen.update()
 end
 
