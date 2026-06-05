@@ -72,13 +72,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→19)
+E1        — previous / next page (loops 1→20)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 19 pages
+## The 20 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -558,6 +558,49 @@ Routing matrix for the METABO voice (stream 6). Same logic as the device pages �
 - Route la voix METABO sur n'importe lequel des 4 devices MIDI, chacun avec son canal.
 - `[X]` = METABO routé sur ce device / `[ ]` = non routé.
 - Totalement indépendant du routage du compagnon (pages 9–12) et de l'Audio→MIDI (page 16). Active au moins un device ici pour entendre METABO.
+
+---
+
+### Page 20 — METABO PLAY
+The **musician entity**. The metabolism decides *what* to play (active pathways, stress); the **persona** decides *how* — the instrumental idiom.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Persona — **CELL** / **PIANO** / **DRUMS** / **BASS** |
+| E3 | Follow — how much METABO follows the incoming pitch (0–100%) |
+| K2 | Density — SPARSE / FLOW / DENSE |
+| K3 | METABO ON / OFF |
+
+**Personas:**
+
+| Persona | Plays like | Detail |
+|---|---|---|
+| **CELL** | the organic default | Pathways → chords / arpeggios / melodies / ostinatos, non-4/4 |
+| **PIANO** | a pianist | Rolled chords with a left-hand bass note, legato arpeggios and melodic lines |
+| **DRUMS** | a drummer | GM groove — kick = growth, snare = glycolysis, hi-hat = respiration, open-hat = fermentation, toms/fills = byproduct under stress, ride = CO₂, clap = lactate. **Route stream 6 to a drum channel (ch 10).** |
+| **BASS** | a bassist | Low mono line, syncopated — root / fifth / octave of the dominant pathway |
+
+- **Follow** (E3): at 0% METABO ignores your pitch (pure metabolism); higher values transpose its register toward what you play and add note-echoes (your note, snapped to the scale). The live input note shows as `in C4`.
+
+*L'**entité musicienne**. Le métabolisme décide *quoi* jouer (voies actives, stress) ; la **persona** décide *comment* — l'idiome instrumental.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Persona — **CELL** / **PIANO** / **DRUMS** / **BASS** |
+| E3 | Follow — à quel point METABO suit le pitch entrant (0–100%) |
+| K2 | Densité — SPARSE / FLOW / DENSE |
+| K3 | METABO ON / OFF |
+
+**Personas :**
+
+| Persona | Joue comme | Détail |
+|---|---|---|
+| **CELL** | l'organique par défaut | Voies → accords / arpèges / mélodies / ostinatos, non-4/4 |
+| **PIANO** | un pianiste | Accords roulés avec note de basse (main gauche), arpèges et lignes legato |
+| **DRUMS** | un batteur | Groove GM — kick = growth, snare = glycolyse, charley = respiration, charley ouvert = fermentation, toms/fills = byproduct sous stress, ride = CO₂, clap = lactate. **Route le stream 6 sur un canal batterie (ch 10).** |
+| **BASS** | un bassiste | Ligne grave mono, syncopée — fondamentale / quinte / octave de la voie dominante |
+
+- **Follow** (E3) : à 0% METABO ignore ta hauteur (métabolisme pur) ; plus haut, il transpose son registre vers ce que tu joues et ajoute des notes-écho (ta note, recalée dans la gamme). La note entrante live s'affiche `in C4`.
 
 ---
 

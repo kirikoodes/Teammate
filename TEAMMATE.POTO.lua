@@ -1871,6 +1871,15 @@ else
     player = function() end,
     enc    = function() end,
     key    = function() end,
+    enc_play = function() end,
+    key_play = function() end,
+    redraw_play = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("METABO PLAY")
+      screen.level(4)
+      screen.move(2, 36) ; screen.text("lib/metabolik.lua absent")
+      screen.update()
+    end,
     redraw = function()
       screen.clear() ; screen.level(15)
       screen.move(2, 20) ; screen.text("METABO")
@@ -1966,7 +1975,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 19) + 1
+    page = ((page - 1 + d) % 20) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -1999,6 +2008,8 @@ function enc(n, d)
       metabolik.enc(2, d)
     elseif page == 19 then
       metabo_cur_dev = util.clamp(metabo_cur_dev + d, 1, 4)
+    elseif page == 20 then
+      metabolik.enc_play(2, d)
     end
   elseif n == 3 then
     if page == 1 then
@@ -2043,6 +2054,8 @@ function enc(n, d)
       metabolik.enc(3, d)
     elseif page == 19 then
       midi_ch[6][metabo_cur_dev] = util.clamp(midi_ch[6][metabo_cur_dev] + d, 1, 16)
+    elseif page == 20 then
+      metabolik.enc_play(3, d)
     end
   end
   redraw()
@@ -2051,6 +2064,7 @@ end
 function key(n, z)
   if z == 0 then return end
   if page == 18 then metabolik.key(n) ; redraw() ; return end
+  if page == 20 then metabolik.key_play(n) ; redraw() ; return end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
     redraw() ; return
@@ -2154,6 +2168,7 @@ function redraw()
   screen.aa(0)
 
   if page == 18 then metabolik.redraw() ; return end
+  if page == 20 then metabolik.redraw_play() ; return end
 
   if splash_active then
     screen.font_size(16)
@@ -2189,7 +2204,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/19")
+  screen.text(page .. "/20")
 
   if rec_on then
     screen.level(15)

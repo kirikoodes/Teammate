@@ -47,10 +47,14 @@ M.motif     = nil
 M.rhythm    = nil
 M.motif_age = 0
 
--- suivi du son entrant : joue dans le meme registre + echo de ta note (recalee dans la gamme)
-M.follow   = true     -- suit la hauteur du son joue
-M.in_note  = nil      -- note MIDI live de l'entree (nil si pas de pitch)
-M.center   = 60       -- centre tonal lisse (suit doucement l'entree)
+-- entite musicienne : PERSONA = idiome de jeu (le metabolisme decide QUOI, la persona decide COMMENT)
+M.persona_names = {"CELL","PIANO","DRUMS","BASS"}
+M.persona_idx   = 1
+
+-- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
+M.follow_amt = 0.6    -- 0..1 : a quel point METABO suit la hauteur du son entrant
+M.in_note    = nil    -- note MIDI live de l'entree (nil si pas de pitch)
+M.center     = 60     -- centre tonal lisse (suit doucement l'entree)
 
 -- callbacks MIDI (fournis par le script principal)
 M.note_on  = nil   -- function(note, vel)
@@ -210,20 +214,20 @@ function M.play_phrase()
   nbase = math.max(1, math.min(12, nbase))
   M.flash = 1
 
-  -- suivi du son entrant : transpose le registre vers le pitch joue (octaves entieres,
-  -- la gamme reste intacte) + note-echo de l'entree recalee dans la gamme
+  -- suivi du son entrant : transpose le registre vers le pitch joue (dose par follow_amt,
+  -- octaves entieres -> la gamme reste intacte) + note-echo recalee dans la gamme
   local follow_oct = 0
-  if M.follow and M.center then
-    follow_oct = math.max(-2, math.min(3, math.floor((M.center - M.root) / 12 + 0.5)))
+  if M.follow_amt > 0 and M.center then
+    follow_oct = math.max(-2, math.min(3, math.floor((M.center - M.root) / 12 * M.follow_amt + 0.5)))
   end
-  local in_n = (M.follow and M.in_note) and snap_to_scale(M.in_note) or nil
+  local in_n = (M.follow_amt > 0 and M.in_note) and snap_to_scale(M.in_note) or nil
 
-  -- note depuis une voie + offset de degre dans la gamme (gere les octaves + suivi)
-  local function deg_note(b, off)
+  -- note depuis une voie + offset de degre (gere octaves + suivi + octshift persona)
+  local function deg_note(b, off, octshift)
     local d   = ((b.deg - 1) % L) + (off or 0)
     local oct = math.floor(d / L)
     local deg = (d % L) + 1
-    local n   = M.root + (M.octave + b.oct + oct + follow_oct) * 12 + sc[deg]
+    local n   = M.root + (M.octave + b.oct + oct + follow_oct + (octshift or 0)) * 12 + sc[deg]
     while n < 24 do n = n + 12 end
     while n > 96 do n = n - 12 end
     return n
@@ -240,24 +244,98 @@ function M.play_phrase()
     end
   end
 
-  -- type de phrase, biaise par le stress (calme -> plus d'accords/melodie posee)
+  local persona = M.persona_names[M.persona_idx]
+
+  ------------------------------------------------ DRUMS : groove batteur (notes GM, canal 10)
+  if persona == "DRUMS" then
+    local D = { kick = 36, snare = 38, hhc = 42, hho = 46, tom = 47, ride = 51, clap = 39 }
+    local c = M.ch
+    local steps   = (dens == 1) and 8 or 16
+    local per     = steps / 4                       -- steps par temps
+    local stepdur = beat / per
+    for s = 1, steps do
+      local notes = {}
+      local function add(n, v) notes[#notes + 1] = { n = n, v = math.max(1, math.min(127, math.floor(v))) } end
+      -- kick = growth (temps forts + syncope sous croissance)
+      if s == 1 or (steps == 16 and s == 9) or (steps == 8 and s == 5) then add(D.kick, 92 + c.growth * 30)
+      elseif c.growth > 0.45 and (s % 2 == 1) and math.random() < c.growth * 0.5 then add(D.kick, 58 + c.growth * 40) end
+      -- snare = glycolyse (backbeat) + ghosts/fills sous stress
+      if (steps == 16 and (s == 5 or s == 13)) or (steps == 8 and (s == 3 or s == 7)) then add(D.snare, 82 + c.glycolysis * 40)
+      elseif M.stressFx > 0.55 and math.random() < 0.12 then add(D.snare, 45 + math.random(0, 35)) end
+      -- hihat = respiration ; ouvert si fermentation
+      if math.random() < (0.45 + c.respiration * 0.5) then
+        local open = (c.fermentation > 0.5 and math.random() < 0.25)
+        add(open and D.hho or D.hhc, 38 + c.respiration * 40 + (((s - 1) % per == 0) and 22 or 0))
+      end
+      -- toms = byproduct : fill en fin de cycle sous stress
+      if M.stressFx > 0.5 and s > steps - 3 and math.random() < 0.45 then add(D.tom, 66 + math.random(0, 40)) end
+      -- ride = co2 sur le 1
+      if s == 1 and c.co2 > 0.5 and math.random() < 0.4 then add(D.ride, 84) end
+      -- clap = lactate double le snare
+      if c.lactate > 0.5 and ((steps == 16 and (s == 5 or s == 13)) or (steps == 8 and (s == 3 or s == 7))) and math.random() < 0.5 then add(D.clap, 72) end
+      for _, h in ipairs(notes) do
+        M.note_on(h.n, h.v)
+        clock.run(function() clock.sleep(math.max(0.03, stepdur * 0.5)) ; if M.note_off then M.note_off(h.n) end end)
+      end
+      clock.sleep(stepdur)
+    end
+    return
+  end
+
+  ------------------------------------------------ BASS : ligne grave mono syncopee
+  if persona == "BASS" then
+    local b     = pool[1]
+    local rh    = M.rhythm
+    local steps = math.max(3, math.min(nbase + 2, 10))
+    for i = 1, steps do
+      local cell = rh[((i - 1) % #rh) + 1]
+      if cell > 0 then
+        local off = (math.random() < 0.6) and 0 or (math.random() < 0.5 and 4 or 7)   -- fond. / 5te / 8ve (degres)
+        local n   = deg_note(b, off, -1)
+        while n > 55 do n = n - 12 end                  -- reste grave
+        hit({ n }, math.min(127, vel_at(i) + 12), math.max(0.10, beat * cell * 0.9))
+      end
+      clock.sleep(math.max(0.06, beat * (cell > 0 and cell or 0.5)))
+    end
+    return
+  end
+
+  ------------------------------------------------ CELL / PIANO (melodique)
+  local piano = (persona == "PIANO")
   local r, kind = math.random()
-  if     r < 0.28 then kind = "chord"
-  elseif r < 0.60 then kind = "arp"
-  elseif r < 0.85 then kind = "melody"
-  else                 kind = "ostinato" end
+  if piano then
+    if     r < 0.44 then kind = "chord"
+    elseif r < 0.76 then kind = "arp"
+    else                 kind = "melody" end
+  else
+    if     r < 0.28 then kind = "chord"
+    elseif r < 0.60 then kind = "arp"
+    elseif r < 0.85 then kind = "melody"
+    else                 kind = "ostinato" end
+  end
 
   if kind == "chord" then
-    -- empile des voies actives + parfois une note de tete melodique
+    -- empile des voies actives (+ main gauche basse en mode PIANO + parfois note de tete)
     local size  = math.min(#pool, 2 + math.random(0, (dens == 3) and 3 or 2))
     local notes = {}
+    if piano then notes[#notes + 1] = deg_note(pool[1], 0, -1) end              -- main gauche
     for k = 1, size do notes[#notes + 1] = M.bio_note(pool[k]) end
-    if in_n and math.random() < 0.6 then notes[#notes + 1] = in_n end          -- echo de ta note
+    if in_n and math.random() < 0.6 then notes[#notes + 1] = in_n end           -- echo de ta note
     if math.random() < 0.5 then notes[#notes + 1] = deg_note(pool[1], M.motif[#M.motif] or 2) end
     local reps = 1 + ((dens == 3) and math.random(0, 2) or 0)
     for _ = 1, reps do
-      hit(notes, vel_at(1), math.max(0.18, beat * (0.6 + math.random() * 0.6)))
-      clock.sleep(math.max(0.12, beat * (0.8 + math.random() * 0.8)))
+      if piano then
+        for _, nn in ipairs(notes) do                                          -- accord roule + legato
+          local mm = nn
+          M.note_on(mm, vel_at(1))
+          clock.run(function() clock.sleep(beat * (1.0 + math.random() * 0.6)) ; if M.note_off then M.note_off(mm) end end)
+          clock.sleep(0.02 + math.random() * 0.03)
+        end
+        clock.sleep(math.max(0.14, beat * (0.9 + math.random() * 0.7)))
+      else
+        hit(notes, vel_at(1), math.max(0.18, beat * (0.6 + math.random() * 0.6)))
+        clock.sleep(math.max(0.12, beat * (0.8 + math.random() * 0.8)))
+      end
     end
 
   elseif kind == "arp" then
@@ -346,7 +424,7 @@ function M.redraw()
   screen.font_size(8)
   screen.level(15); screen.move(2, 8);   screen.text("METABO")
   screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
-  if M.follow and M.in_note then           -- note entrante suivie (echo)
+  if M.follow_amt > 0 and M.in_note then   -- note entrante suivie (echo)
     screen.level(6); screen.move(56, 8); screen.text("in " .. note_name(M.in_note))
   end
 
@@ -403,6 +481,55 @@ function M.key(n)
   elseif n == 2 then
     M.density_idx = (M.density_idx % #M.density_names) + 1
   end
+end
+
+-- ===== page 20 : METABO PLAY (entite musicienne) =====
+-- E2 = persona (musicien) ; E3 = suivi du pitch ; K2 = densite ; K3 = ON/OFF
+function M.enc_play(n, d)
+  if n == 2 then
+    M.persona_idx = ((M.persona_idx - 1 + d) % #M.persona_names) + 1
+  elseif n == 3 then
+    M.follow_amt = util.clamp(M.follow_amt + d * 0.05, 0, 1)
+  end
+end
+
+function M.key_play(n)
+  if n == 3 then
+    M.on = not M.on
+  elseif n == 2 then
+    M.density_idx = (M.density_idx % #M.density_names) + 1
+  end
+end
+
+local PERSONA_DESC = {
+  CELL  = "organique / voies",
+  PIANO = "accords + mains",
+  DRUMS = "groove GM ch10",
+  BASS  = "ligne grave",
+}
+
+function M.redraw_play()
+  screen.clear()
+  screen.font_size(8)
+  screen.level(15); screen.move(2, 8); screen.text("METABO PLAY")
+  screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
+
+  -- persona en gros
+  local p = M.persona_names[M.persona_idx]
+  screen.level(15); screen.font_size(16); screen.move(2, 30); screen.text(p)
+  screen.font_size(8)
+  screen.level(5); screen.move(2, 40); screen.text(PERSONA_DESC[p] or "")
+  screen.level(3); screen.move(2, 48); screen.text("E2 musicien")
+
+  -- suivi du pitch (follow)
+  screen.level(8); screen.move(70, 26); screen.text(string.format("follow %d%%", math.floor(M.follow_amt * 100)))
+  screen.level(4); screen.rect(70, 29, 54, 3); screen.stroke()
+  screen.level(12); screen.rect(70, 29, 54 * M.follow_amt, 3); screen.fill()
+  screen.level(3); screen.move(70, 40); screen.text("E3 follow")
+  if M.in_note then screen.level(6); screen.move(70, 48); screen.text("in " .. note_name(M.in_note)) end
+
+  screen.level(8); screen.move(2, 62); screen.text("K2 " .. M.density_names[M.density_idx] .. "   K3 on/off")
+  screen.update()
 end
 
 return M
