@@ -678,6 +678,7 @@ local function os8_set(mode)
           if g then
             os8_pos_v5 = g.pos
             local gs = math.min(os8_size, g.dur)
+            softcut.fade_time(5, math.min(0.03, gs * 0.30))   -- fade anti-clic adapte au grain
             softcut.loop(5, 0)
             softcut.loop_start(5, g.pos)
             softcut.loop_end(5,   g.pos + gs)
@@ -710,6 +711,7 @@ local function os8_set(mode)
           if g then
             os8_pos_v6 = g.pos
             local gs = math.min(os8_size, g.dur)
+            softcut.fade_time(6, math.min(0.03, gs * 0.30))   -- fade anti-clic adapte au grain
             softcut.loop(6, 0)
             softcut.loop_start(6, g.pos)
             softcut.loop_end(6,   g.pos + gs)
@@ -742,6 +744,7 @@ local function os8_set(mode)
           if g then
             os8_pos_v3 = g.pos
             local gs = math.min(os8_size, g.dur)
+            softcut.fade_time(3, math.min(0.03, gs * 0.30))   -- fade anti-clic adapte au grain
             softcut.loop(3, 0)
             softcut.loop_start(3, g.pos)
             softcut.loop_end(3,   g.pos + gs)
