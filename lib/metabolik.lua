@@ -48,7 +48,7 @@ M.rhythm    = nil
 M.motif_age = 0
 
 -- entite musicienne : PERSONA = idiome de jeu (le metabolisme decide QUOI, la persona decide COMMENT)
-M.persona_names = {"CELL","PIANO","DRUMS","BASS"}
+M.persona_names = {"CELL","PIANO","POLY","BASS"}
 M.persona_idx   = 1
 
 -- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
@@ -246,38 +246,28 @@ function M.play_phrase()
 
   local persona = M.persona_names[M.persona_idx]
 
-  ------------------------------------------------ DRUMS : groove batteur (notes GM, canal 10)
-  if persona == "DRUMS" then
-    local D = { kick = 36, snare = 38, hhc = 42, hho = 46, tom = 47, ride = 51, clap = 39 }
-    local c = M.ch
-    local steps   = (dens == 1) and 8 or 16
-    local per     = steps / 4                       -- steps par temps
-    local stepdur = beat / per
-    for s = 1, steps do
-      local notes = {}
-      local function add(n, v) notes[#notes + 1] = { n = n, v = math.max(1, math.min(127, math.floor(v))) } end
-      -- kick = growth (temps forts + syncope sous croissance)
-      if s == 1 or (steps == 16 and s == 9) or (steps == 8 and s == 5) then add(D.kick, 92 + c.growth * 30)
-      elseif c.growth > 0.45 and (s % 2 == 1) and math.random() < c.growth * 0.5 then add(D.kick, 58 + c.growth * 40) end
-      -- snare = glycolyse (backbeat) + ghosts/fills sous stress
-      if (steps == 16 and (s == 5 or s == 13)) or (steps == 8 and (s == 3 or s == 7)) then add(D.snare, 82 + c.glycolysis * 40)
-      elseif M.stressFx > 0.55 and math.random() < 0.12 then add(D.snare, 45 + math.random(0, 35)) end
-      -- hihat = respiration ; ouvert si fermentation
-      if math.random() < (0.45 + c.respiration * 0.5) then
-        local open = (c.fermentation > 0.5 and math.random() < 0.25)
-        add(open and D.hho or D.hhc, 38 + c.respiration * 40 + (((s - 1) % per == 0) and 22 or 0))
+  ------------------------------------------------ POLY : percussions polyrythmiques (notes GM, canal 10)
+  -- chaque voie a SA periode (en pas) -> les couches se dephasent : 4 contre 3 contre 5 contre 7...
+  if persona == "POLY" then
+    local PNOTE  = { growth=64, glycolysis=62, respiration=42, fermentation=46, byproduct=76, co2=56, lactate=75 }
+    local PERIOD = { growth=4,  glycolysis=3,  respiration=6,  fermentation=5,  byproduct=7,  co2=8,  lactate=2  }
+    local OFFS   = { growth=0,  glycolysis=1,  respiration=0,  fermentation=2,  byproduct=3,  co2=0,  lactate=0  }
+    local base   = beat / 4                                    -- pas = double-croche
+    local nticks = (dens == 1) and 16 or (dens == 3 and 48 or 32)
+    for t = 0, nticks - 1 do
+      for _, b in ipairs(M.BIO) do
+        local act = M.ch[b.ch] or 0
+        local per = PERIOD[b.ch] or 4
+        local ph  = (t - (OFFS[b.ch] or 0))
+        if act > 0.07 and ph >= 0 and (ph % per == 0) and math.random() < (0.45 + act * 0.55) then
+          local n = PNOTE[b.ch] or 64
+          local v = math.max(1, math.min(127, math.floor(38 + act * 70 + ((t == 0) and 16 or 0) + math.random(-6, 6))))
+          M.note_on(n, v)
+          clock.run(function() clock.sleep(math.max(0.03, base * 0.5)) ; if M.note_off then M.note_off(n) end end)
+        end
       end
-      -- toms = byproduct : fill en fin de cycle sous stress
-      if M.stressFx > 0.5 and s > steps - 3 and math.random() < 0.45 then add(D.tom, 66 + math.random(0, 40)) end
-      -- ride = co2 sur le 1
-      if s == 1 and c.co2 > 0.5 and math.random() < 0.4 then add(D.ride, 84) end
-      -- clap = lactate double le snare
-      if c.lactate > 0.5 and ((steps == 16 and (s == 5 or s == 13)) or (steps == 8 and (s == 3 or s == 7))) and math.random() < 0.5 then add(D.clap, 72) end
-      for _, h in ipairs(notes) do
-        M.note_on(h.n, h.v)
-        clock.run(function() clock.sleep(math.max(0.03, stepdur * 0.5)) ; if M.note_off then M.note_off(h.n) end end)
-      end
-      clock.sleep(stepdur)
+      if t % 8 == 0 then M.flash = 1 end
+      clock.sleep(base)
     end
     return
   end
@@ -504,7 +494,7 @@ end
 local PERSONA_DESC = {
   CELL  = "organique / voies",
   PIANO = "accords + mains",
-  DRUMS = "groove GM ch10",
+  POLY  = "polyrythmie ch10",
   BASS  = "ligne grave",
 }
 
