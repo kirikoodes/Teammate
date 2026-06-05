@@ -446,7 +446,7 @@ The display shows a horizontal spatial field (L ← center → R) with four voic
 - `o` small letter = POtO ATTRACTED
 - `.` dot = POtO REPULSED
 
-> **8OS** is spatialized too: in TRANS mode its three voices share the same physical voices as POtO (V5 / V6 / V3), so they follow the **LEAD / ATTRACTED / REPULSED** positions — the markers above apply to 8OS grains as well.
+> **8OS** is spatialized too: in TRANS mode its three grain voices get their **own independent SPAT trajectories**, distinct from POtO. While 8OS TRANS is active, the `O o .` markers show the **8OS** positions (not POtO's).
 
 **Movement modes:**
 
@@ -480,7 +480,7 @@ L'affichage montre le champ stéréo (G ← centre → D) avec quatre marqueurs 
 - `o` petite lettre = POtO ATTRACTED
 - `.` point = POtO REPULSED
 
-> **8OS** est spatialisé aussi : en mode TRANS, ses trois voix partagent les mêmes voix physiques que POtO (V5 / V6 / V3), donc elles suivent les positions **LEAD / ATTRACTED / REPULSED** — les marqueurs ci-dessus valent aussi pour les grains 8OS.
+> **8OS** est spatialisé aussi : en mode TRANS, ses trois voix de grain ont leurs **propres trajectoires SPAT indépendantes**, distinctes de POtO. Quand 8OS TRANS est actif, les marqueurs `O o .` montrent les positions **8OS** (pas celles de POtO).
 
 **Modes de mouvement :**
 

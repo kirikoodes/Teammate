@@ -423,19 +423,20 @@ local SPAT_MODES = {"NEBULA","ORBIT","PULSAR","QUANTUM","STRANGE","ENTANGLE"}
 local spat = {
   mode = 1, mass = 0.6, tempo = 0.4, on = false, co = nil,
   DT   = 0.08,
-  KEYS = {"impro","lead","av","rv"},
-  az   = {impro=0.0, lead=0.0, av=0.0, rv=0.0},
-  dz   = {impro=0.0, lead=0.3, av=-0.2, rv=0.5},
+  -- impro/lead/av/rv = corpus + POtO ; o5/o6/o3 = 8OS (trajectoires propres)
+  KEYS = {"impro","lead","av","rv","o5","o6","o3"},
+  az   = {impro=0.0, lead=0.0, av=0.0, rv=0.0, o5=0.0, o6=0.0, o3=0.0},
+  dz   = {impro=0.0, lead=0.3, av=-0.2, rv=0.5, o5=0.2, o6=-0.3, o3=0.4},
   s    = {
-    neb_vel = {0.0, 0.0, 0.0, 0.0},
-    orb_th  = {0.0, TAU*0.16, TAU*0.49, TAU*0.83},
+    neb_vel = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
+    orb_th  = {0.0, TAU*0.16, TAU*0.49, TAU*0.83, TAU*0.30, TAU*0.62, TAU*0.95},
     puls_t  = 0.0,
-    q_tgt   = {0.0, 0.3, -0.5, 0.7},
-    q_lerp  = {1.0, 1.0,  1.0, 1.0},
+    q_tgt   = {0.0, 0.3, -0.5, 0.7, -0.3, 0.5, -0.7},
+    q_lerp  = {1.0, 1.0,  1.0, 1.0, 1.0, 1.0, 1.0},
     lx=0.1, ly=0.0, lz=20.0,
     lx2=1.5, ly2=0.8, lz2=19.5,
     ent_th  = 0.0,
-    dz_vel  = {0.0, 0.0, 0.0, 0.0},
+    dz_vel  = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0},
   }
 }
 local spat_depth_mult  -- forward ref : definie apres poto_set
@@ -1030,10 +1031,10 @@ local function spat_apply()
     softcut.pan(POTO_PLY_V[2], spat_eff_pan("av"))
     softcut.pan(3,              spat_eff_pan("rv"))
   elseif os8_mode == "TRANS" then
-    -- 8OS : memes voix physiques que POtO (V5 LOCK / V6 ECHO / V3 LOCK)
-    softcut.pan(5, spat_eff_pan("lead"))
-    softcut.pan(6, spat_eff_pan("av"))
-    softcut.pan(3, spat_eff_pan("rv"))
+    -- 8OS : trajectoires SPAT propres (distinctes de POtO)
+    softcut.pan(5, spat_eff_pan("o5"))
+    softcut.pan(6, spat_eff_pan("o6"))
+    softcut.pan(3, spat_eff_pan("o3"))
   end
 end
 
@@ -1114,6 +1115,13 @@ local function spat_update()
     spat.dz[keys[2]] = math.tanh(s.lz  * 0.01 - 1) * 0.7
     spat.dz[keys[3]] = math.tanh(s.lz2 * 0.01 - 1) * 0.5
     spat.dz[keys[4]] = math.tanh(s.lz2 * 0.01 - 1) * 0.3
+    -- 8OS : projections distinctes du double attracteur
+    spat.az[keys[5]] = math.tanh((s.lx - s.lx2) * 0.04)
+    spat.az[keys[6]] = math.tanh((s.ly + s.ly2) * 0.03)
+    spat.az[keys[7]] = math.tanh((s.lx2 - s.ly) * 0.04)
+    spat.dz[keys[5]] = math.tanh((s.lz + s.lz2) * 0.005 - 1) * 0.4
+    spat.dz[keys[6]] = math.tanh(s.lz2 * 0.01 - 1) * 0.6
+    spat.dz[keys[7]] = math.tanh(s.lz  * 0.01 - 1) * 0.5
 
   elseif m == 6 then  -- ENTANGLE : LEAD brownien, ATTRACTED miroir, REPULSED orbite
     local damp = 1.0 - mass * 0.35
@@ -1128,6 +1136,13 @@ local function spat_update()
     spat.az.rv    = math.sin(s.ent_th) * (0.4 + mass * 0.5)
     spat.dz.rv    = math.cos(s.ent_th * 0.7) * 0.4
     spat.az.impro = spat.az.impro + (spat.az.lead * 0.5 - spat.az.impro) * 0.05
+    -- 8OS : trio intrique a part (orbites dephasees)
+    spat.az.o5 = math.sin(s.ent_th * 1.3) * (0.4 + mass * 0.4)
+    spat.dz.o5 = math.cos(s.ent_th * 1.1) * 0.4
+    spat.az.o6 = -spat.az.o5
+    spat.dz.o6 = spat.dz.o5
+    spat.az.o3 = math.sin(s.ent_th * 0.6 + 1.0) * 0.5
+    spat.dz.o3 = math.cos(s.ent_th * 0.5) * 0.4
   end
 end
 
@@ -2539,12 +2554,16 @@ function redraw()
     screen.text(string.format("mass:%.2f  spd:%.2f", spat.mass, spat.tempo))
     screen.level(3)
     screen.move(4, 54) ; screen.line(124, 54) ; screen.stroke()
-    local sym = {impro="*", lead="O", av="o", rv="."}
-    for _, k in ipairs(spat.KEYS) do
+    local function smark(k, ch, hi)
       local x = math.floor((spat_eff_pan(k) + 1) * 0.5 * 118) + 5
-      screen.level(spat.on and (k == "lead" and 15 or 10) or 4)
-      screen.move(x, 54)
-      screen.text(sym[k])
+      screen.level(spat.on and (hi and 15 or 10) or 4)
+      screen.move(x, 54) ; screen.text(ch)
+    end
+    smark("impro", "*")
+    if os8_mode == "TRANS" then
+      smark("o5", "O", true) ; smark("o6", "o") ; smark("o3", ".")   -- positions 8OS
+    else
+      smark("lead", "O", true) ; smark("av", "o") ; smark("rv", ".") -- positions POtO
     end
     screen.level(spat.on and 15 or 4)
     screen.move(100, 63)
