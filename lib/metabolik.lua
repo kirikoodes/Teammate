@@ -47,6 +47,11 @@ M.motif     = nil
 M.rhythm    = nil
 M.motif_age = 0
 
+-- suivi du son entrant : joue dans le meme registre + echo de ta note (recalee dans la gamme)
+M.follow   = true     -- suit la hauteur du son joue
+M.in_note  = nil      -- note MIDI live de l'entree (nil si pas de pitch)
+M.center   = 60       -- centre tonal lisse (suit doucement l'entree)
+
 -- callbacks MIDI (fournis par le script principal)
 M.note_on  = nil   -- function(note, vel)
 M.note_off = nil   -- function(note)
@@ -57,6 +62,20 @@ local novAcc = 0
 
 local function clampU(x) if x < 0 then return 0 elseif x > 1 then return 1 else return x end end
 local function scale() return M.scales[M.scale_names[M.scale_idx]] end
+
+-- recale une note MIDI sur la note la plus proche de la gamme courante (rootee sur M.root)
+local function snap_to_scale(note)
+  local sc = scale() ; local L = #sc
+  local best, bestd = note, 999
+  for o = -4, 5 do
+    for i = 1, L do
+      local cand = M.root + o * 12 + sc[i]
+      local d = math.abs(cand - note)
+      if d < bestd then bestd = d ; best = cand end
+    end
+  end
+  return best
+end
 
 function M.bio_note(b)
   local sc = scale()
@@ -111,6 +130,17 @@ function M.update(rms, freq, centroid, flatness, dt)
   local rate = (perturb > M.stress) and 2.4 or 0.45
   M.stress   = M.stress + (perturb - M.stress) * math.min(1, dt * rate)
   M.stressFx = M.stress_min + M.stress * (M.stress_max - M.stress_min)
+
+  -- suivi du pitch entrant : note live + centre tonal lisse (pour jouer "proche" du son)
+  if (freq or 0) > 30 and feat.level > 0.03 then
+    local n = math.floor(69 + 12 * math.log(freq / 440) / math.log(2) + 0.5)
+    if n >= 12 and n <= 108 then
+      M.in_note = n
+      M.center  = M.center + (n - M.center) * math.min(1, dt * 4)
+    end
+  else
+    M.in_note = nil
+  end
 
   if M.flash > 0 then M.flash = math.max(0, M.flash - dt * 3) end
   M.state = (M.stressFx > 0.66 and "MONOTONE") or (M.stressFx > 0.33 and "PERTURBE") or "STABLE"
@@ -180,12 +210,20 @@ function M.play_phrase()
   nbase = math.max(1, math.min(12, nbase))
   M.flash = 1
 
-  -- note depuis une voie + offset de degre dans la gamme (gere les octaves)
+  -- suivi du son entrant : transpose le registre vers le pitch joue (octaves entieres,
+  -- la gamme reste intacte) + note-echo de l'entree recalee dans la gamme
+  local follow_oct = 0
+  if M.follow and M.center then
+    follow_oct = math.max(-2, math.min(3, math.floor((M.center - M.root) / 12 + 0.5)))
+  end
+  local in_n = (M.follow and M.in_note) and snap_to_scale(M.in_note) or nil
+
+  -- note depuis une voie + offset de degre dans la gamme (gere les octaves + suivi)
   local function deg_note(b, off)
     local d   = ((b.deg - 1) % L) + (off or 0)
     local oct = math.floor(d / L)
     local deg = (d % L) + 1
-    local n   = M.root + (M.octave + b.oct + oct) * 12 + sc[deg]
+    local n   = M.root + (M.octave + b.oct + oct + follow_oct) * 12 + sc[deg]
     while n < 24 do n = n + 12 end
     while n > 96 do n = n - 12 end
     return n
@@ -214,6 +252,7 @@ function M.play_phrase()
     local size  = math.min(#pool, 2 + math.random(0, (dens == 3) and 3 or 2))
     local notes = {}
     for k = 1, size do notes[#notes + 1] = M.bio_note(pool[k]) end
+    if in_n and math.random() < 0.6 then notes[#notes + 1] = in_n end          -- echo de ta note
     if math.random() < 0.5 then notes[#notes + 1] = deg_note(pool[1], M.motif[#M.motif] or 2) end
     local reps = 1 + ((dens == 3) and math.random(0, 2) or 0)
     for _ = 1, reps do
@@ -237,7 +276,8 @@ function M.play_phrase()
     for i = 1, steps do
       local b   = pool[order[((i - 1) % #order) + 1]]
       local off = (math.random() < 0.30) and (M.motif[((i - 1) % #M.motif) + 1]) or 0
-      hit({ deg_note(b, off) }, vel_at(i), math.max(0.06, gap * 0.9))
+      local nn  = (in_n and i == 1 and math.random() < 0.5) and in_n or deg_note(b, off)
+      hit({ nn }, vel_at(i), math.max(0.06, gap * 0.9))
       clock.sleep(math.max(0.05, gap))
     end
 
@@ -250,7 +290,8 @@ function M.play_phrase()
       if cell > 0 then
         local off = M.motif[((i - 1) % #M.motif) + 1]
         local b   = pool[((i - 1) % #pool) + 1]
-        hit({ deg_note(b, off) }, vel_at(i), math.max(0.06, beat * cell * 0.85))
+        local nn  = (in_n and math.random() < 0.3) and in_n or deg_note(b, off)   -- echo occasionnel
+        hit({ nn }, vel_at(i), math.max(0.06, beat * cell * 0.85))
       end
       clock.sleep(math.max(0.05, beat * (cell > 0 and cell or 0.5)))
     end
@@ -305,6 +346,9 @@ function M.redraw()
   screen.font_size(8)
   screen.level(15); screen.move(2, 8);   screen.text("METABO")
   screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
+  if M.follow and M.in_note then           -- note entrante suivie (echo)
+    screen.level(6); screen.move(56, 8); screen.text("in " .. note_name(M.in_note))
+  end
 
   -- cellule : cercle qui pulse avec la croissance
   local cx, cy = 98, 36
