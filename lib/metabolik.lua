@@ -246,12 +246,12 @@ function M.play_phrase()
 
   local persona = M.persona_names[M.persona_idx]
 
-  ------------------------------------------------ POLY : percussions polyrythmiques (notes GM, canal 10)
-  -- chaque voie a SA periode (en pas) -> les couches se dephasent : 4 contre 3 contre 5 contre 7...
+  ------------------------------------------------ POLY : couches polyrythmiques MELODIQUES
+  -- chaque voie a SA periode (4 contre 3 contre 5 contre 7...) et joue SA note dans la gamme,
+  -- en suivant le registre entrant (follow) + echo occasionnel de ta note.
   if persona == "POLY" then
-    local PNOTE  = { growth=64, glycolysis=62, respiration=42, fermentation=46, byproduct=76, co2=56, lactate=75 }
-    local PERIOD = { growth=4,  glycolysis=3,  respiration=6,  fermentation=5,  byproduct=7,  co2=8,  lactate=2  }
-    local OFFS   = { growth=0,  glycolysis=1,  respiration=0,  fermentation=2,  byproduct=3,  co2=0,  lactate=0  }
+    local PERIOD = { growth=4, glycolysis=3, respiration=6, fermentation=5, byproduct=7, co2=8, lactate=2 }
+    local OFFS   = { growth=0, glycolysis=1, respiration=0, fermentation=2, byproduct=3, co2=0, lactate=0 }
     local base   = beat / 4                                    -- pas = double-croche
     local nticks = (dens == 1) and 16 or (dens == 3 and 48 or 32)
     for t = 0, nticks - 1 do
@@ -259,11 +259,13 @@ function M.play_phrase()
         local act = M.ch[b.ch] or 0
         local per = PERIOD[b.ch] or 4
         local ph  = (t - (OFFS[b.ch] or 0))
-        if act > 0.07 and ph >= 0 and (ph % per == 0) and math.random() < (0.45 + act * 0.55) then
-          local n = PNOTE[b.ch] or 64
-          local v = math.max(1, math.min(127, math.floor(38 + act * 70 + ((t == 0) and 16 or 0) + math.random(-6, 6))))
+        if act > 0.07 and ph >= 0 and (ph % per == 0) and math.random() < (0.40 + act * 0.55) then
+          -- note pitchee : la voie, dans la gamme, registre suivi ; echo de ta note parfois
+          local n = (in_n and math.random() < 0.25) and in_n or deg_note(b, 0)
+          local v = math.max(1, math.min(127, math.floor(38 + act * 70 + ((t == 0) and 14 or 0) + math.random(-6, 6))))
           M.note_on(n, v)
-          clock.run(function() clock.sleep(math.max(0.03, base * 0.5)) ; if M.note_off then M.note_off(n) end end)
+          local dur = base * (1.0 + math.random() * 0.8)       -- un peu plus long que des percus
+          clock.run(function() clock.sleep(math.max(0.05, dur)) ; if M.note_off then M.note_off(n) end end)
         end
       end
       if t % 8 == 0 then M.flash = 1 end
@@ -494,7 +496,7 @@ end
 local PERSONA_DESC = {
   CELL  = "organique / voies",
   PIANO = "accords + mains",
-  POLY  = "polyrythmie ch10",
+  POLY  = "polyrythmie melod",
   BASS  = "ligne grave",
 }
 

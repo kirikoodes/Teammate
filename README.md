@@ -577,7 +577,7 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 |---|---|---|
 | **CELL** | the organic default | Pathways → chords / arpeggios / melodies / ostinatos, non-4/4 |
 | **PIANO** | a pianist | Rolled chords with a left-hand bass note, legato arpeggios and melodic lines |
-| **POLY** | a polyrhythmic percussionist | Each pathway has its own cycle length (4 vs 3 vs 5 vs 7 vs 6 vs 8 vs 2 steps) so the layers phase against each other → organic polyrhythm. GM percussion (congas, woodblock, cowbell, claves, hi-hats); activity gates each layer, stress drives density. **Route stream 6 to a drum channel (ch 10).** |
+| **POLY** | polyrhythmic melodic layers | Each pathway has its own cycle length (4 vs 3 vs 5 vs 7 vs 6 vs 8 vs 2 steps) so the layers phase against each other → organic polyrhythm. Each layer plays **its pathway's note, in scale**, following the incoming pitch (register + echoes); activity gates each layer, stress drives density. |
 | **BASS** | a bassist | Low mono line, syncopated — root / fifth / octave of the dominant pathway |
 
 - **Follow** (E3): at 0% METABO ignores your pitch (pure metabolism); higher values transpose its register toward what you play and add note-echoes (your note, snapped to the scale). The live input note shows as `in C4`.
@@ -597,7 +597,7 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 |---|---|---|
 | **CELL** | l'organique par défaut | Voies → accords / arpèges / mélodies / ostinatos, non-4/4 |
 | **PIANO** | un pianiste | Accords roulés avec note de basse (main gauche), arpèges et lignes legato |
-| **POLY** | un percussionniste polyrythmique | Chaque voie a sa propre période (4 contre 3 contre 5 contre 7 contre 6 contre 8 contre 2 pas) → les couches se déphasent → polyrythmie organique. Percussions GM (congas, wood-block, cloche, claves, charleys) ; l'activité ouvre chaque couche, le stress pilote la densité. **Route le stream 6 sur un canal batterie (ch 10).** |
+| **POLY** | couches polyrythmiques mélodiques | Chaque voie a sa propre période (4 contre 3 contre 5 contre 7 contre 6 contre 8 contre 2 pas) → les couches se déphasent → polyrythmie organique. Chaque couche joue **sa note, dans la gamme**, en suivant le pitch entrant (registre + échos) ; l'activité ouvre chaque couche, le stress pilote la densité. |
 | **BASS** | un bassiste | Ligne grave mono, syncopée — fondamentale / quinte / octave de la voie dominante |
 
 - **Follow** (E3) : à 0% METABO ignore ta hauteur (métabolisme pur) ; plus haut, il transpose son registre vers ce que tu joues et ajoute des notes-écho (ta note, recalée dans la gamme). La note entrante live s'affiche `in C4`.
