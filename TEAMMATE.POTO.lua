@@ -653,6 +653,7 @@ local function os8_set(mode)
       softcut.level(v, 0)
       softcut.rate(v, 1.0)
       softcut.fade_time(v, 0.02)
+      softcut.level_slew_time(v, 0.01)   -- enveloppe volume = attaque/release doux (anti-clic)
     end
     os8_pos_v5 = nil ; os8_pos_v6 = nil ; os8_pos_v3 = nil
 
@@ -678,19 +679,20 @@ local function os8_set(mode)
           if g then
             os8_pos_v5 = g.pos
             local gs = math.min(os8_size, g.dur)
-            softcut.fade_time(5, math.min(0.03, gs * 0.30))   -- fade anti-clic adapte au grain
-            softcut.loop(5, 0)
+            softcut.fade_time(5, math.min(0.02, gs * 0.5))
+            softcut.loop(5, 1)                              -- boucle le grain (crossfade aux bornes)
             softcut.loop_start(5, g.pos)
             softcut.loop_end(5,   g.pos + gs)
             softcut.position(5, g.pos)
             softcut.rate(5, 1.0)
-            softcut.level(5, os8_vol)
             softcut.play(5, 1)
+            softcut.level(5, os8_vol)                       -- attaque douce (slew)
             local n5 = freq_to_midi(g.pitch)
             if n5 then midi_note_on(3, n5, math.floor(os8_vol * 127)) end
-            grain_sleep(math.max(0.04, gs - 0.025))
+            grain_sleep(math.max(0.04, gs - 0.02))
+            softcut.level(5, 0)                             -- release doux -> pas de clic
             if n5 then midi_note_off(3, n5) end
-            softcut.play(5, 0) ; clock.sleep(0.04)
+            clock.sleep(0.02) ; softcut.play(5, 0) ; clock.sleep(0.02)
           else
             clock.sleep(0.05)
           end
@@ -711,19 +713,20 @@ local function os8_set(mode)
           if g then
             os8_pos_v6 = g.pos
             local gs = math.min(os8_size, g.dur)
-            softcut.fade_time(6, math.min(0.03, gs * 0.30))   -- fade anti-clic adapte au grain
-            softcut.loop(6, 0)
+            softcut.fade_time(6, math.min(0.02, gs * 0.5))
+            softcut.loop(6, 1)
             softcut.loop_start(6, g.pos)
             softcut.loop_end(6,   g.pos + gs)
             softcut.position(6, g.pos)
             softcut.rate(6, 1.0)
-            softcut.level(6, os8_vol * 0.65)
             softcut.play(6, 1)
+            softcut.level(6, os8_vol * 0.65)               -- attaque douce (slew)
             local n6 = freq_to_midi(g.pitch)
             if n6 then midi_note_on(3, n6, math.floor(os8_vol * 83)) end
-            grain_sleep(math.max(0.04, gs - 0.025))
+            grain_sleep(math.max(0.04, gs - 0.02))
+            softcut.level(6, 0)                            -- release doux
             if n6 then midi_note_off(3, n6) end
-            softcut.play(6, 0) ; clock.sleep(0.04)
+            clock.sleep(0.02) ; softcut.play(6, 0) ; clock.sleep(0.02)
           else
             clock.sleep(0.05)
           end
@@ -744,19 +747,20 @@ local function os8_set(mode)
           if g then
             os8_pos_v3 = g.pos
             local gs = math.min(os8_size, g.dur)
-            softcut.fade_time(3, math.min(0.03, gs * 0.30))   -- fade anti-clic adapte au grain
-            softcut.loop(3, 0)
+            softcut.fade_time(3, math.min(0.02, gs * 0.5))
+            softcut.loop(3, 1)
             softcut.loop_start(3, g.pos)
             softcut.loop_end(3,   g.pos + gs)
             softcut.position(3, g.pos)
             softcut.rate(3, 1.0)
-            softcut.level(3, os8_vol * 0.40)
             softcut.play(3, 1)
+            softcut.level(3, os8_vol * 0.40)               -- attaque douce (slew)
             local n3 = freq_to_midi(g.pitch)
             if n3 then midi_note_on(3, n3, math.floor(os8_vol * 51)) end
-            grain_sleep(math.max(0.04, gs - 0.025))
+            grain_sleep(math.max(0.04, gs - 0.02))
+            softcut.level(3, 0)                            -- release doux
             if n3 then midi_note_off(3, n3) end
-            softcut.play(3, 0) ; clock.sleep(0.04)
+            clock.sleep(0.02) ; softcut.play(3, 0) ; clock.sleep(0.02)
           else
             clock.sleep(0.05)
           end
