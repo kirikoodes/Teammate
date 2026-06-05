@@ -55,9 +55,9 @@ M.motif_age = 0
 M.persona_names = {"CELL","PIANO","POLY","BASS"}
 M.persona_idx   = 1
 
--- spatialisation MIDI : chaque voie a sa position dans le champ stereo (Pan CC10) + mouvement
-M.spat = true
-M.cc   = nil          -- callback fourni par le script principal : function(cc, val)
+-- spatialisation METABO desactivee (la spatialisation SPAT page 17 ne gere pas METABO).
+M.spat = false
+M.cc   = nil
 
 -- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
 M.follow_amt = 0.6    -- 0..1 : a quel point METABO suit la hauteur du son entrant

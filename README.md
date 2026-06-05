@@ -440,12 +440,13 @@ Cosmic / quantum spatialization. Each sound source gets its own position in the 
 | K2 | Cycle mode: **NEBULA** → **ORBIT** → **PULSAR** → **QUANTUM** → **STRANGE** → **ENTANGLE** |
 | K3 | SPAT ON / OFF |
 
-The display shows a horizontal spatial field (L ← center → R) with five voice markers:
+The display shows a horizontal spatial field (L ← center → R) with four voice markers:
 - `*` asterisk = IMPRO corpus playback
 - `O` large letter = POtO LEAD
 - `o` small letter = POtO ATTRACTED
 - `.` dot = POtO REPULSED
-- `M` = METABO — spatialized too, sent as **MIDI Pan (CC10)** on stream 6 (so all METABO personas move in the field with the chosen mode)
+
+> **8OS** is spatialized too: in TRANS mode its three voices share the same physical voices as POtO (V5 / V6 / V3), so they follow the **LEAD / ATTRACTED / REPULSED** positions — the markers above apply to 8OS grains as well.
 
 **Movement modes:**
 
@@ -473,12 +474,13 @@ When **POtO SMRT** mode is active, the movement parameters are modulated automat
 | K2 | Cycle mode : **NEBULA** → **ORBIT** → **PULSAR** → **QUANTUM** → **STRANGE** → **ENTANGLE** |
 | K3 | SPAT ON / OFF |
 
-L'affichage montre le champ stéréo (G ← centre → D) avec cinq marqueurs de voix :
+L'affichage montre le champ stéréo (G ← centre → D) avec quatre marqueurs de voix :
 - `*` astérisque = playback corpus IMPRO
 - `O` grande lettre = POtO LEAD
 - `o` petite lettre = POtO ATTRACTED
 - `.` point = POtO REPULSED
-- `M` = METABO — spatialisé aussi, envoyé en **Pan MIDI (CC10)** sur le stream 6 (toutes les personas METABO bougent dans le champ avec le mode choisi)
+
+> **8OS** est spatialisé aussi : en mode TRANS, ses trois voix partagent les mêmes voix physiques que POtO (V5 / V6 / V3), donc elles suivent les positions **LEAD / ATTRACTED / REPULSED** — les marqueurs ci-dessus valent aussi pour les grains 8OS.
 
 **Modes de mouvement :**
 
