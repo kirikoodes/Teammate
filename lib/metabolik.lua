@@ -62,6 +62,7 @@ M.cc   = nil
 -- source qui nourrit le metabolisme : INPUT (micro/ligne) / COMP (le compagnon) / MIX (les deux)
 M.feed_names = {"INPUT","COMP","MIX"}
 M.feed_idx   = 1
+M.react      = 0.5    -- reactivite au compagnon : 0 = lisse/lent, 1 = vif/serre
 
 -- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
 M.follow_amt = 0.6    -- 0..1 : a quel point METABO suit la hauteur du son entrant
@@ -514,8 +515,55 @@ function M.key_play(n)
   if n == 3 then
     M.on = not M.on
   elseif n == 2 then
-    M.feed_idx = (M.feed_idx % #M.feed_names) + 1   -- source : INPUT / COMP / MIX
+    M.density_idx = (M.density_idx % #M.density_names) + 1
   end
+end
+
+-- ===== page 21 : METABO FEED (relation au compagnon) =====
+-- E2 = source (INPUT/COMP/MIX) ; E3 = reaction ; K2 = densite ; K3 = ON/OFF
+function M.enc_feed(n, d)
+  if n == 2 then
+    M.feed_idx = ((M.feed_idx - 1 + d) % #M.feed_names) + 1
+  elseif n == 3 then
+    M.react = util.clamp(M.react + d * 0.05, 0, 1)
+  end
+end
+
+function M.key_feed(n)
+  if n == 3 then
+    M.on = not M.on
+  elseif n == 2 then
+    M.density_idx = (M.density_idx % #M.density_names) + 1
+  end
+end
+
+local FEED_DESC = {
+  INPUT = "micro / ligne",
+  COMP  = "le compagnon",
+  MIX   = "entree + compagnon",
+}
+
+function M.redraw_feed()
+  screen.clear()
+  screen.font_size(8)
+  screen.level(15); screen.move(2, 8); screen.text("METABO FEED")
+  screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
+
+  local f = M.feed_names[M.feed_idx]
+  screen.level(15); screen.font_size(16); screen.move(2, 30); screen.text(f)
+  screen.font_size(8)
+  screen.level(5); screen.move(2, 40); screen.text(FEED_DESC[f] or "")
+  screen.level(3); screen.move(2, 48); screen.text("E2 source")
+
+  -- reaction
+  screen.level(8); screen.move(70, 26); screen.text(string.format("react %d%%", math.floor(M.react * 100)))
+  screen.level(4); screen.rect(70, 29, 54, 3); screen.stroke()
+  screen.level(12); screen.rect(70, 29, 54 * M.react, 3); screen.fill()
+  screen.level(3); screen.move(70, 40); screen.text("E3 reaction")
+  screen.level(3); screen.move(70, 48); screen.text(M.react < 0.34 and "lisse/lent" or (M.react > 0.66 and "vif/serre" or "moyen"))
+
+  screen.level(8); screen.move(2, 62); screen.text("K2 " .. M.density_names[M.density_idx] .. "  K3 on/off")
+  screen.update()
 end
 
 local PERSONA_DESC = {
@@ -545,7 +593,7 @@ function M.redraw_play()
   screen.level(3); screen.move(70, 40); screen.text("E3 follow")
   if M.in_note then screen.level(6); screen.move(70, 48); screen.text("in " .. note_name(M.in_note)) end
 
-  screen.level(8); screen.move(2, 62); screen.text("K2 feed:" .. M.feed_names[M.feed_idx] .. "  K3 on/off")
+  screen.level(8); screen.move(2, 62); screen.text("K2 " .. M.density_names[M.density_idx] .. "  K3 on/off")
   screen.update()
 end
 

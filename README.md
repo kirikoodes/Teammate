@@ -72,13 +72,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→20)
+E1        — previous / next page (loops 1→21)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 20 pages
+## The 21 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -572,14 +572,8 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 |---|---|
 | E2 | Persona — **CELL** / **PIANO** / **POLY** / **BASS** |
 | E3 | Follow — how much METABO follows the incoming pitch (0–100%) |
-| K2 | Feed source — **INPUT** / **COMP** / **MIX** |
+| K2 | Density — SPARSE / FLOW / DENSE |
 | K3 | METABO ON / OFF |
-
-- **Feed source** (K2): what nourishes the cell's metabolism.
-  - **INPUT** — the live audio in (mic / line), as before.
-  - **COMP** — **the companion feeds METABO**: TEAMMATE's own playing (corpus improv + MIDI GEN) drives the metabolism, so METABO breathes with the companion and falls silent when it rests.
-  - **MIX** — both at once (whichever is louder leads).
-  - *(Density SPARSE/FLOW/DENSE is on page 18, K2.)*
 
 **Personas:**
 
@@ -598,14 +592,8 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 |---|---|
 | E2 | Persona — **CELL** / **PIANO** / **POLY** / **BASS** |
 | E3 | Follow — à quel point METABO suit le pitch entrant (0–100%) |
-| K2 | Source — **INPUT** / **COMP** / **MIX** |
+| K2 | Densité — SPARSE / FLOW / DENSE |
 | K3 | METABO ON / OFF |
-
-- **Source** (K2) : ce qui nourrit le métabolisme de la cellule.
-  - **INPUT** — l'audio live (micro / ligne), comme avant.
-  - **COMP** — **le compagnon nourrit METABO** : le jeu de TEAMMATE (impro corpus + MIDI GEN) pilote le métabolisme, donc METABO respire avec le compagnon et se tait quand il se repose.
-  - **MIX** — les deux à la fois (le plus fort mène).
-  - *(La densité SPARSE/FLOW/DENSE est sur la page 18, K2.)*
 
 **Personas :**
 
@@ -617,6 +605,33 @@ The **musician entity**. The metabolism decides *what* to play (active pathways,
 | **BASS** | un bassiste | Ligne grave mono, syncopée — fondamentale / quinte / octave de la voie dominante |
 
 - **Follow** (E3) : à 0% METABO ignore ta hauteur (métabolisme pur) ; plus haut, il transpose son registre vers ce que tu joues et ajoute des notes-écho (ta note, recalée dans la gamme). La note entrante live s'affiche `in C4`.
+
+---
+
+### Page 21 — METABO FEED
+What feeds the cell, and how strongly it reacts to the companion.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Feed source — **INPUT** / **COMP** / **MIX** |
+| E3 | Reaction — how strongly/fast METABO reacts to the companion (0–100%) |
+| K2 | Density — SPARSE / FLOW / DENSE |
+| K3 | METABO ON / OFF |
+
+- **Feed source** (E2): **INPUT** = live audio (mic/line) · **COMP** = **the companion feeds METABO** (corpus improv + MIDI GEN drive the metabolism, so METABO breathes with the companion and falls silent when it rests) · **MIX** = both (the louder leads).
+- **Reaction** (E3): low = smooth/slow (the cell glides, fairly independent); high = snappy/tight (the cell tracks every companion event, energy decays fast → more silences between phrases). Controls both the companion-energy decay and the sensitivity.
+
+*Ce qui nourrit la cellule, et à quel point elle réagit au compagnon.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Source — **INPUT** / **COMP** / **MIX** |
+| E3 | Réaction — à quel point / quelle vitesse METABO réagit au compagnon (0–100%) |
+| K2 | Densité — SPARSE / FLOW / DENSE |
+| K3 | METABO ON / OFF |
+
+- **Source** (E2) : **INPUT** = audio live (micro/ligne) · **COMP** = **le compagnon nourrit METABO** (impro corpus + MIDI GEN pilotent le métabolisme, donc METABO respire avec le compagnon et se tait quand il se repose) · **MIX** = les deux (le plus fort mène).
+- **Réaction** (E3) : bas = lisse/lent (la cellule glisse, assez indépendante) ; haut = vif/serré (la cellule suit chaque événement du compagnon, l'énergie décroît vite → plus de silences entre les phrases). Agit sur le decay de l'énergie compagnon et la sensibilité.
 
 ---
 

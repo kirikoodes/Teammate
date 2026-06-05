@@ -1913,6 +1913,15 @@ else
     key    = function() end,
     enc_play = function() end,
     key_play = function() end,
+    enc_feed = function() end,
+    key_feed = function() end,
+    redraw_feed = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("METABO FEED")
+      screen.level(4)
+      screen.move(2, 36) ; screen.text("lib/metabolik.lua absent")
+      screen.update()
+    end,
     redraw_play = function()
       screen.clear() ; screen.level(15)
       screen.move(2, 20) ; screen.text("METABO PLAY")
@@ -1974,13 +1983,15 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(1/30)
-      comp_rms = comp_rms * 0.90   -- decay de l'energie compagnon (silences quand il se tait)
+      local react = metabolik.react or 0.5
+      comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
       local fi = metabolik.feed_idx or 1
+      local ce = comp_rms * (0.6 + react * 1.2)        -- sensibilite au compagnon
       if fi == 2 then        -- COMP : le compagnon nourrit la cellule
-        metabolik.update(comp_rms, comp_freq, comp_centroid, comp_flatness, 1/30)
+        metabolik.update(ce, comp_freq, comp_centroid, comp_flatness, 1/30)
       elseif fi == 3 then    -- MIX : entree + compagnon
-        metabolik.update(math.max(cur_rms, comp_rms),
-                         (comp_freq > 0 and comp_rms > cur_rms) and comp_freq or cur_freq,
+        metabolik.update(math.max(cur_rms, ce),
+                         (comp_freq > 0 and ce > cur_rms) and comp_freq or cur_freq,
                          math.max(cur_centroid, comp_centroid),
                          math.max(cur_flatness, comp_flatness), 1/30)
       else                   -- INPUT : micro / ligne (defaut)
@@ -2031,7 +2042,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 20) + 1
+    page = ((page - 1 + d) % 21) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2066,6 +2077,8 @@ function enc(n, d)
       metabo_cur_dev = util.clamp(metabo_cur_dev + d, 1, 4)
     elseif page == 20 then
       metabolik.enc_play(2, d)
+    elseif page == 21 then
+      metabolik.enc_feed(2, d)
     end
   elseif n == 3 then
     if page == 1 then
@@ -2112,6 +2125,8 @@ function enc(n, d)
       midi_ch[6][metabo_cur_dev] = util.clamp(midi_ch[6][metabo_cur_dev] + d, 1, 16)
     elseif page == 20 then
       metabolik.enc_play(3, d)
+    elseif page == 21 then
+      metabolik.enc_feed(3, d)
     end
   end
   redraw()
@@ -2121,6 +2136,7 @@ function key(n, z)
   if z == 0 then return end
   if page == 18 then metabolik.key(n) ; redraw() ; return end
   if page == 20 then metabolik.key_play(n) ; redraw() ; return end
+  if page == 21 then metabolik.key_feed(n) ; redraw() ; return end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
     redraw() ; return
@@ -2225,6 +2241,7 @@ function redraw()
 
   if page == 18 then metabolik.redraw() ; return end
   if page == 20 then metabolik.redraw_play() ; return end
+  if page == 21 then metabolik.redraw_feed() ; return end
 
   if splash_active then
     screen.font_size(16)
@@ -2260,7 +2277,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/20")
+  screen.text(page .. "/21")
 
   if rec_on then
     screen.level(15)
