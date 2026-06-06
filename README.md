@@ -510,7 +510,8 @@ A separate, autonomous mode — **independent from the companion**. Incoming sou
 | K3 | METABO ON / OFF |
 
 - **The metabolism**: four live audio features (energy, brightness, pitch height, texture) feed seven pathways — `growth`, `glycolysis`, `respiration`, `fermentation`, `byproduct`, `co2`, `lactate`. Each pathway maps to **one fixed note** (a scale degree + octave), so the cell's chemistry *is* the harmony. The most active pathways are the ones voiced.
-- **Stress = monotony**: stress is driven by how repetitive your playing is. Monotonous / repetitive input → stress rises; varied, diverse input → stress falls. A homeostatic regulation smooths it (fast rise, slow recovery). Stress sets the tempo: **BPM ≈ 60 + stress × 120**.
+- **Stress = monotony**: stress is driven by how repetitive your playing is. Monotonous / repetitive input → stress rises; varied, diverse input → stress falls. A homeostatic regulation smooths it (fast rise, slow recovery).
+- **Tempo locked to MGEN**: METABO's BPM follows the **global MGEN tempo** (the master clock — also driven by tap tempo / external MIDI clock). Stress just picks the musical multiple: **half-time** when calm, **on-grid** at medium, **double-time** when stressed — so METABO always stays in time with the rest.
 - **It breathes**: the voice alternates phrases and **silences** — more silence when the cell is calm, denser when stressed. Mono/poly mix is organic and deliberately non-4/4.
 - **Phrasing**: METABO doesn't just stack notes — it builds **chords, arpeggios, melodic lines and ostinatos** from the active pathways, following melodic contours (motifs) and rhythmic cells that recur for a few phrases then mutate. Note count and density follow stress and growth; **K2** sets an overall density (SPARSE / FLOW / DENSE).
 - **Follows your pitch**: METABO tracks the pitch of the incoming sound — it transposes its register to sing in the same range as what you play, and now and then echoes **your note** (snapped to the current scale) as one of its voices. The live input note is shown top-center (`in C4`). The metabolic pathways still set the harmony; the input only anchors the register and adds occasional echoes.
@@ -529,7 +530,8 @@ A separate, autonomous mode — **independent from the companion**. Incoming sou
 | K3 | METABO ON / OFF |
 
 - **Le métabolisme** : quatre descripteurs audio live (énergie, brillance, hauteur, texture) nourrissent sept voies — `growth`, `glycolysis`, `respiration`, `fermentation`, `byproduct`, `co2`, `lactate`. Chaque voie correspond à **une note fixe** (degré de gamme + octave) : la chimie de la cellule *est* l'harmonie. Les voies les plus actives sont celles qui sonnent.
-- **Stress = monotonie** : le stress vient de la répétitivité de ton jeu. Entrée monotone / répétitive → le stress monte ; jeu varié, divers → le stress baisse. Une régulation homéostatique le lisse (montée rapide, récupération lente). Le stress fixe le tempo : **BPM ≈ 60 + stress × 120**.
+- **Stress = monotonie** : le stress vient de la répétitivité de ton jeu. Entrée monotone / répétitive → le stress monte ; jeu varié, divers → le stress baisse. Une régulation homéostatique le lisse (montée rapide, récupération lente).
+- **Tempo calé sur MGEN** : le BPM de METABO suit le **tempo global de MGEN** (l'horloge maître — aussi pilotée par le tap tempo / la clock MIDI externe). Le stress choisit juste le multiple musical : **half-time** quand calme, **sur la grille** au milieu, **double-time** sous stress — METABO reste donc toujours dans le tempo.
 - **Elle respire** : la voix alterne phrases et **silences** — plus de silence quand la cellule est calme, plus dense sous stress. Le mélange mono/poly est organique et volontairement non-4/4.
 - **Phrasé** : METABO n'empile pas que des notes — il construit **accords, arpèges, lignes mélodiques et ostinatos** à partir des voies actives, en suivant des contours mélodiques (motifs) et des cellules rythmiques qui reviennent quelques phrases puis mutent. Le nombre de notes et la densité suivent le stress et la croissance ; **K2** règle une densité globale (SPARSE / FLOW / DENSE).
 - **Suit ta hauteur** : METABO suit le pitch du son entrant — il transpose son registre pour chanter dans la même zone que ce que tu joues, et glisse de temps en temps **ta note** (recalée dans la gamme) parmi ses voix. La note entrante live est affichée en haut au centre (`in C4`). Les voies métaboliques fixent toujours l'harmonie ; l'entrée ne fait qu'ancrer le registre et ajouter des échos occasionnels.
@@ -700,27 +702,29 @@ Choose **what NIAKABY harmonizes** — the three sources are **independent toggl
 
 | Encoder / Key | Function |
 |---|---|
-| E2 | Move cursor (INPUT / METABO / COMP) |
+| E2 | Move cursor (INPUT / METABO / COMP / MGEN) |
 | K3 | Toggle the highlighted source ON/OFF |
 | K2 | All on / all off |
 
 - **INPUT** — the live audio (mic/line).
 - **METABO** — the cell's notes feed NIAKABY (METABO drives the chords).
-- **COMP** — the companion's notes (corpus improv + MIDI GEN).
-- Enable **any combination** (e.g. INPUT + COMP, or all three). When several are active, the **loudest source leads** at each moment. `[X]` = active.
+- **COMP** — the companion's corpus improvisation.
+- **MGEN** — the generative MIDI sequencer.
+- Enable **any combination** (e.g. INPUT + MGEN, or all four). When several are active, the **loudest source leads** at each moment. `[X]` = active.
 
 *Choisis **ce que NIAKABY harmonise** — les trois sources sont des **cases indépendantes**, librement combinables.*
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| E2 | Déplacer le curseur (INPUT / METABO / COMP) |
+| E2 | Déplacer le curseur (INPUT / METABO / COMP / MGEN) |
 | K3 | Activer / désactiver la source surlignée |
 | K2 | Tout activer / tout couper |
 
 - **INPUT** — l'audio live (micro/ligne).
 - **METABO** — les notes de la cellule alimentent NIAKABY (METABO pilote les accords).
-- **COMP** — les notes du compagnon (impro corpus + MIDI GEN).
-- Active **n'importe quelle combinaison** (ex. INPUT + COMP, ou les trois). Quand plusieurs sont actives, la **plus forte mène** à chaque instant. `[X]` = active.
+- **COMP** — l'improvisation corpus du compagnon.
+- **MGEN** — le séquenceur MIDI génératif.
+- Active **n'importe quelle combinaison** (ex. INPUT + MGEN, ou les quatre). Quand plusieurs sont actives, la **plus forte mène** à chaque instant. `[X]` = active.
 
 ---
 

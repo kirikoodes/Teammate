@@ -31,9 +31,9 @@ M.thr  = 0.01       -- seuil de detection
 
 -- ce que NIAKABY harmonise : 3 sources INDEPENDANTES (combinables librement).
 -- quand plusieurs sont actives, la plus FORTE mene a chaque instant.
-M.src        = { input = true, metabo = false, comp = false }
-M.src_keys   = { "input", "metabo", "comp" }
-M.src_labels = { "INPUT", "METABO", "COMP" }
+M.src        = { input = true, metabo = false, comp = false, mgen = false }
+M.src_keys   = { "input", "metabo", "comp", "mgen" }
+M.src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
 M.src_cursor = 1
 
 -- callbacks fournis par le script principal
@@ -197,7 +197,7 @@ end
 -- ===== page SRC : 3 sources independantes (E2 curseur, K3 toggle, K2 tout/rien) =====
 function M.enc_src(n, d)
   if n == 2 or n == 3 then
-    M.src_cursor = ((M.src_cursor - 1 + d) % 3) + 1
+    M.src_cursor = ((M.src_cursor - 1 + d) % #M.src_keys) + 1
   end
 end
 
@@ -206,8 +206,9 @@ function M.key_src(n)
     local k = M.src_keys[M.src_cursor]
     M.src[k] = not M.src[k]
   elseif n == 2 then
-    local all = M.src.input and M.src.metabo and M.src.comp
-    M.src.input = not all ; M.src.metabo = not all ; M.src.comp = not all
+    local all = true
+    for _, k in ipairs(M.src_keys) do if not M.src[k] then all = false end end
+    for _, k in ipairs(M.src_keys) do M.src[k] = not all end
   end
 end
 
@@ -215,8 +216,8 @@ function M.redraw_src()
   screen.clear() ; screen.font_size(8)
   screen.level(15); screen.move(2, 8); screen.text("NIAKABY SRC")
   screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
-  local ys = { 26, 38, 50 }
-  for i = 1, 3 do
+  local ys = { 22, 32, 42, 52 }
+  for i = 1, #M.src_keys do
     local k   = M.src_keys[i]
     local sel = (i == M.src_cursor)
     screen.level(sel and 15 or (M.src[k] and 10 or 4))

@@ -168,7 +168,14 @@ function M.update(rms, freq, centroid, flatness, dt)
   M.state = (M.stressFx > 0.66 and "MONOTONE") or (M.stressFx > 0.33 and "PERTURBE") or "STABLE"
 end
 
-function M.bpm() return 60 + M.stressFx * 120 end
+-- BPM cale sur le BPM global de MGEN (reference, fourni par le script principal).
+-- Le stress choisit le multiple musical : calme = half-time, moyen = grille, stresse = double.
+M.bpm_ref = 120
+function M.bpm()
+  local base = M.bpm_ref or 120
+  local mult = (M.stressFx > 0.66 and 2.0) or (M.stressFx > 0.33 and 1.0) or 0.5
+  return base * mult
+end
 
 local function ranked_voices()
   local t = {}

@@ -449,6 +449,7 @@ local spat_eff_pan     -- forward ref
 -- Variables + fonction en GLOBAL (evite la limite de locals du chunk).
 comp_rms = 0 ; comp_freq = 0 ; comp_centroid = 0 ; comp_flatness = 0
 meta_freq = 0 ; meta_energy = 0   -- derniere note de METABO (pour alimenter NIAKABY)
+mgen_nfreq = 0 ; mgen_nenergy = 0 -- derniere note de MGEN (pour alimenter NIAKABY)
 function companion_feed(rms, freq, centroid, flatness)
   if (rms or 0) > comp_rms then comp_rms = rms end        -- attaque (le decay est dans la boucle metabo)
   if freq and freq > 0 then comp_freq = freq end
@@ -1368,6 +1369,9 @@ local function mgen_start()
               local mc = ch.midi_ch
               -- nourrit METABO (mode COMP) : note -> freq, vel -> energie
               companion_feed(vel / 700, 440 * 2 ^ ((nn - 69) / 12), nn * 45, 0.1)
+              -- capture pour NIAKABY (source MGEN)
+              mgen_nfreq = 440 * 2 ^ ((nn - 69) / 12)
+              if vel / 127 > mgen_nenergy then mgen_nenergy = vel / 127 end
               for d = 1, 4 do
                 if midi_route[4][d] and midi_outs[d] then
                   local out = midi_outs[d]
@@ -1969,8 +1973,8 @@ else
   print("NIAKABY indisponible (lib/niakaby.lua manquant ou en erreur) : " .. tostring(_niaka_mod))
   niakaby = {
     on = false, scale_idx = 1, octave = 0, chord_idx = 1,
-    src = { input = true, metabo = false, comp = false },
-    src_keys = {"input","metabo","comp"}, src_cursor = 1,
+    src = { input = true, metabo = false, comp = false, mgen = false },
+    src_keys = {"input","metabo","comp","mgen"}, src_cursor = 1,
     update = function() end,
     enc    = function() end,
     key    = function() end,
@@ -2044,19 +2048,22 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(1/30)
-      meta_energy = meta_energy * 0.90   -- decay de l'energie METABO (suit ses silences)
-      -- sources actives (INPUT/METABO/COMP, combinables) : on prend la plus FORTE a cet instant
+      meta_energy  = meta_energy  * 0.90   -- decay de l'energie METABO (suit ses silences)
+      mgen_nenergy = mgen_nenergy * 0.88   -- decay de l'energie MGEN
+      -- sources actives (INPUT/METABO/COMP/MGEN, combinables) : on prend la plus FORTE
       local s = niakaby.src or { input = true }
       local br, bf, bc, bfl = 0, 0, 0, 0
-      if s.input  and cur_rms     > br and (cur_freq  or 0) > 30 then br=cur_rms ;     bf=cur_freq ;  bc=cur_centroid ;  bfl=cur_flatness end
-      if s.metabo and meta_energy > br and (meta_freq or 0) > 30 then br=meta_energy ; bf=meta_freq ; bc=meta_freq * 3 ;  bfl=0.05 end
-      if s.comp   and comp_rms    > br and (comp_freq or 0) > 30 then br=comp_rms ;    bf=comp_freq ; bc=comp_centroid ; bfl=comp_flatness end
+      if s.input  and cur_rms      > br and (cur_freq   or 0) > 30 then br=cur_rms ;      bf=cur_freq ;   bc=cur_centroid ;  bfl=cur_flatness end
+      if s.metabo and meta_energy  > br and (meta_freq  or 0) > 30 then br=meta_energy ;  bf=meta_freq ;  bc=meta_freq * 3 ;  bfl=0.05 end
+      if s.comp   and comp_rms     > br and (comp_freq  or 0) > 30 then br=comp_rms ;     bf=comp_freq ;  bc=comp_centroid ; bfl=comp_flatness end
+      if s.mgen   and mgen_nenergy > br and (mgen_nfreq or 0) > 30 then br=mgen_nenergy ; bf=mgen_nfreq ; bc=mgen_nfreq * 3 ; bfl=0.05 end
       niakaby.update(br, bf, bc, bfl, 1/30)
     end
   end)
   clock.run(function()
     while true do
       clock.sleep(1/30)
+      metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
       local fi = metabolik.feed_idx or 1
@@ -2421,6 +2428,7 @@ function redraw()
     if s.input then on[#on+1]="IN" end
     if s.metabo then on[#on+1]="ME" end
     if s.comp then on[#on+1]="CO" end
+    if s.mgen then on[#on+1]="MG" end
     screen.level(10)
     screen.text("NIAKABY>MIDI  src:" .. (#on>0 and table.concat(on,"+") or "--") .. " (p.24)")
   elseif page == 17 then
