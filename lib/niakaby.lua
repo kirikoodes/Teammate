@@ -27,8 +27,11 @@ M.CHORD_STEPS = {
 M.chord_idx = 1
 
 M.on   = false
-M.link = false      -- lien avec METABO
-M.thr  = 0.01       -- seuil de detection du pitch entrant
+M.thr  = 0.01       -- seuil de detection
+
+-- ce que NIAKABY harmonise : INPUT (audio) / METABO (la cellule) / COMP (le compagnon)
+M.source_names = {"INPUT","METABO","COMP"}
+M.source_idx   = 1
 
 -- callbacks fournis par le script principal
 M.note_on  = nil    -- function(note, vel)
@@ -84,8 +87,8 @@ local function build_chord(deg, oct)
   local bass = M.root + (M.octave + oct - 1) * 12 + sc[((deg - 1) % L) + 1]
   while bass < 24 do bass = bass + 12 end
   notes[#notes + 1] = bass
-  -- couleur METABO
-  if M.link and M.metabo and M.metabo.on then
+  -- couleur METABO (quand la cellule est active)
+  if M.metabo and M.metabo.on then
     local st = M.metabo.stressFx or 0
     local gr = (M.metabo.ch and M.metabo.ch.growth) or 0
     if st > 0.5  and #shape < 4 then add_step(6) end   -- 7e sous stress
@@ -130,7 +133,6 @@ function M.update(rms, freq, centroid, flatness, dt)
         local vel = math.max(20, math.min(127, math.floor((rms or 0) * 600 + 25)))
         play_chord(deg, oct, vel)
         since = 0
-        if M.link and M.feed then M.feed(rms, freq, centroid, flatness) end
       end
     end
   else
@@ -165,8 +167,8 @@ function M.redraw()
     if #s > 22 then s = string.sub(s, 1, 21) end
     screen.level(15); screen.move(58, 54); screen.text(s)
   end
-  screen.level(M.link and 13 or 3); screen.move(2, 63)
-  screen.text("LINK " .. (M.link and "METABO" or "off"))
+  screen.level(8); screen.move(2, 63)
+  screen.text("SRC " .. M.source_names[M.source_idx])
   screen.update()
 end
 

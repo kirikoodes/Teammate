@@ -21,7 +21,7 @@ Seven layers running in parallel:
 - **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically.
 - **Audio→MIDI** — converts live audio pitch to polyphonic MIDI notes in real time, routable to any of the 4 MIDI devices with configurable channels.
 - **METABO** — a separate, autonomous mode (it does **not** touch the companion). Incoming sound feeds a living **cell metabolism**; the cell answers in MIDI notes where the notes **are** its active metabolic pathways. Monotonous, repetitive playing raises the cell's **stress** and the tempo races; varied, rich playing keeps it calm — homeostatic regulation. It breathes: phrases alternate with **silences**, longer when calm. Routed through its own matrix stream (stream 6), on its own channel.
-- **NIAKABY** — a harmonizer: it takes the **pitch of the incoming sound**, snaps it to a scale, and turns it into **MIDI chords** (diatonic triads/7ths/9ths/sus, with a bass note), routed on its own matrix stream (stream 7). A **LINK** option ties it to METABO: the cell **colours** the chords (tensions under stress, octave doublings on growth) and NIAKABY **feeds** METABO in return.
+- **NIAKABY** — a harmonizer: it turns a melodic line into **MIDI chords** (diatonic triads/7ths/9ths/sus, snapped to a scale, with a bass note), routed on its own matrix stream (stream 7). Its **source** can be the live **input**, **METABO** (the cell's notes drive the chords) or the **companion** — and when METABO is on it **colours** the chords (tensions under stress, octave doublings on growth).
 
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
@@ -43,7 +43,7 @@ Sept couches en parallèle :
 - **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe.
 - **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
 - **METABO** — un mode **séparé et autonome** (il ne **touche pas** au compagnon). Le son entrant nourrit un **métabolisme cellulaire** vivant ; la cellule répond en notes MIDI où les notes **sont** ses voies métaboliques actives. Un jeu monotone et répétitif fait monter le **stress** de la cellule et le tempo s'emballe ; un jeu varié et riche la garde calme — régulation homéostatique. Elle respire : les phrases alternent avec des **silences**, plus longs quand elle est calme. Routé via son propre stream de matrice (stream 6), sur son propre canal.
-- **NIAKABY** — un harmoniseur : il prend le **pitch du son entrant**, le cale dans une gamme et le transforme en **accords MIDI** (triades / 7e / 9e / sus diatoniques, avec une basse), routés sur son propre stream de matrice (stream 7). Une option **LINK** le relie à METABO : la cellule **colore** les accords (tensions sous stress, doublures d'octave si croissance) et NIAKABY **nourrit** METABO en retour.
+- **NIAKABY** — un harmoniseur : il transforme une ligne mélodique en **accords MIDI** (triades / 7e / 9e / sus diatoniques calés dans une gamme, avec une basse), routés sur son propre stream de matrice (stream 7). Sa **source** peut être l'**entrée** live, **METABO** (les notes de la cellule pilotent les accords) ou le **compagnon** — et quand METABO est actif il **colore** les accords (tensions sous stress, doublures si croissance).
 
 Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
 
@@ -679,10 +679,10 @@ Routing matrix for NIAKABY (stream 7) + the **LINK** to METABO.
 |---|---|
 | E2 | Select device (d1–d4) |
 | E3 | MIDI channel for selected device (1–16) |
-| K2 | **LINK METABO** ON/OFF |
+| K2 | Source — **INPUT** / **METABO** / **COMP** |
 | K3 | Toggle NIAKABY routing ON/OFF for selected device |
 
-- **LINK** (K2): when on, **METABO colours the chords** (adds a 7th/9th under stress, an octave doubling on growth) and **NIAKABY feeds METABO** in return — a two-way harmonic loop.
+- **Source** (K2): what NIAKABY turns into chords — **INPUT** (live audio), **METABO** (the cell's notes drive the chord roots, so METABO feeds NIAKABY), or **COMP** (the companion's notes). Whatever the source, when METABO is ON it also **colours** the chords (adds a 7th/9th under stress, an octave doubling on growth).
 
 *Matrice de routage pour NIAKABY (stream 7) + le **LINK** vers METABO.*
 
@@ -690,10 +690,10 @@ Routing matrix for NIAKABY (stream 7) + the **LINK** to METABO.
 |---|---|
 | E2 | Sélectionner le device (d1–d4) |
 | E3 | Canal MIDI pour le device sélectionné (1–16) |
-| K2 | **LINK METABO** ON/OFF |
+| K2 | Source — **INPUT** / **METABO** / **COMP** |
 | K3 | Activer / désactiver le routage NIAKABY pour ce device |
 
-- **LINK** (K2) : quand activé, **METABO colore les accords** (ajoute une 7e/9e sous stress, une doublure d'octave si croissance) et **NIAKABY nourrit METABO** en retour — une boucle harmonique bidirectionnelle.
+- **Source** (K2) : ce que NIAKABY transforme en accords — **INPUT** (audio live), **METABO** (les notes de la cellule pilotent les fondamentales → METABO alimente NIAKABY), ou **COMP** (les notes du compagnon). Quelle que soit la source, quand METABO est ON il **colore** aussi les accords (7e/9e sous stress, doublure d'octave si croissance).
 
 ---
 

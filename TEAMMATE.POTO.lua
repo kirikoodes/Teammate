@@ -448,6 +448,7 @@ local spat_eff_pan     -- forward ref
 -- METABO « feed COMP » : ce que joue le compagnon nourrit la cellule.
 -- Variables + fonction en GLOBAL (evite la limite de locals du chunk).
 comp_rms = 0 ; comp_freq = 0 ; comp_centroid = 0 ; comp_flatness = 0
+meta_freq = 0 ; meta_energy = 0   -- derniere note de METABO (pour alimenter NIAKABY)
 function companion_feed(rms, freq, centroid, flatness)
   if (rms or 0) > comp_rms then comp_rms = rms end        -- attaque (le decay est dans la boucle metabo)
   if freq and freq > 0 then comp_freq = freq end
@@ -1967,7 +1968,8 @@ if _niaka_ok and type(_niaka_mod) == "table" then
 else
   print("NIAKABY indisponible (lib/niakaby.lua manquant ou en erreur) : " .. tostring(_niaka_mod))
   niakaby = {
-    on = false, link = false, scale_idx = 1, octave = 0, chord_idx = 1,
+    on = false, scale_idx = 1, octave = 0, chord_idx = 1,
+    source_idx = 1, source_names = {"INPUT","METABO","COMP"},
     update = function() end,
     enc    = function() end,
     key    = function() end,
@@ -2018,7 +2020,11 @@ function init()
   silence_loop()
 
   -- AVATAR METABOLIK (mode METABO) : voix routee par la MATRICE (stream 6) + maj ~30 Hz
-  metabolik.note_on  = function(note, vel) midi_note_on(6, note, vel) end
+  metabolik.note_on  = function(note, vel)
+    midi_note_on(6, note, vel)
+    meta_freq = 440 * 2 ^ ((note - 69) / 12)        -- capture pour NIAKABY (source METABO)
+    if vel / 127 > meta_energy then meta_energy = vel / 127 end
+  end
   metabolik.note_off = function(note)      midi_note_off(6, note) end
   clock.run(metabolik.player)
 
@@ -2026,11 +2032,18 @@ function init()
   niakaby.note_on  = function(note, vel) midi_note_on(7, note, vel) end
   niakaby.note_off = function(note)      midi_note_off(7, note) end
   niakaby.metabo   = metabolik           -- lecture stress/croissance pour colorer les accords
-  niakaby.feed     = companion_feed      -- en mode LINK, NIAKABY nourrit METABO
   clock.run(function()
     while true do
       clock.sleep(1/30)
-      niakaby.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
+      meta_energy = meta_energy * 0.90   -- decay de l'energie METABO (suit ses silences)
+      local s = niakaby.source_idx or 1
+      if s == 2 then        -- METABO alimente NIAKABY
+        niakaby.update(meta_energy, meta_freq, meta_freq * 3, 0.05, 1/30)
+      elseif s == 3 then    -- le COMPAGNON alimente NIAKABY
+        niakaby.update(comp_rms, comp_freq, comp_centroid, comp_flatness, 1/30)
+      else                  -- INPUT (audio)
+        niakaby.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
+      end
     end
   end)
   clock.run(function()
@@ -2201,7 +2214,7 @@ function key(n, z)
   if page == 22 then niakaby.key(n) ; redraw() ; return end
   if page == 23 then
     if n == 3 then midi_route[7][niaka_cur_dev] = not midi_route[7][niaka_cur_dev]
-    elseif n == 2 then niakaby.link = not niakaby.link end
+    elseif n == 2 then niakaby.source_idx = (niakaby.source_idx % #niakaby.source_names) + 1 end
     redraw() ; return
   end
   if page == 19 then
@@ -2390,7 +2403,8 @@ function redraw()
     local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
     screen.text(string.format("AUDIO>MIDI  live:%s  E2 dev  E3 ch", an))
   elseif page == 23 then
-    screen.text(string.format("NIAKABY>MIDI   K2 LINK:%s", niakaby.link and "ON" or "off"))
+    local src = (niakaby.source_names and niakaby.source_names[niakaby.source_idx]) or "INPUT"
+    screen.text(string.format("NIAKABY>MIDI   K2 SRC:%s", src))
   elseif page == 17 then
     screen.level(spat.on and 15 or 6)
     screen.text(SPAT_MODES[spat.mode])
