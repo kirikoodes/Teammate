@@ -2339,6 +2339,26 @@ function redraw()
   screen.aa(0)
 
   if page == 18 then metabolik.redraw() ; return end
+  if page == 19 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("METABO MIDI")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("str6")
+    local ys = {22, 33, 44, 55}
+    for d = 1, 4 do
+      local sel    = (d == metabo_cur_dev)
+      local routed = midi_route[6][d]
+      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+      if #dname > 8 then dname = string.sub(dname, 1, 7) .. "~" end
+      screen.level(sel and 15 or (routed and 9 or 4))
+      screen.move(2, ys[d]) ; screen.text(string.format("%sd%d %s", sel and ">" or " ", d, dname))
+      screen.level(routed and 15 or 3)
+      screen.move(86, ys[d]) ; screen.text(routed and "[X]" or "[ ]")
+      screen.level(sel and 12 or 5)
+      screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[6][d])
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
+    screen.update() ; return
+  end
   if page == 20 then metabolik.redraw_play() ; return end
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
@@ -2691,24 +2711,6 @@ function redraw()
       screen.level(sel and 10 or 4)
       screen.move(100, ys[d])
       screen.text(string.format("ch%2d", midi_ch_audio[d]))
-    end
-
-  elseif page == 19 then
-    local ys = {44, 51, 57, 64}
-    for d = 1, 4 do
-      local sel    = (d == metabo_cur_dev)
-      local routed = midi_route[6][d]
-      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
-      if #dname > 12 then dname = string.sub(dname, 1, 11) .. "~" end
-      screen.level(sel and 15 or (routed and 10 or 4))
-      screen.move(0, ys[d])
-      screen.text(string.format("d%d %s", d, dname))
-      screen.level(routed and 15 or 3)
-      screen.move(80, ys[d])
-      screen.text(routed and "[X]" or "[ ]")
-      screen.level(sel and 10 or 4)
-      screen.move(100, ys[d])
-      screen.text(string.format("ch%2d", midi_ch[6][d]))
     end
 
   elseif page == 23 then
