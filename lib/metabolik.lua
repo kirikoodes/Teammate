@@ -551,26 +551,27 @@ local FEED_DESC = {
 function M.redraw_feed()
   screen.clear()
   screen.font_size(8)
-  screen.level(15); screen.move(2, 8); screen.text("METABO FEED")
+  screen.level(15); screen.move(2, 8);   screen.text("METABO FEED")
   screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
 
+  -- SOURCE (E2)
   local f = M.feed_names[M.feed_idx]
-  screen.level(15); screen.font_size(16); screen.move(2, 30); screen.text(f)
-  screen.font_size(8)
-  screen.level(5); screen.move(2, 40); screen.text(FEED_DESC[f] or "")
-  screen.level(3); screen.move(2, 48); screen.text("E2 source")
+  screen.level(4);  screen.move(2, 22);  screen.text("E2 SOURCE")
+  screen.level(15); screen.move(74, 22); screen.text(f)
+  screen.level(3);  screen.move(2, 31);  screen.text(FEED_DESC[f] or "")
 
-  -- reaction
-  screen.level(8); screen.move(70, 26); screen.text(string.format("react %d%%", math.floor(M.react * 100)))
-  screen.level(4); screen.rect(70, 29, 54, 3); screen.stroke()
-  screen.level(12); screen.rect(70, 29, 54 * M.react, 3); screen.fill()
-  screen.level(3); screen.move(70, 40); screen.text("E3 reaction")
-  screen.level(3); screen.move(70, 48); screen.text(M.react < 0.34 and "lisse/lent" or (M.react > 0.66 and "vif/serre" or "moyen"))
+  -- REACTION (E3) : valeur + qualificatif + barre pleine largeur
+  screen.level(4);  screen.move(2, 44);  screen.text("E3 REACT")
+  screen.level(15); screen.move(74, 44); screen.text(string.format("%d%%", math.floor(M.react * 100)))
+  screen.level(3);  screen.move(100, 44)
+  screen.text(M.react < 0.34 and "lent" or (M.react > 0.66 and "vif" or "moy"))
+  screen.level(4);  screen.rect(2, 47, 120, 2); screen.stroke()
+  screen.level(12); screen.rect(2, 47, 120 * M.react, 2); screen.fill()
 
-  -- influence METABO -> compagnon
+  -- INFLUENCE (K2) METABO -> compagnon
   local inf = M.influence_names[M.influence_idx]
-  screen.level(inf == "OFF" and 3 or 12); screen.move(2, 62)
-  screen.text("K2 influ:" .. inf .. "  K3 on/off")
+  screen.level(4);  screen.move(2, 62);  screen.text("K2 INFLU")
+  screen.level(inf == "OFF" and 6 or 15); screen.move(74, 62); screen.text(inf)
   screen.update()
 end
 
@@ -587,21 +588,22 @@ function M.redraw_play()
   screen.level(15); screen.move(2, 8); screen.text("METABO PLAY")
   screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
 
-  -- persona en gros
+  -- PERSONA (E2)
   local p = M.persona_names[M.persona_idx]
-  screen.level(15); screen.font_size(16); screen.move(2, 30); screen.text(p)
-  screen.font_size(8)
-  screen.level(5); screen.move(2, 40); screen.text(PERSONA_DESC[p] or "")
-  screen.level(3); screen.move(2, 48); screen.text("E2 musicien")
+  screen.level(4);  screen.move(2, 22);  screen.text("E2 MUSICIEN")
+  screen.level(15); screen.move(74, 22); screen.text(p)
+  screen.level(3);  screen.move(2, 31);  screen.text(PERSONA_DESC[p] or "")
 
-  -- suivi du pitch (follow)
-  screen.level(8); screen.move(70, 26); screen.text(string.format("follow %d%%", math.floor(M.follow_amt * 100)))
-  screen.level(4); screen.rect(70, 29, 54, 3); screen.stroke()
-  screen.level(12); screen.rect(70, 29, 54 * M.follow_amt, 3); screen.fill()
-  screen.level(3); screen.move(70, 40); screen.text("E3 follow")
-  if M.in_note then screen.level(6); screen.move(70, 48); screen.text("in " .. note_name(M.in_note)) end
+  -- FOLLOW (E3) : valeur + note entrante + barre pleine largeur
+  screen.level(4);  screen.move(2, 44);  screen.text("E3 FOLLOW")
+  screen.level(15); screen.move(74, 44); screen.text(string.format("%d%%", math.floor(M.follow_amt * 100)))
+  if M.in_note then screen.level(6); screen.move(100, 44); screen.text(note_name(M.in_note)) end
+  screen.level(4);  screen.rect(2, 47, 120, 2); screen.stroke()
+  screen.level(12); screen.rect(2, 47, 120 * M.follow_amt, 2); screen.fill()
 
-  screen.level(8); screen.move(2, 62); screen.text("K2 " .. M.density_names[M.density_idx] .. "  K3 on/off")
+  -- DENSITE (K2)
+  screen.level(4);  screen.move(2, 62);  screen.text("K2 DENS")
+  screen.level(15); screen.move(74, 62); screen.text(M.density_names[M.density_idx])
   screen.update()
 end
 
