@@ -1550,6 +1550,21 @@ local function pick_strat()
     w.DENSIFICATION = math.max(0, w.DENSIFICATION - 0.06)
   end
 
+  -- influence METABO -> compagnon (opt-in, non destructif) :
+  -- cellule stressee (monotonie) -> contraste/densifie pour casser la monotonie ;
+  -- cellule calme/saine -> plus d'espace (sparse/silence). 0 => compagnon inchange.
+  local inf = (metabolik and metabolik.on and metabolik.INFLU_AMT
+               and metabolik.INFLU_AMT[metabolik.influence_idx or 1]) or 0
+  if inf > 0 then
+    local st = metabolik.stressFx or 0
+    local gr = (metabolik.ch and metabolik.ch.growth) or 0
+    w.CONTRASTE     = w.CONTRASTE     + inf * st * 0.5
+    w.DENSIFICATION = w.DENSIFICATION + inf * st * 0.3
+    w.SPARSE        = w.SPARSE        + inf * (1 - st) * 0.3
+    w.SILENCE       = w.SILENCE       + inf * (1 - st) * 0.2
+    w.IMITATION     = w.IMITATION     + inf * gr * 0.2
+  end
+
   local total = 0
   for _, wv in pairs(w) do total = total + math.max(0, wv) end
   if total == 0 then return "SILENCE" end

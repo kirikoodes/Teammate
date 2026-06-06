@@ -64,6 +64,11 @@ M.feed_names = {"INPUT","COMP","MIX"}
 M.feed_idx   = 1
 M.react      = 0.5    -- reactivite au compagnon : 0 = lisse/lent, 1 = vif/serre
 
+-- influence METABO -> compagnon (opt-in, non destructif) : la cellule infleche les strategies
+M.influence_names = {"OFF","LOW","MID","HIGH"}
+M.INFLU_AMT       = {0, 0.33, 0.66, 1.0}
+M.influence_idx   = 1
+
 -- suivi du son entrant : registre + echo de ta note (recalee dans la gamme)
 M.follow_amt = 0.6    -- 0..1 : a quel point METABO suit la hauteur du son entrant
 M.in_note    = nil    -- note MIDI live de l'entree (nil si pas de pitch)
@@ -533,7 +538,7 @@ function M.key_feed(n)
   if n == 3 then
     M.on = not M.on
   elseif n == 2 then
-    M.density_idx = (M.density_idx % #M.density_names) + 1
+    M.influence_idx = (M.influence_idx % #M.influence_names) + 1   -- METABO -> compagnon
   end
 end
 
@@ -562,7 +567,10 @@ function M.redraw_feed()
   screen.level(3); screen.move(70, 40); screen.text("E3 reaction")
   screen.level(3); screen.move(70, 48); screen.text(M.react < 0.34 and "lisse/lent" or (M.react > 0.66 and "vif/serre" or "moyen"))
 
-  screen.level(8); screen.move(2, 62); screen.text("K2 " .. M.density_names[M.density_idx] .. "  K3 on/off")
+  -- influence METABO -> compagnon
+  local inf = M.influence_names[M.influence_idx]
+  screen.level(inf == "OFF" and 3 or 12); screen.move(2, 62)
+  screen.text("K2 influ:" .. inf .. "  K3 on/off")
   screen.update()
 end
 

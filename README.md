@@ -613,25 +613,31 @@ What feeds the cell, and how strongly it reacts to the companion.
 
 | Encoder / Key | Function |
 |---|---|
-| E2 | Feed source — **INPUT** / **COMP** / **MIX** |
+| E2 | Feed source — **INPUT** / **COMP** / **MIX** (companion → METABO) |
 | E3 | Reaction — how strongly/fast METABO reacts to the companion (0–100%) |
-| K2 | Density — SPARSE / FLOW / DENSE |
+| K2 | Influence — **OFF** / **LOW** / **MID** / **HIGH** (METABO → companion) |
 | K3 | METABO ON / OFF |
+
+This page is the **two-way link** between the companion and the cell.
 
 - **Feed source** (E2): **INPUT** = live audio (mic/line) · **COMP** = **the companion feeds METABO** (corpus improv + MIDI GEN drive the metabolism, so METABO breathes with the companion and falls silent when it rests) · **MIX** = both (the louder leads).
 - **Reaction** (E3): low = smooth/slow (the cell glides, fairly independent); high = snappy/tight (the cell tracks every companion event, energy decays fast → more silences between phrases). Controls both the companion-energy decay and the sensitivity.
+- **Influence** (K2): the reverse direction — **the cell nudges the companion's choices**. Opt-in and non-destructive (your manual settings aren't changed; it only biases the strategy weights at decision time). A **stressed** cell (monotony) pushes the companion toward **CONTRASTE / DENSIFICATION** (to break the monotony); a **calm** cell gives more **space** (SPARSE / SILENCE). **OFF** = companion completely untouched.
 
 *Ce qui nourrit la cellule, et à quel point elle réagit au compagnon.*
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| E2 | Source — **INPUT** / **COMP** / **MIX** |
+| E2 | Source — **INPUT** / **COMP** / **MIX** (compagnon → METABO) |
 | E3 | Réaction — à quel point / quelle vitesse METABO réagit au compagnon (0–100%) |
-| K2 | Densité — SPARSE / FLOW / DENSE |
+| K2 | Influence — **OFF** / **LOW** / **MID** / **HIGH** (METABO → compagnon) |
 | K3 | METABO ON / OFF |
+
+Cette page est le **lien bidirectionnel** entre le compagnon et la cellule.
 
 - **Source** (E2) : **INPUT** = audio live (micro/ligne) · **COMP** = **le compagnon nourrit METABO** (impro corpus + MIDI GEN pilotent le métabolisme, donc METABO respire avec le compagnon et se tait quand il se repose) · **MIX** = les deux (le plus fort mène).
 - **Réaction** (E3) : bas = lisse/lent (la cellule glisse, assez indépendante) ; haut = vif/serré (la cellule suit chaque événement du compagnon, l'énergie décroît vite → plus de silences entre les phrases). Agit sur le decay de l'énergie compagnon et la sensibilité.
+- **Influence** (K2) : le sens inverse — **la cellule infléchit les choix du compagnon**. Opt-in et non destructif (tes réglages manuels ne changent pas ; ça ne fait que biaiser les poids de stratégie au moment de décider). Une cellule **stressée** (monotonie) pousse le compagnon vers **CONTRASTE / DENSIFICATION** (pour casser la monotonie) ; une cellule **calme** laisse plus d'**espace** (SPARSE / SILENCE). **OFF** = compagnon totalement inchangé.
 
 ---
 
