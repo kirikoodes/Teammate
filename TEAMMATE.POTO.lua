@@ -1969,11 +1969,20 @@ else
   print("NIAKABY indisponible (lib/niakaby.lua manquant ou en erreur) : " .. tostring(_niaka_mod))
   niakaby = {
     on = false, scale_idx = 1, octave = 0, chord_idx = 1,
-    source_idx = 1, source_names = {"INPUT","METABO","COMP"},
+    src = { input = true, metabo = false, comp = false },
+    src_keys = {"input","metabo","comp"}, src_cursor = 1,
     update = function() end,
     enc    = function() end,
     key    = function() end,
+    enc_src = function() end,
+    key_src = function() end,
     release = function() end,
+    redraw_src = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("NIAKABY SRC")
+      screen.level(4) ; screen.move(2, 36) ; screen.text("lib/niakaby.lua absent")
+      screen.update()
+    end,
     redraw = function()
       screen.clear() ; screen.level(15)
       screen.move(2, 20) ; screen.text("NIAKABY")
@@ -2036,14 +2045,13 @@ function init()
     while true do
       clock.sleep(1/30)
       meta_energy = meta_energy * 0.90   -- decay de l'energie METABO (suit ses silences)
-      local s = niakaby.source_idx or 1
-      if s == 2 then        -- METABO alimente NIAKABY
-        niakaby.update(meta_energy, meta_freq, meta_freq * 3, 0.05, 1/30)
-      elseif s == 3 then    -- le COMPAGNON alimente NIAKABY
-        niakaby.update(comp_rms, comp_freq, comp_centroid, comp_flatness, 1/30)
-      else                  -- INPUT (audio)
-        niakaby.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
-      end
+      -- sources actives (INPUT/METABO/COMP, combinables) : on prend la plus FORTE a cet instant
+      local s = niakaby.src or { input = true }
+      local br, bf, bc, bfl = 0, 0, 0, 0
+      if s.input  and cur_rms     > br and (cur_freq  or 0) > 30 then br=cur_rms ;     bf=cur_freq ;  bc=cur_centroid ;  bfl=cur_flatness end
+      if s.metabo and meta_energy > br and (meta_freq or 0) > 30 then br=meta_energy ; bf=meta_freq ; bc=meta_freq * 3 ;  bfl=0.05 end
+      if s.comp   and comp_rms    > br and (comp_freq or 0) > 30 then br=comp_rms ;    bf=comp_freq ; bc=comp_centroid ; bfl=comp_flatness end
+      niakaby.update(br, bf, bc, bfl, 1/30)
     end
   end)
   clock.run(function()
@@ -2108,7 +2116,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 23) + 1
+    page = ((page - 1 + d) % 24) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2149,6 +2157,8 @@ function enc(n, d)
       niakaby.enc(2, d)
     elseif page == 23 then
       niaka_cur_dev = util.clamp(niaka_cur_dev + d, 1, 4)
+    elseif page == 24 then
+      niakaby.enc_src(2, d)
     end
   elseif n == 3 then
     if page == 1 then
@@ -2201,6 +2211,8 @@ function enc(n, d)
       niakaby.enc(3, d)
     elseif page == 23 then
       midi_ch[7][niaka_cur_dev] = util.clamp(midi_ch[7][niaka_cur_dev] + d, 1, 16)
+    elseif page == 24 then
+      niakaby.enc_src(3, d)
     end
   end
   redraw()
@@ -2213,10 +2225,10 @@ function key(n, z)
   if page == 21 then metabolik.key_feed(n) ; redraw() ; return end
   if page == 22 then niakaby.key(n) ; redraw() ; return end
   if page == 23 then
-    if n == 3 then midi_route[7][niaka_cur_dev] = not midi_route[7][niaka_cur_dev]
-    elseif n == 2 then niakaby.source_idx = (niakaby.source_idx % #niakaby.source_names) + 1 end
+    if n == 3 then midi_route[7][niaka_cur_dev] = not midi_route[7][niaka_cur_dev] end
     redraw() ; return
   end
+  if page == 24 then niakaby.key_src(n) ; redraw() ; return end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
     redraw() ; return
@@ -2323,6 +2335,7 @@ function redraw()
   if page == 20 then metabolik.redraw_play() ; return end
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
+  if page == 24 then niakaby.redraw_src() ; return end
 
   if splash_active then
     screen.font_size(16)
@@ -2358,7 +2371,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/23")
+  screen.text(page .. "/24")
 
   if rec_on then
     screen.level(15)
@@ -2403,8 +2416,13 @@ function redraw()
     local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
     screen.text(string.format("AUDIO>MIDI  live:%s  E2 dev  E3 ch", an))
   elseif page == 23 then
-    local src = (niakaby.source_names and niakaby.source_names[niakaby.source_idx]) or "INPUT"
-    screen.text(string.format("NIAKABY>MIDI   K2 SRC:%s", src))
+    local on = {}
+    local s = niakaby.src or {}
+    if s.input then on[#on+1]="IN" end
+    if s.metabo then on[#on+1]="ME" end
+    if s.comp then on[#on+1]="CO" end
+    screen.level(10)
+    screen.text("NIAKABY>MIDI  src:" .. (#on>0 and table.concat(on,"+") or "--") .. " (p.24)")
   elseif page == 17 then
     screen.level(spat.on and 15 or 6)
     screen.text(SPAT_MODES[spat.mode])

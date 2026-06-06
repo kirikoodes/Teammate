@@ -29,9 +29,12 @@ M.chord_idx = 1
 M.on   = false
 M.thr  = 0.01       -- seuil de detection
 
--- ce que NIAKABY harmonise : INPUT (audio) / METABO (la cellule) / COMP (le compagnon)
-M.source_names = {"INPUT","METABO","COMP"}
-M.source_idx   = 1
+-- ce que NIAKABY harmonise : 3 sources INDEPENDANTES (combinables librement).
+-- quand plusieurs sont actives, la plus FORTE mene a chaque instant.
+M.src        = { input = true, metabo = false, comp = false }
+M.src_keys   = { "input", "metabo", "comp" }
+M.src_labels = { "INPUT", "METABO", "COMP" }
+M.src_cursor = 1
 
 -- callbacks fournis par le script principal
 M.note_on  = nil    -- function(note, vel)
@@ -167,8 +170,10 @@ function M.redraw()
     if #s > 22 then s = string.sub(s, 1, 21) end
     screen.level(15); screen.move(58, 54); screen.text(s)
   end
+  local on = {}
+  for i, k in ipairs(M.src_keys) do if M.src[k] then on[#on + 1] = M.src_labels[i] end end
   screen.level(8); screen.move(2, 63)
-  screen.text("SRC " .. M.source_names[M.source_idx])
+  screen.text("SRC " .. (#on > 0 and table.concat(on, "+") or "--"))
   screen.update()
 end
 
@@ -187,6 +192,41 @@ function M.key(n)
   elseif n == 2 then
     M.chord_idx = (M.chord_idx % #M.chord_names) + 1
   end
+end
+
+-- ===== page SRC : 3 sources independantes (E2 curseur, K3 toggle, K2 tout/rien) =====
+function M.enc_src(n, d)
+  if n == 2 or n == 3 then
+    M.src_cursor = ((M.src_cursor - 1 + d) % 3) + 1
+  end
+end
+
+function M.key_src(n)
+  if n == 3 then
+    local k = M.src_keys[M.src_cursor]
+    M.src[k] = not M.src[k]
+  elseif n == 2 then
+    local all = M.src.input and M.src.metabo and M.src.comp
+    M.src.input = not all ; M.src.metabo = not all ; M.src.comp = not all
+  end
+end
+
+function M.redraw_src()
+  screen.clear() ; screen.font_size(8)
+  screen.level(15); screen.move(2, 8); screen.text("NIAKABY SRC")
+  screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
+  local ys = { 26, 38, 50 }
+  for i = 1, 3 do
+    local k   = M.src_keys[i]
+    local sel = (i == M.src_cursor)
+    screen.level(sel and 15 or (M.src[k] and 10 or 4))
+    screen.move(sel and 2 or 10, ys[i])
+    screen.text((sel and "> " or "") .. M.src_labels[i])
+    screen.level(M.src[k] and 15 or 3)
+    screen.move(86, ys[i]); screen.text(M.src[k] and "[X]" or "[ ]")
+  end
+  screen.level(4); screen.move(2, 63); screen.text("E2 sel  K3 on/off  K2 all")
+  screen.update()
 end
 
 return M

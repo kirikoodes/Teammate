@@ -74,13 +74,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→23)
+E1        — previous / next page (loops 1→24)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 23 pages
+## The 24 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -679,10 +679,9 @@ Routing matrix for NIAKABY (stream 7) + the **LINK** to METABO.
 |---|---|
 | E2 | Select device (d1–d4) |
 | E3 | MIDI channel for selected device (1–16) |
-| K2 | Source — **INPUT** / **METABO** / **COMP** |
 | K3 | Toggle NIAKABY routing ON/OFF for selected device |
 
-- **Source** (K2): what NIAKABY turns into chords — **INPUT** (live audio), **METABO** (the cell's notes drive the chord roots, so METABO feeds NIAKABY), or **COMP** (the companion's notes). Whatever the source, when METABO is ON it also **colours** the chords (adds a 7th/9th under stress, an octave doubling on growth).
+- The harmonized **source** is chosen on **page 24** (the active sources are shown at the top of this page). Whatever the source, when METABO is ON it also **colours** the chords (7th/9th under stress, octave doubling on growth).
 
 *Matrice de routage pour NIAKABY (stream 7) + le **LINK** vers METABO.*
 
@@ -690,10 +689,38 @@ Routing matrix for NIAKABY (stream 7) + the **LINK** to METABO.
 |---|---|
 | E2 | Sélectionner le device (d1–d4) |
 | E3 | Canal MIDI pour le device sélectionné (1–16) |
-| K2 | Source — **INPUT** / **METABO** / **COMP** |
 | K3 | Activer / désactiver le routage NIAKABY pour ce device |
 
-- **Source** (K2) : ce que NIAKABY transforme en accords — **INPUT** (audio live), **METABO** (les notes de la cellule pilotent les fondamentales → METABO alimente NIAKABY), ou **COMP** (les notes du compagnon). Quelle que soit la source, quand METABO est ON il **colore** aussi les accords (7e/9e sous stress, doublure d'octave si croissance).
+- La **source** harmonisée se choisit en **page 24** (les sources actives sont affichées en haut de cette page). Quelle que soit la source, quand METABO est ON il **colore** aussi les accords (7e/9e sous stress, doublure si croissance).
+
+---
+
+### Page 24 — NIAKABY SRC
+Choose **what NIAKABY harmonizes** — the three sources are **independent toggles**, freely combinable.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Move cursor (INPUT / METABO / COMP) |
+| K3 | Toggle the highlighted source ON/OFF |
+| K2 | All on / all off |
+
+- **INPUT** — the live audio (mic/line).
+- **METABO** — the cell's notes feed NIAKABY (METABO drives the chords).
+- **COMP** — the companion's notes (corpus improv + MIDI GEN).
+- Enable **any combination** (e.g. INPUT + COMP, or all three). When several are active, the **loudest source leads** at each moment. `[X]` = active.
+
+*Choisis **ce que NIAKABY harmonise** — les trois sources sont des **cases indépendantes**, librement combinables.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Déplacer le curseur (INPUT / METABO / COMP) |
+| K3 | Activer / désactiver la source surlignée |
+| K2 | Tout activer / tout couper |
+
+- **INPUT** — l'audio live (micro/ligne).
+- **METABO** — les notes de la cellule alimentent NIAKABY (METABO pilote les accords).
+- **COMP** — les notes du compagnon (impro corpus + MIDI GEN).
+- Active **n'importe quelle combinaison** (ex. INPUT + COMP, ou les trois). Quand plusieurs sont actives, la **plus forte mène** à chaque instant. `[X]` = active.
 
 ---
 
