@@ -299,6 +299,9 @@ local midi_ch_audio      = {5,5,5,5}  -- canal par device pour stream AUDIO
 midi_route[6] = {false, false, false, false}   -- METABO = stream 6 (matrice de routage)
 midi_ch[6]    = {16, 16, 16, 16}               -- canal METABO par device
 metabo_cur_dev = 1                              -- device selectionne (page 19 METABO MIDI ; global)
+midi_route[7] = {false, false, false, false}   -- NIAKABY = stream 7 (accords MIDI)
+midi_ch[7]    = {7, 7, 7, 7}                    -- canal NIAKABY par device
+niaka_cur_dev = 1                               -- device selectionne (page 23 NIAKABY MIDI ; global)
 local midi_audio_cur_dev = 1          -- device selectionne sur page 16
 local midi_audio_note    = nil        -- note MIDI audio active courante
 
@@ -1956,6 +1959,29 @@ else
 end
 _metabo_ok = nil ; _metabo_mod = nil
 
+-- NIAKABY (harmoniseur audio->accords MIDI) : chargement defensif aussi.
+niakaby = nil
+_niaka_ok, _niaka_mod = pcall(include, 'lib/niakaby')
+if _niaka_ok and type(_niaka_mod) == "table" then
+  niakaby = _niaka_mod
+else
+  print("NIAKABY indisponible (lib/niakaby.lua manquant ou en erreur) : " .. tostring(_niaka_mod))
+  niakaby = {
+    on = false, link = false, scale_idx = 1, octave = 0, chord_idx = 1,
+    update = function() end,
+    enc    = function() end,
+    key    = function() end,
+    release = function() end,
+    redraw = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("NIAKABY")
+      screen.level(4) ; screen.move(2, 36) ; screen.text("lib/niakaby.lua absent")
+      screen.update()
+    end,
+  }
+end
+_niaka_ok = nil ; _niaka_mod = nil
+
 function init()
   math.randomseed(os.time())
   mgen_gen_all()
@@ -1995,6 +2021,18 @@ function init()
   metabolik.note_on  = function(note, vel) midi_note_on(6, note, vel) end
   metabolik.note_off = function(note)      midi_note_off(6, note) end
   clock.run(metabolik.player)
+
+  -- NIAKABY (harmoniseur) : accords routes par la MATRICE (stream 7) + lien METABO
+  niakaby.note_on  = function(note, vel) midi_note_on(7, note, vel) end
+  niakaby.note_off = function(note)      midi_note_off(7, note) end
+  niakaby.metabo   = metabolik           -- lecture stress/croissance pour colorer les accords
+  niakaby.feed     = companion_feed      -- en mode LINK, NIAKABY nourrit METABO
+  clock.run(function()
+    while true do
+      clock.sleep(1/30)
+      niakaby.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
+    end
+  end)
   clock.run(function()
     while true do
       clock.sleep(1/30)
@@ -2057,7 +2095,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 21) + 1
+    page = ((page - 1 + d) % 23) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2094,6 +2132,10 @@ function enc(n, d)
       metabolik.enc_play(2, d)
     elseif page == 21 then
       metabolik.enc_feed(2, d)
+    elseif page == 22 then
+      niakaby.enc(2, d)
+    elseif page == 23 then
+      niaka_cur_dev = util.clamp(niaka_cur_dev + d, 1, 4)
     end
   elseif n == 3 then
     if page == 1 then
@@ -2142,6 +2184,10 @@ function enc(n, d)
       metabolik.enc_play(3, d)
     elseif page == 21 then
       metabolik.enc_feed(3, d)
+    elseif page == 22 then
+      niakaby.enc(3, d)
+    elseif page == 23 then
+      midi_ch[7][niaka_cur_dev] = util.clamp(midi_ch[7][niaka_cur_dev] + d, 1, 16)
     end
   end
   redraw()
@@ -2152,6 +2198,12 @@ function key(n, z)
   if page == 18 then metabolik.key(n) ; redraw() ; return end
   if page == 20 then metabolik.key_play(n) ; redraw() ; return end
   if page == 21 then metabolik.key_feed(n) ; redraw() ; return end
+  if page == 22 then niakaby.key(n) ; redraw() ; return end
+  if page == 23 then
+    if n == 3 then midi_route[7][niaka_cur_dev] = not midi_route[7][niaka_cur_dev]
+    elseif n == 2 then niakaby.link = not niakaby.link end
+    redraw() ; return
+  end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
     redraw() ; return
@@ -2257,6 +2309,7 @@ function redraw()
   if page == 18 then metabolik.redraw() ; return end
   if page == 20 then metabolik.redraw_play() ; return end
   if page == 21 then metabolik.redraw_feed() ; return end
+  if page == 22 then niakaby.redraw() ; return end
 
   if splash_active then
     screen.font_size(16)
@@ -2292,7 +2345,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/21")
+  screen.text(page .. "/23")
 
   if rec_on then
     screen.level(15)
@@ -2336,6 +2389,8 @@ function redraw()
   elseif page == 16 then
     local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
     screen.text(string.format("AUDIO>MIDI  live:%s  E2 dev  E3 ch", an))
+  elseif page == 23 then
+    screen.text(string.format("NIAKABY>MIDI   K2 LINK:%s", niakaby.link and "ON" or "off"))
   elseif page == 17 then
     screen.level(spat.on and 15 or 6)
     screen.text(SPAT_MODES[spat.mode])
@@ -2614,6 +2669,24 @@ function redraw()
       screen.level(sel and 10 or 4)
       screen.move(100, ys[d])
       screen.text(string.format("ch%2d", midi_ch[6][d]))
+    end
+
+  elseif page == 23 then
+    local ys = {44, 51, 57, 64}
+    for d = 1, 4 do
+      local sel    = (d == niaka_cur_dev)
+      local routed = midi_route[7][d]
+      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+      if #dname > 12 then dname = string.sub(dname, 1, 11) .. "~" end
+      screen.level(sel and 15 or (routed and 10 or 4))
+      screen.move(0, ys[d])
+      screen.text(string.format("d%d %s", d, dname))
+      screen.level(routed and 15 or 3)
+      screen.move(80, ys[d])
+      screen.text(routed and "[X]" or "[ ]")
+      screen.level(sel and 10 or 4)
+      screen.move(100, ys[d])
+      screen.text(string.format("ch%2d", midi_ch[7][d]))
     end
 
   elseif page == 17 then

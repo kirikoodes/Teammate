@@ -13,7 +13,7 @@ TEAMMATE takes that same core intuition — the machine learns only from you, in
 
 Everything you play gets sliced into a memory of 48 sound fragments: pitch, energy, timbre, texture. When you stop, TEAMMATE analyzes the whole phrase and decides what to do. Imitate. Contrast. Densify. Thin out. Stay silent. It never plays something it hasn't heard from you. No generative AI, no presets — pure *remémoration*.
 
-Six layers running in parallel:
+Seven layers running in parallel:
 
 - **The dialogue** — phrase by phrase. TEAMMATE waits, listens, builds a portrait of what you just played, and responds from its own memory.
 - **POtO** — a granular halo of the last 4 seconds of your performance. Three readers orbiting your sound: one locked to the present, one drifting toward it, one pushed toward the past. Five polyphony modes: MONO / 5th / CHRD / CLST / SMRT.
@@ -21,6 +21,7 @@ Six layers running in parallel:
 - **MIDI GEN** — a generative melodic sequencer running in parallel. Up to 16 independent channels, each with its own style, octave, and sequence. 14 styles: Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 break types. Evo mode mutates sequences organically each cycle. Syncs to external MIDI clock automatically.
 - **Audio→MIDI** — converts live audio pitch to polyphonic MIDI notes in real time, routable to any of the 4 MIDI devices with configurable channels.
 - **METABO** — a separate, autonomous mode (it does **not** touch the companion). Incoming sound feeds a living **cell metabolism**; the cell answers in MIDI notes where the notes **are** its active metabolic pathways. Monotonous, repetitive playing raises the cell's **stress** and the tempo races; varied, rich playing keeps it calm — homeostatic regulation. It breathes: phrases alternate with **silences**, longer when calm. Routed through its own matrix stream (stream 6), on its own channel.
+- **NIAKABY** — a harmonizer: it takes the **pitch of the incoming sound**, snaps it to a scale, and turns it into **MIDI chords** (diatonic triads/7ths/9ths/sus, with a bass note), routed on its own matrix stream (stream 7). A **LINK** option ties it to METABO: the cell **colours** the chords (tensions under stress, octave doublings on growth) and NIAKABY **feeds** METABO in return.
 
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
@@ -34,7 +35,7 @@ TEAMMATE part de la même intuition fondamentale — la machine n'apprend que de
 
 Tout ce que tu joues est découpé en une mémoire de 48 fragments sonores : pitch, énergie, timbre, texture. Quand tu t'arrêtes, TEAMMATE analyse la phrase entière et décide quoi faire. Imiter. Contraster. Densifier. Espacer. Se taire. Il ne joue jamais quelque chose qu'il n'a pas entendu de toi. Pas d'IA générative, pas de presets — de la **remémoration active**.
 
-Six couches en parallèle :
+Sept couches en parallèle :
 
 - **Le dialogue** — phrase par phrase. TEAMMATE attend, écoute, construit un portrait de ce que tu viens de jouer, et répond depuis sa propre mémoire.
 - **POtO** — un halo granulaire des 4 dernières secondes de ta performance. Trois lecteurs qui orbitent autour de ton son : un ancré dans le présent, un qui dérive vers lui, un poussé vers le passé. Cinq modes de polyphonie : MONO / 5th / CHRD / CLST / SMRT.
@@ -42,6 +43,7 @@ Six couches en parallèle :
 - **MIDI GEN** — un séquenceur mélodique génératif qui tourne en parallèle. Jusqu'à 16 channels indépendants, chacun avec son style, son octave et sa séquence. 14 styles : Techno, DnB, Jungle, Amapiano, 2-step, Brokenbeat, Dumbstep, Trap, Drill, Club, Kpop, Oriental, Rave, Trance. 17 types de break. Mode Evo pour une mutation organique des séquences à chaque cycle. Sync automatique sur clock MIDI externe.
 - **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
 - **METABO** — un mode **séparé et autonome** (il ne **touche pas** au compagnon). Le son entrant nourrit un **métabolisme cellulaire** vivant ; la cellule répond en notes MIDI où les notes **sont** ses voies métaboliques actives. Un jeu monotone et répétitif fait monter le **stress** de la cellule et le tempo s'emballe ; un jeu varié et riche la garde calme — régulation homéostatique. Elle respire : les phrases alternent avec des **silences**, plus longs quand elle est calme. Routé via son propre stream de matrice (stream 6), sur son propre canal.
+- **NIAKABY** — un harmoniseur : il prend le **pitch du son entrant**, le cale dans une gamme et le transforme en **accords MIDI** (triades / 7e / 9e / sus diatoniques, avec une basse), routés sur son propre stream de matrice (stream 7). Une option **LINK** le relie à METABO : la cellule **colore** les accords (tensions sous stress, doublures d'octave si croissance) et NIAKABY **nourrit** METABO en retour.
 
 Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
 
@@ -72,13 +74,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→21)
+E1        — previous / next page (loops 1→23)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 21 pages
+## The 23 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -638,6 +640,60 @@ Cette page est le **lien bidirectionnel** entre le compagnon et la cellule.
 - **Source** (E2) : **INPUT** = audio live (micro/ligne) · **COMP** = **le compagnon nourrit METABO** (impro corpus + MIDI GEN pilotent le métabolisme, donc METABO respire avec le compagnon et se tait quand il se repose) · **MIX** = les deux (le plus fort mène).
 - **Réaction** (E3) : bas = lisse/lent (la cellule glisse, assez indépendante) ; haut = vif/serré (la cellule suit chaque événement du compagnon, l'énergie décroît vite → plus de silences entre les phrases). Agit sur le decay de l'énergie compagnon et la sensibilité.
 - **Influence** (K2) : le sens inverse — **la cellule infléchit les choix du compagnon**. Opt-in et non destructif (tes réglages manuels ne changent pas ; ça ne fait que biaiser les poids de stratégie au moment de décider). Une cellule **stressée** (monotonie) pousse le compagnon vers **CONTRASTE / DENSIFICATION** (pour casser la monotonie) ; une cellule **calme** laisse plus d'**espace** (SPARSE / SILENCE). **OFF** = compagnon totalement inchangé.
+
+---
+
+### Page 22 — NIAKABY
+A harmonizer: the **pitch of the incoming sound** is detected, snapped to a scale, and turned into a **diatonic MIDI chord** for that scale degree (maj/min/dim follow the scale automatically) plus a bass note — with anti-flutter debounce and release on silence.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Scale / key (MAJOR / MINOR / DORIC / PHRYG / HIJAZ / PENMIN / PENMAJ / HIRA / INSEN) |
+| E3 | Octave (−2 … +2) |
+| K2 | Chord type — **TRIAD** / **7TH** / **9TH** / **SUS** |
+| K3 | NIAKABY ON / OFF |
+
+- Plays the chord while you sustain a pitch; re-voices when the detected scale degree changes; releases shortly after you stop.
+- Output goes through the routing matrix on **stream 7** — set it up on page 23.
+- The screen shows the detected input note (`in`) and the current chord notes.
+
+*Un harmoniseur : le **pitch du son entrant** est détecté, calé dans une gamme, et transformé en **accord MIDI diatonique** du degré (maj/min/dim suivent la gamme) + une basse — avec anti-flutter et relâche au silence.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Gamme / tonalité (MAJOR / MINOR / DORIC / PHRYG / HIJAZ / PENMIN / PENMAJ / HIRA / INSEN) |
+| E3 | Octave (−2 … +2) |
+| K2 | Type d'accord — **TRIAD** / **7TH** / **9TH** / **SUS** |
+| K3 | NIAKABY ON / OFF |
+
+- Joue l'accord tant que tu tiens une note ; ré-harmonise quand le degré change ; relâche peu après l'arrêt.
+- Sort par la matrice de routage sur le **stream 7** — à configurer page 23.
+- L'écran montre la note entrante détectée (`in`) et les notes de l'accord en cours.
+
+---
+
+### Page 23 — NIAKABY MIDI
+Routing matrix for NIAKABY (stream 7) + the **LINK** to METABO.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Select device (d1–d4) |
+| E3 | MIDI channel for selected device (1–16) |
+| K2 | **LINK METABO** ON/OFF |
+| K3 | Toggle NIAKABY routing ON/OFF for selected device |
+
+- **LINK** (K2): when on, **METABO colours the chords** (adds a 7th/9th under stress, an octave doubling on growth) and **NIAKABY feeds METABO** in return — a two-way harmonic loop.
+
+*Matrice de routage pour NIAKABY (stream 7) + le **LINK** vers METABO.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Sélectionner le device (d1–d4) |
+| E3 | Canal MIDI pour le device sélectionné (1–16) |
+| K2 | **LINK METABO** ON/OFF |
+| K3 | Activer / désactiver le routage NIAKABY pour ce device |
+
+- **LINK** (K2) : quand activé, **METABO colore les accords** (ajoute une 7e/9e sous stress, une doublure d'octave si croissance) et **NIAKABY nourrit METABO** en retour — une boucle harmonique bidirectionnelle.
 
 ---
 
