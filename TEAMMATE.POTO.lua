@@ -1891,8 +1891,10 @@ local function audio_midi_loop()
   while true do
     clock.sleep(0.05)   -- 50 ms
     local any = false
-    for d = 1, 4 do
-      if midi_route[5][d] and midi_outs[d] then any = true ; break end
+    if audio_midi_on then
+      for d = 1, 4 do
+        if midi_route[5][d] and midi_outs[d] then any = true ; break end
+      end
     end
     if not any then
       if midi_audio_note then
@@ -2052,8 +2054,9 @@ function meta_shake_mgen()
 end
 
 -- ===== PAGE LIVE : armer/couper les modes en un seul endroit (set live) =====
+audio_midi_on = true     -- Audio->MIDI actif (si route page 16) ; armable depuis LIVE
 live_cursor = 1
-LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY" }
+LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO" }
 
 function live_toggle(i)
   if i == 1 then
@@ -2072,6 +2075,8 @@ function live_toggle(i)
   elseif i == 6 then
     niakaby.on = not niakaby.on
     if not niakaby.on then niakaby.release() end
+  elseif i == 7 then
+    audio_midi_on = not audio_midi_on
   end
 end
 
@@ -2082,6 +2087,7 @@ function live_all_off()
   if spat.on then spat.on = false ; spat_stop() end
   metabolik.on = false
   if niakaby.on then niakaby.on = false ; niakaby.release() end
+  audio_midi_on = false
   for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
@@ -2455,19 +2461,20 @@ function redraw()
   if page == 26 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("E2sel K3tgl")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 panic")
     local states = { p_poto_on and "ON" or "off", os8_mode, mgen_running and "ON" or "off",
-                     spat.on and "ON" or "off", metabolik.on and "ON" or "off", niakaby.on and "ON" or "off" }
-    local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on, niakaby.on }
-    local ys     = { 20, 27, 34, 41, 48, 55 }
-    for i = 1, 6 do
+                     spat.on and "ON" or "off", metabolik.on and "ON" or "off",
+                     niakaby.on and "ON" or "off", audio_midi_on and "ON" or "off" }
+    local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
+                     niakaby.on, audio_midi_on }
+    local ys     = { 18, 25, 32, 39, 46, 53, 60 }
+    for i = 1, #LIVE_NAMES do
       local sel = (i == live_cursor)
       screen.level(sel and 15 or (ons[i] and 11 or 4))
       screen.move(2, ys[i]) ; screen.text((sel and ">" or " ") .. LIVE_NAMES[i])
       screen.level(ons[i] and 15 or 3)
       screen.move(78, ys[i]) ; screen.text(states[i])
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("K2 = ALL OFF (panic)")
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
