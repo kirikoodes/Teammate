@@ -1237,7 +1237,7 @@ end
 
 local function mgen_gen_all(keep_pos)
   -- soit on RAPPELLE une combinaison aimee (avec une legere variation), soit theme frais diversifie
-  local recall = (#mgen_liked > 0 and math.random() < 0.6) and mgen_liked[math.random(#mgen_liked)] or nil
+  local recall = (#mgen_liked > 0 and mgen_recall > 0 and math.random() < mgen_recall) and mgen_liked[math.random(#mgen_liked)] or nil
   for i = 1, 16 do
     local si
     if recall then
@@ -2027,6 +2027,7 @@ meta_note_inf   = 0      -- 0..1 : METABO impose ses notes a MGEN (page 25 E3)
 mgen_liked      = {}     -- liste de combos ; chaque combo = { style_idx x16 }
 mgen_taste_last = "--"
 mgen_browse     = 0       -- 0 = live ; 1..N = combo selectionnee (chargee)
+mgen_recall     = 0       -- 0..1 : proba qu'un new theme rappelle une combo aimee (0 = off, themes frais)
 
 -- charge une combinaison : applique le genre de chaque channel + regenere les sequences
 function mgen_load_combo(c)
@@ -2363,6 +2364,7 @@ function enc(n, d)
     end
   elseif n == 3 then
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
+    if page == 27 then mgen_recall = util.clamp(mgen_recall + d * 0.05, 0, 1) end
     if page == 1 then
       p_gate_thr    = util.clamp(p_gate_thr    + d * 0.001, 0.0001, 0.05)
     elseif page == 2 then
@@ -2577,8 +2579,8 @@ function redraw()
         end
       end
     end
-    screen.level(4) ; screen.move(2, 63)
-    screen.text(mgen_browse >= 1 and "E2 parcourt (charge)  K3+ K2-" or "E2 parcourt  K3 like  K2 -")
+    screen.level(mgen_recall > 0 and 12 or 4) ; screen.move(2, 63)
+    screen.text(string.format("E3 recall %d%%   E2 parcourt", math.floor(mgen_recall * 100)))
     screen.update() ; return
   end
   if page == 26 then

@@ -790,11 +790,12 @@ MGEN learns the **genre combinations** you like — the full layout of genres ac
 | Encoder / Key | Function |
 |---|---|
 | E2 | Browse the bank — load the selected liked combination live (0 = leave current) |
+| E3 | **Recall** — probability a new theme reuses a liked combination (0% = off, fresh themes) |
 | K3 | **LIKE** — save the current combination (the 16-channel genre layout) to the bank |
 | K2 | **DISLIKE** — forget the closest liked combination |
 
 - A **combination** = the genre (style) of each of the 16 channels. LIKE snapshots it (up to 24 stored, near-duplicates skipped); DISLIKE removes the most similar one.
-- When a new theme is generated (page 13 **K3 START** / **K2 new theme**, or via METABO>MGEN), MGEN ~60% of the time **recalls a liked combination** (with a slight variation) and ~40% generates a fresh fully-diverse theme — so you keep getting the layouts you liked, plus surprises.
+- **Recall is an option (E3, default off)**: when a new theme is generated (page 13 **K3 START** / **K2 new theme**, or via METABO>MGEN), MGEN recalls a liked combination (with a slight variation) **with the E3 probability** — otherwise it generates a fresh fully-diverse theme. At 0% themes are always fresh; raise E3 to bring back the layouts you liked.
 - The page shows how many combos are saved and a **genre-frequency profile** across all your liked combinations (which genres dominate the layouts you like).
 - **Persistent memory**: the bank is saved to the norns SD card (`dust/data/TEAMMATE.POTO/mgen_combos.data`) and reloaded on startup.
 
@@ -803,11 +804,12 @@ MGEN learns the **genre combinations** you like — the full layout of genres ac
 | Encodeur / Touche | Fonction |
 |---|---|
 | E2 | Parcourt la banque — charge en direct la combinaison sélectionnée (0 = laisse le live) |
+| E3 | **Recall** — probabilité qu'un new theme réutilise une combo aimée (0% = off, thèmes frais) |
 | K3 | **LIKE** — mémorise la combinaison courante (la répartition genre des 16 channels) |
 | K2 | **DISLIKE** — oublie la combinaison aimée la plus proche |
 
 - Une **combinaison** = le genre (style) de chacun des 16 channels. LIKE en fait un snapshot (jusqu'à 24, quasi-doublons ignorés) ; DISLIKE retire la plus proche.
-- À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), MGEN **rappelle ~60% du temps une combinaison aimée** (avec une légère variation) et génère ~40% du temps un thème frais pleinement diversifié — tu retrouves ce que tu as aimé, avec des surprises.
+- **Le rappel est une option (E3, off par défaut)** : à chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), MGEN rappelle une combinaison aimée (avec une légère variation) **avec la probabilité E3** — sinon il génère un thème frais pleinement diversifié. À 0% les thèmes sont toujours frais ; monte E3 pour faire revenir tes combos aimées.
 - La page affiche le nombre de combos mémorisées et un **profil de fréquence des genres** sur toutes tes combinaisons aimées (quels genres dominent les répartitions que tu aimes).
 - **Mémoire persistante** : la banque est sauvegardée sur la carte SD (`dust/data/TEAMMATE.POTO/mgen_combos.data`) et rechargée au démarrage.
 
