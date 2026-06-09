@@ -1997,6 +1997,36 @@ else
 end
 _niaka_ok = nil ; _niaka_mod = nil
 
+-- ===== METABO >>> MGEN : la cellule secoue le sequenceur au hasard (opt-in) =====
+meta_mgen_drive = 0      -- 0..1 intensite (0 = off)
+meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks, styles)
+meta_mgen_last  = "--"
+function meta_shake_mgen()
+  local r = math.random()
+  if meta_mgen_scope == 1 then
+    if r < 0.7 then
+      local ci = math.random(16) ; mgen_gen_seq(ci) ; meta_mgen_last = "regen ch" .. ci
+    else
+      mgen_scale_idx = math.random(#MGEN_SCALE_NAMES) ; meta_mgen_last = "gamme " .. MGEN_SCALE_NAMES[mgen_scale_idx]
+    end
+  else
+    if r < 0.30 then
+      local ci = math.random(16) ; mgen_gen_seq(ci) ; meta_mgen_last = "regen ch" .. ci
+    elseif r < 0.50 then
+      mgen_scale_idx = math.random(#MGEN_SCALE_NAMES) ; meta_mgen_last = "gamme " .. MGEN_SCALE_NAMES[mgen_scale_idx]
+    elseif r < 0.70 then
+      mgen_gen_all(true) ; meta_mgen_last = "new theme"
+    elseif r < 0.88 then
+      local bt = math.random(#MGEN_BREAK_NAMES)
+      for i = 1, 16 do if mgen_ch[i].on then mgen_ch[i].brk = true ; mgen_ch[i].brk_type = bt end end
+      meta_mgen_last = "break " .. MGEN_BREAK_NAMES[bt]
+    else
+      local ci = math.random(16) ; mgen_ch[ci].style_idx = math.random(#MGEN_STYLE_NAMES) ; mgen_gen_seq(ci)
+      meta_mgen_last = "style ch" .. ci
+    end
+  end
+end
+
 function init()
   math.randomseed(os.time())
   mgen_gen_all()
@@ -2045,6 +2075,17 @@ function init()
   niakaby.note_on  = function(note, vel) midi_note_on(7, note, vel) end
   niakaby.note_off = function(note)      midi_note_off(7, note) end
   niakaby.metabo   = metabolik           -- lecture stress/croissance pour colorer les accords
+
+  -- METABO >>> MGEN : secousses aleatoires, frequence = intensite x stress de la cellule
+  clock.run(function()
+    while true do
+      clock.sleep(60.0 / math.max(40, mgen_bpm))   -- ~1 temps
+      if meta_mgen_drive > 0 and mgen_running then
+        local st = metabolik.stressFx or 0
+        if math.random() < meta_mgen_drive * (0.10 + st * 0.5) then meta_shake_mgen() end
+      end
+    end
+  end)
   clock.run(function()
     while true do
       clock.sleep(1/30)
@@ -2123,7 +2164,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 24) + 1
+    page = ((page - 1 + d) % 25) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2166,6 +2207,8 @@ function enc(n, d)
       niaka_cur_dev = util.clamp(niaka_cur_dev + d, 1, 4)
     elseif page == 24 then
       niakaby.enc_src(2, d)
+    elseif page == 25 then
+      meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
     end
   elseif n == 3 then
     if page == 1 then
@@ -2236,6 +2279,11 @@ function key(n, z)
     redraw() ; return
   end
   if page == 24 then niakaby.key_src(n) ; redraw() ; return end
+  if page == 25 then
+    if n == 2 then meta_mgen_scope = (meta_mgen_scope == 1) and 2 or 1
+    elseif n == 3 then meta_shake_mgen() end
+    redraw() ; return
+  end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
     redraw() ; return
@@ -2363,6 +2411,21 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 25 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("METABO>MGEN")
+    screen.move(126, 8) ; screen.text_right(mgen_running and "RUN" or "off")
+    screen.level(4)  ; screen.move(2, 22) ; screen.text("E2 DRIVE")
+    screen.level(15) ; screen.move(74, 22) ; screen.text(string.format("%d%%", math.floor(meta_mgen_drive * 100)))
+    screen.level(4)  ; screen.rect(2, 25, 120, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 25, 120 * meta_mgen_drive, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 40) ; screen.text("K2 SCOPE")
+    screen.level(15) ; screen.move(74, 40) ; screen.text(meta_mgen_scope == 2 and "FULL" or "LIGHT")
+    screen.level(4)  ; screen.move(2, 52) ; screen.text("last:")
+    screen.level(10) ; screen.move(32, 52) ; screen.text(meta_mgen_last or "--")
+    screen.level(4)  ; screen.move(2, 63) ; screen.text("E2 drive K2 scope K3 shake")
+    screen.update() ; return
+  end
 
   if splash_active then
     screen.font_size(16)
@@ -2398,7 +2461,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/24")
+  screen.text(page .. "/25")
 
   if rec_on then
     screen.level(15)

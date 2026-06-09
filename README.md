@@ -74,13 +74,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→24)
+E1        — previous / next page (loops 1→25)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 24 pages
+## The 25 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -725,6 +725,33 @@ Choose **what NIAKABY harmonizes** — the three sources are **independent toggl
 - **COMP** — l'improvisation corpus du compagnon.
 - **MGEN** — le séquenceur MIDI génératif.
 - Active **n'importe quelle combinaison** (ex. INPUT + MGEN, ou les quatre). Quand plusieurs sont actives, la **plus forte mène** à chaque instant. `[X]` = active.
+
+---
+
+### Page 25 — METABO>MGEN
+A mode where **METABO randomly shakes up the MIDI GEN sequencer** — the living cell mutates the machine. Opt-in (DRIVE 0 = off, MGEN untouched).
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Drive — intensity 0–100% (0 = off) |
+| K2 | Scope — **LIGHT** / **FULL** |
+| K3 | Shake now (manual trigger) |
+
+- **Drive** (E2): how often METABO disrupts MGEN. The actual frequency = drive × the cell's **stress** — a calm cell rarely touches MGEN, a stressed cell shakes it constantly. Only acts while MGEN is running.
+- **Scope**: **LIGHT** = regenerate a random channel / change scale. **FULL** = also new themes, fire **breaks**, swap **styles**.
+- **K3** fires one random change immediately (works anytime). The last action is shown (`last: …`).
+
+*Un mode où **METABO bouscule le séquenceur MIDI GEN au hasard** — la cellule vivante mute la machine. Opt-in (DRIVE 0 = off, MGEN intact).*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Drive — intensité 0–100% (0 = off) |
+| K2 | Portée — **LIGHT** / **FULL** |
+| K3 | Secouer maintenant (déclenche à la main) |
+
+- **Drive** (E2) : à quelle fréquence METABO bouscule MGEN. La fréquence réelle = drive × le **stress** de la cellule — calme = rare, stressée = secousses constantes. N'agit que si MGEN tourne.
+- **Portée** : **LIGHT** = régénère un channel / change la gamme. **FULL** = aussi nouveaux thèmes, **breaks**, swaps de **styles**.
+- **K3** déclenche un changement au hasard tout de suite (à tout moment). La dernière action est affichée (`last: …`).
 
 ---
 
