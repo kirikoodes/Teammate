@@ -538,12 +538,44 @@ local function cur_midi_note()
   return math.floor(69 + 12 * math.log(cur_freq / 440) / math.log(2) + 0.5)
 end
 
+-- ===== ROUTEUR 8OS TRANS : qui pilote le matching des grains (la "voix live") =====
+os8_src_names = {"INPUT","METABO","COMP","MGEN"}
+os8_src_idx   = 1
+os8_in_gate   = false   -- voix live routee : gate
+os8_in_midi   = -1      -- note MIDI (-1 = pas de pitch)
+os8_in_rms    = 0       -- energie
+os8_in_centroid = 0     -- timbre
+
+-- met a jour la voix live selon la source choisie (appelee ~30 Hz)
+function os8_route()
+  local s = os8_src_idx or 1
+  if s == 2 then        -- METABO
+    local e = meta_energy or 0
+    os8_in_gate = e > 0.05
+    os8_in_midi = (meta_freq and meta_freq > 30) and math.floor(69 + 12*math.log(meta_freq/440)/math.log(2) + 0.5) or -1
+    os8_in_rms = e ; os8_in_centroid = (meta_freq or 0) * 3
+  elseif s == 3 then    -- COMP (impro du compagnon)
+    os8_in_gate = (comp_rms or 0) > 0.02
+    os8_in_midi = (comp_freq and comp_freq > 30) and math.floor(69 + 12*math.log(comp_freq/440)/math.log(2) + 0.5) or -1
+    os8_in_rms = comp_rms or 0 ; os8_in_centroid = comp_centroid or 0
+  elseif s == 4 then    -- MGEN
+    local e = mgen_nenergy or 0
+    os8_in_gate = e > 0.05
+    os8_in_midi = (mgen_nfreq and mgen_nfreq > 30) and math.floor(69 + 12*math.log(mgen_nfreq/440)/math.log(2) + 0.5) or -1
+    os8_in_rms = e ; os8_in_centroid = (mgen_nfreq or 0) * 3
+  else                  -- INPUT (audio live, defaut)
+    os8_in_gate = cur_gate > 0.5
+    os8_in_midi = (cur_freq >= 20) and math.floor(69 + 12*math.log(cur_freq/440)/math.log(2) + 0.5) or -1
+    os8_in_rms = rms_smooth ; os8_in_centroid = cur_centroid
+  end
+end
+
 -- cherche le grain le plus proche (attract=true) ou le plus eloigne (false)
 -- skip1/skip2 : positions a ignorer pour eviter les doublons entre voix
--- score combine : pitch 0.55 + energie 0.35 + centroide 0.10
+-- score combine : pitch 0.55 + energie 0.35 + centroide 0.10 ; pilote par la voix routee
 local function os8_find_grain(attract, skip1, skip2)
   if #os8_bank == 0 then return nil end
-  local live_midi = cur_midi_note()
+  local live_midi = os8_in_midi
   local best, bs  = nil, attract and math.huge or -math.huge
   for _, g in ipairs(os8_bank) do
     if g.pos ~= skip1 and g.pos ~= skip2 then
@@ -556,10 +588,10 @@ local function os8_find_grain(attract, skip1, skip2)
       end
       -- distance energie (0=meme rms, 1=tres different)
       local g_rms  = g.rms or 0.0
-      local mx_rms = math.max(rms_smooth, g_rms, 0.001)
-      local de     = math.abs(rms_smooth - g_rms) / mx_rms
+      local mx_rms = math.max(os8_in_rms, g_rms, 0.001)
+      local de     = math.abs(os8_in_rms - g_rms) / mx_rms
       -- distance timbre centroide
-      local dc = math.abs(g.centroid - cur_centroid) / 8000.0
+      local dc = math.abs(g.centroid - os8_in_centroid) / 8000.0
       local score = dn * 0.55 + de * 0.35 + dc * 0.10 + math.random() * 0.03
       if attract  and score < bs then bs = score ; best = g end
       if not attract and score > bs then bs = score ; best = g end
@@ -681,7 +713,7 @@ local function os8_set(mode)
         clock.sleep(60.0 / mgen_bpm / 4)   -- suit le BPM du MGEN
       else
         local t = 0
-        while t < dur and os8_mode == "TRANS" and cur_gate > 0.5 do
+        while t < dur and os8_mode == "TRANS" and os8_in_gate do
           local step = math.min(0.02, dur - t)
           clock.sleep(step) ; t = t + step
         end
@@ -691,7 +723,7 @@ local function os8_set(mode)
     -- boucle grain V5 LOCK (grain le plus proche, gate-driven)
     clock.run(function()
       while os8_mode == "TRANS" do
-        if cur_gate > 0.5 then
+        if os8_in_gate then
           local g = os8_find_grain(true, nil, nil)
           if g then
             os8_pos_v5 = g.pos
@@ -724,7 +756,7 @@ local function os8_set(mode)
     clock.run(function()
       clock.sleep(os8_size * 0.33)  -- decalage de phase
       while os8_mode == "TRANS" do
-        if cur_gate > 0.5 then
+        if os8_in_gate then
           local g = os8_find_grain(true, os8_pos_v5, nil)
           if not g then g = os8_find_grain(true, nil, nil) end
           if g then
@@ -758,7 +790,7 @@ local function os8_set(mode)
     clock.run(function()
       clock.sleep(os8_size * 0.66)  -- decalage de phase
       while os8_mode == "TRANS" do
-        if cur_gate > 0.5 then
+        if os8_in_gate then
           local g = os8_find_grain(true, os8_pos_v5, os8_pos_v6)
           if not g then g = os8_find_grain(true, nil, nil) end
           if g then
@@ -2252,6 +2284,7 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(1/30)
+      os8_route()                                      -- met a jour la voix live du routeur 8OS TRANS
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
@@ -2329,6 +2362,8 @@ function enc(n, d)
       os8_vol       = util.clamp(os8_vol       + d * 0.05, 0.0, 1.0)
     elseif page == 7 then
       p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
+    elseif page == 8 then
+      os8_src_idx   = ((os8_src_idx - 1 + d) % #os8_src_names) + 1   -- routeur 8OS TRANS
     elseif page >= 9 and page <= 12 then
       midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 4)
     elseif page == 13 then
@@ -2895,6 +2930,9 @@ function redraw()
     screen.text(string.format("K3 rate x%.2f", p_poto_rate))
 
   elseif page == 8 then
+    screen.level(10)
+    screen.move(0, 50)
+    screen.text("E2 TRANS src: " .. os8_src_names[os8_src_idx])
     screen.level(os8_rec_n > 0 and 12 or 5)
     screen.move(0, 57)
     screen.text(string.format("8OS bank  %d grains", os8_rec_n))

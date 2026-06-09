@@ -211,12 +211,24 @@ POtO grain parameters.
 
 ---
 
-### Page 8 — CLR8OS
-Confirmation page to clear the 8OS bank.
+### Page 8 — 8OS SRC / CLEAR
+The **TRANS source router** + clear the 8OS bank.
 
-| Key | Function |
+| Encoder / Key | Function |
 |---|---|
+| E2 | **TRANS source** — **INPUT** / **METABO** / **COMP** / **MGEN** |
 | K3 | Clear 8OS bank |
+
+- **TRANS source** (E2): in TRANS mode, the 8OS grains are matched to a "live voice" (pitch + energy + gate). This router chooses **who that live voice is** — the audio **INPUT** (default), **METABO** (the cell), the **COMP**anion's improv, or **MGEN**. So the other modes can drive 8OS's grain matching if you want. Default INPUT = unchanged behaviour.
+
+*Le **routeur de source TRANS** + effacer le bank 8OS.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | **Source TRANS** — **INPUT** / **METABO** / **COMP** / **MGEN** |
+| K3 | Effacer le bank 8OS |
+
+- **Source TRANS** (E2) : en mode TRANS, les grains 8OS sont matchés sur une « voix live » (pitch + énergie + gate). Ce routeur choisit **qui est cette voix** — l'**INPUT** audio (défaut), **METABO** (la cellule), l'impro du **COMP**agnon, ou **MGEN**. Les autres modes peuvent ainsi piloter le matching de 8OS si tu veux. Défaut INPUT = comportement inchangé.
 
 ---
 
