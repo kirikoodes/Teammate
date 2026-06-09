@@ -1237,7 +1237,7 @@ end
 
 local function mgen_gen_all(keep_pos)
   for i = 1, 16 do
-    local si  = math.random(#MGEN_STYLE_NAMES)
+    local si  = mgen_pick_style()
     local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
     mgen_ch[i].style_idx = si
     -- octave initialise ici (seul endroit), jamais ecrase par gen_seq
@@ -2014,6 +2014,47 @@ meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks
 meta_mgen_last  = "--"
 meta_note_inf   = 0      -- 0..1 : METABO impose ses notes a MGEN (page 25 E3)
 
+-- ===== MGEN apprend tes gouts : poids par style (LIKE/DISLIKE, page 27) =====
+mgen_style_w    = {}
+for i = 1, #MGEN_STYLE_NAMES do mgen_style_w[i] = 1.0 end
+mgen_taste_last = "--"
+
+-- tirage de style pondere par les gouts appris
+function mgen_pick_style()
+  local total = 0
+  for i = 1, #MGEN_STYLE_NAMES do total = total + (mgen_style_w[i] or 1) end
+  if total <= 0 then return math.random(#MGEN_STYLE_NAMES) end
+  local r, acc = math.random() * total, 0
+  for i = 1, #MGEN_STYLE_NAMES do
+    acc = acc + (mgen_style_w[i] or 1)
+    if r <= acc then return i end
+  end
+  return math.random(#MGEN_STYLE_NAMES)
+end
+
+-- LIKE (+) / DISLIKE (-) : ajuste les poids des styles actuellement joues
+function mgen_taste(like)
+  local f = like and 1.4 or 0.6
+  local seen, any = {}, false
+  for i = 1, 16 do
+    if mgen_ch[i].on then
+      any = true
+      local si = mgen_ch[i].style_idx
+      if not seen[si] then
+        mgen_style_w[si] = math.max(0.1, math.min(8, mgen_style_w[si] * f))
+        seen[si] = true
+      end
+    end
+  end
+  if not any then   -- aucun channel actif : juge tous les styles courants
+    for i = 1, 16 do
+      local si = mgen_ch[i].style_idx
+      if not seen[si] then mgen_style_w[si] = math.max(0.1, math.min(8, mgen_style_w[si] * f)) ; seen[si] = true end
+    end
+  end
+  mgen_taste_last = like and "LIKED" or "DISLIKED"
+end
+
 -- note la plus proche dans la gamme MGEN courante (rootee sur mgen_root)
 function mgen_snap(note)
   local sc = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
@@ -2234,7 +2275,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 26) + 1
+    page = ((page - 1 + d) % 27) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2362,6 +2403,11 @@ function key(n, z)
     elseif n == 2 then live_all_off() end
     redraw() ; return
   end
+  if page == 27 then
+    if n == 3 then mgen_taste(true)
+    elseif n == 2 then mgen_taste(false) end
+    redraw() ; return
+  end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
     redraw() ; return
@@ -2464,6 +2510,27 @@ function redraw()
   screen.clear()
   screen.aa(0)
 
+  if page == 27 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right(mgen_taste_last)
+    -- classement des styles par gout appris
+    local t = {}
+    for i = 1, #MGEN_STYLE_NAMES do t[#t + 1] = { n = MGEN_STYLE_NAMES[i], w = mgen_style_w[i] or 1 } end
+    table.sort(t, function(a, b) return a.w > b.w end)
+    local maxw = t[1] and t[1].w or 1
+    local ys = { 18, 26, 34, 42, 50 }
+    for k = 1, 5 do
+      local row = t[k]
+      if row then
+        screen.level(8) ; screen.move(2, ys[k]) ; screen.text(row.n)
+        screen.level(4) ; screen.rect(52, ys[k] - 4, 60, 3) ; screen.stroke()
+        screen.level(row.w >= 1 and 13 or 5) ; screen.rect(52, ys[k] - 4, 60 * (row.w / (maxw + 0.001)), 3) ; screen.fill()
+      end
+    end
+    screen.level(4) ; screen.move(2, 62) ; screen.text("K3 like   K2 dislike")
+    screen.update() ; return
+  end
   if page == 26 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
@@ -2563,7 +2630,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/26")
+  screen.text(page .. "/27")
 
   if rec_on then
     screen.level(15)

@@ -74,13 +74,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→26)
+E1        — previous / next page (loops 1→27)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 26 pages
+## The 27 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -781,6 +781,31 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 
 - Modes listés : **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (le compagnon). Chacun affiche son état live. Les modes actifs sont plus lumineux. (Les modes MIDI doivent rester routés une fois — pages 9–12 / 16 / 19 / 23.)
 - **IMPRO** off = le compagnon continue d'**écouter et mémoriser** mais **arrête de répondre** (se tait) ; rallume-le pour relancer le dialogue.
+
+---
+
+### Page 27 — MGEN TASTE
+MGEN **learns your taste**: validate the patterns you like, reject the ones you don't, and future "new themes" lean toward your preferred **styles**.
+
+| Encoder / Key | Function |
+|---|---|
+| K3 | **LIKE** — boost the weight of the currently-playing styles |
+| K2 | **DISLIKE** — lower their weight |
+
+- Each LIKE/DISLIKE adjusts the weight of the **styles** of the active MGEN channels (×1.4 / ×0.6, clamped). 
+- When a new theme is generated (page 13 **K3 START** or **K2 new theme**, or via METABO>MGEN), styles are picked **weighted by your taste** instead of uniformly — so MGEN drifts toward what you've liked and away from what you've rejected.
+- The page shows your **taste profile**: the top styles ranked by learned weight (bars).
+
+*MGEN **apprend tes goûts** : valide les patterns que tu aimes, rejette ceux que tu n'aimes pas — les futurs « new themes » privilégient tes **styles** préférés.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| K3 | **LIKE** — augmente le poids des styles en cours |
+| K2 | **DISLIKE** — baisse leur poids |
+
+- Chaque LIKE/DISLIKE ajuste le poids des **styles** des channels MGEN actifs (×1.4 / ×0.6, borné).
+- À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), les styles sont tirés **pondérés par tes goûts** au lieu d'être uniformes — MGEN dérive vers ce que tu as aimé et évite ce que tu as rejeté.
+- La page affiche ton **profil de goûts** : les styles classés par poids appris (barres).
 
 ---
 
