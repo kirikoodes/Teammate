@@ -2032,6 +2032,29 @@ function mgen_pick_style()
   return math.random(#MGEN_STYLE_NAMES)
 end
 
+-- ===== memoire des gouts : sauvegarde/charge sur la carte (dossier data du script) =====
+function mgen_taste_save()
+  pcall(function()
+    if norns and norns.state and norns.state.data then
+      util.make_dir(norns.state.data)
+      tab.save(mgen_style_w, norns.state.data .. "mgen_taste.data")
+    end
+  end)
+end
+
+function mgen_taste_load()
+  pcall(function()
+    if norns and norns.state and norns.state.data then
+      local t = tab.load(norns.state.data .. "mgen_taste.data")
+      if type(t) == "table" then
+        for i = 1, #MGEN_STYLE_NAMES do
+          if type(t[i]) == "number" then mgen_style_w[i] = t[i] end
+        end
+      end
+    end
+  end)
+end
+
 -- LIKE (+) / DISLIKE (-) : ajuste les poids des styles actuellement joues
 function mgen_taste(like)
   local f = like and 1.4 or 0.6
@@ -2053,6 +2076,7 @@ function mgen_taste(like)
     end
   end
   mgen_taste_last = like and "LIKED" or "DISLIKED"
+  mgen_taste_save()   -- persiste les gouts sur la carte
 end
 
 -- note la plus proche dans la gamme MGEN courante (rootee sur mgen_root)
@@ -2140,6 +2164,7 @@ end
 
 function init()
   math.randomseed(os.time())
+  mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   mgen_gen_all()
   last_sound_t = util.time()
   splash_active = true
@@ -2242,6 +2267,7 @@ function init()
 end
 
 function cleanup()
+  mgen_taste_save()        -- sauve les gouts MGEN
   mgen_stop()
   for v = 1, 6 do
     softcut.rec(v, 0)

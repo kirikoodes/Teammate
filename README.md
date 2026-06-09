@@ -795,6 +795,7 @@ MGEN **learns your taste**: validate the patterns you like, reject the ones you 
 - Each LIKE/DISLIKE adjusts the weight of the **styles** of the active MGEN channels (×1.4 / ×0.6, clamped). 
 - When a new theme is generated (page 13 **K3 START** or **K2 new theme**, or via METABO>MGEN), styles are picked **weighted by your taste** instead of uniformly — so MGEN drifts toward what you've liked and away from what you've rejected.
 - The page shows your **taste profile**: the top styles ranked by learned weight (bars).
+- **Persistent memory**: your taste is saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) on every like/dislike and reloaded on startup — so MGEN remembers your preferences across sessions and reboots.
 
 *MGEN **apprend tes goûts** : valide les patterns que tu aimes, rejette ceux que tu n'aimes pas — les futurs « new themes » privilégient tes **styles** préférés.*
 
@@ -806,6 +807,7 @@ MGEN **learns your taste**: validate the patterns you like, reject the ones you 
 - Chaque LIKE/DISLIKE ajuste le poids des **styles** des channels MGEN actifs (×1.4 / ×0.6, borné).
 - À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), les styles sont tirés **pondérés par tes goûts** au lieu d'être uniformes — MGEN dérive vers ce que tu as aimé et évite ce que tu as rejeté.
 - La page affiche ton **profil de goûts** : les styles classés par poids appris (barres).
+- **Mémoire persistante** : tes goûts sont sauvegardés sur la carte SD du norns (`dust/data/TEAMMATE.POTO/`) à chaque like/dislike et rechargés au démarrage — MGEN se souvient de tes préférences entre les sessions et les reboots.
 
 ---
 
