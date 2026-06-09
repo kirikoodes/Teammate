@@ -835,6 +835,14 @@ MGEN learns the **genre combinations** you like — the full layout of genres ac
 
 ---
 
+## Memory / persistence
+
+All your settings persist across reloads and reboots. They're saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) — automatically every 30 s, on exit, and reloaded on startup. This covers the companion, POtO, 8OS, MGEN (BPM / scale / evo / channels / routing), METABO, NIAKABY, SPAT, the MIDI routing matrix, and the MGEN taste bank. Live run-states (which modes are playing) are **not** restored — the script starts clean and you arm modes from the LIVE page.
+
+*Tous tes réglages persistent entre les rechargements et les reboots — sauvegardés sur la carte SD (`dust/data/TEAMMATE.POTO/`) toutes les 30 s, à la fermeture, et rechargés au démarrage. Les états de jeu (modes en cours) ne sont pas restaurés : le script démarre propre, tu armes les modes depuis la page LIVE.*
+
+---
+
 ## Screen indicators
 
 | Indicator | Meaning |
