@@ -2226,10 +2226,86 @@ function live_all_off()
   for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
+-- ===== MEMOIRE GLOBALE : sauve/recharge TOUS les reglages =====
+function state_save()
+  pcall(function()
+    if not (norns and norns.state and norns.state.data) then return end
+    util.make_dir(norns.state.data)
+    local mon, mmch = {}, {}
+    for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
+    local st = {
+      p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
+      p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
+      p_gate_thr=p_gate_thr, p_sil_min=p_sil_min, p_sil_max=p_sil_max, comp_on=comp_on,
+      p_poto_vol=p_poto_vol, p_poto_spread=p_poto_spread, p_poto_size=p_poto_size,
+      p_poto_poly=p_poto_poly, p_monitor=p_monitor, p_poto_smrt_sens=p_poto_smrt_sens, rate_pidx=rate_pidx,
+      os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread,
+      mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
+      mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
+      midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
+      meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
+      spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
+      m_scale=metabolik.scale_idx, m_oct=metabolik.octave, m_dens=metabolik.density_idx,
+      m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
+      m_react=metabolik.react, m_infl=metabolik.influence_idx,
+      n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
+    }
+    tab.save(st, norns.state.data .. "state.data")
+  end)
+end
+
+function state_load()
+  pcall(function()
+    if not (norns and norns.state and norns.state.data) then return end
+    local st = tab.load(norns.state.data .. "state.data")
+    if type(st) ~= "table" then return end
+    local function g(v, cur) if v ~= nil then return v else return cur end end
+    p_density=g(st.p_density,p_density) ; p_sil_bias=g(st.p_sil_bias,p_sil_bias)
+    p_contrast=g(st.p_contrast,p_contrast) ; p_reply=g(st.p_reply,p_reply)
+    p_rec_prob=g(st.p_rec_prob,p_rec_prob) ; p_voice=g(st.p_voice,p_voice) ; p_deaf=g(st.p_deaf,p_deaf)
+    p_gate_thr=g(st.p_gate_thr,p_gate_thr) ; p_sil_min=g(st.p_sil_min,p_sil_min) ; p_sil_max=g(st.p_sil_max,p_sil_max)
+    comp_on=g(st.comp_on,comp_on)
+    if st.p_rhythm_idx then p_rhythm_idx=st.p_rhythm_idx ; p_rhythm=RHYTHM_RATES[p_rhythm_idx] or p_rhythm end
+    p_poto_vol=g(st.p_poto_vol,p_poto_vol) ; p_poto_spread=g(st.p_poto_spread,p_poto_spread)
+    p_poto_size=g(st.p_poto_size,p_poto_size) ; p_poto_poly=g(st.p_poto_poly,p_poto_poly)
+    p_monitor=g(st.p_monitor,p_monitor) ; p_poto_smrt_sens=g(st.p_poto_smrt_sens,p_poto_smrt_sens)
+    if st.rate_pidx then rate_pidx=st.rate_pidx ; p_poto_rate=RATE_PRESETS[rate_pidx] or p_poto_rate end
+    os8_vol=g(st.os8_vol,os8_vol) ; os8_size=g(st.os8_size,os8_size) ; os8_sync=g(st.os8_sync,os8_sync)
+    os8_pitch=g(st.os8_pitch,os8_pitch) ; os8_spread=g(st.os8_spread,os8_spread)
+    if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
+    if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
+    mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
+    if st.mgen_mut_idx then mgen_mut_idx=st.mgen_mut_idx ; mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx] or mgen_mut_rate end
+    mgen_evo_meta=g(st.mgen_evo_meta,mgen_evo_meta) ; mgen_recall=g(st.mgen_recall,mgen_recall)
+    audio_midi_on=g(st.audio_midi_on,audio_midi_on)
+    if type(st.mgen_on)=="table" then for i=1,16 do
+      if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
+      if st.mgen_mch and st.mgen_mch[i] then mgen_ch[i].midi_ch=st.mgen_mch[i] end
+    end end
+    if type(st.midi_route)=="table" then for s=1,7 do if type(st.midi_route[s])=="table" and midi_route[s] then
+      for d=1,4 do if st.midi_route[s][d]~=nil then midi_route[s][d]=st.midi_route[s][d] end end end end end
+    if type(st.midi_ch)=="table" then for s=1,7 do if type(st.midi_ch[s])=="table" and midi_ch[s] then
+      for d=1,4 do if st.midi_ch[s][d] then midi_ch[s][d]=st.midi_ch[s][d] end end end end end
+    if type(st.midi_ch_audio)=="table" then for d=1,4 do if st.midi_ch_audio[d] then midi_ch_audio[d]=st.midi_ch_audio[d] end end end
+    meta_mgen_drive=g(st.meta_drive,meta_mgen_drive) ; meta_mgen_scope=g(st.meta_scope,meta_mgen_scope) ; meta_note_inf=g(st.meta_note,meta_note_inf)
+    spat.mode=g(st.spat_mode,spat.mode) ; spat.mass=g(st.spat_mass,spat.mass) ; spat.tempo=g(st.spat_tempo,spat.tempo)
+    metabolik.scale_idx=g(st.m_scale,metabolik.scale_idx) ; metabolik.octave=g(st.m_oct,metabolik.octave)
+    metabolik.density_idx=g(st.m_dens,metabolik.density_idx) ; metabolik.persona_idx=g(st.m_pers,metabolik.persona_idx)
+    metabolik.follow_amt=g(st.m_follow,metabolik.follow_amt) ; metabolik.feed_idx=g(st.m_feed,metabolik.feed_idx)
+    metabolik.react=g(st.m_react,metabolik.react) ; metabolik.influence_idx=g(st.m_infl,metabolik.influence_idx)
+    niakaby.scale_idx=g(st.n_scale,niakaby.scale_idx) ; niakaby.octave=g(st.n_oct,niakaby.octave)
+    niakaby.chord_idx=g(st.n_chord,niakaby.chord_idx)
+    if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
+  end)
+end
+
 function init()
   math.randomseed(os.time())
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   mgen_gen_all()
+  state_load()             -- recharge TOUS les reglages sauvegardes
+  pcall(function() audio.level_monitor(p_monitor) end)
+  clock.run(function() while true do clock.sleep(30) ; state_save() end end)  -- sauvegarde periodique
   last_sound_t = util.time()
   splash_active = true
   clock.run(function() clock.sleep(3.0) ; splash_active = false end)
@@ -2333,6 +2409,7 @@ end
 
 function cleanup()
   mgen_taste_save()        -- sauve les gouts MGEN
+  state_save()             -- sauve tous les reglages
   mgen_stop()
   for v = 1, 6 do
     softcut.rec(v, 0)
