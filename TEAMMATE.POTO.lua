@@ -2519,11 +2519,9 @@ function key(n, z)
   elseif n == 2 and page == 6 then
     os8_sync = not os8_sync
   elseif n == 2 and page == 8 then
-    if os8_src_cursor <= #os8_src_keys then
-      local k = os8_src_keys[os8_src_cursor] ; os8_src[k] = not os8_src[k]
-    else
-      os8_pitch = not os8_pitch
-    end
+    -- K2 = tout activer / tout couper (sources)
+    local all = os8_src.input and os8_src.metabo and os8_src.comp and os8_src.mgen
+    for _, k in ipairs(os8_src_keys) do os8_src[k] = not all end
   elseif n == 2 and page == 14 then
     -- cycle : 0 / 5 / 12 / 22 / 40% (manuel) puis META (pilote par le stress METABO)
     mgen_mut_idx = (mgen_mut_idx % (#MGEN_MUT_RATES + 1)) + 1
@@ -2588,6 +2586,13 @@ function key(n, z)
     elseif page == 7 then
       rate_pidx = (rate_pidx % #RATE_PRESETS) + 1
       p_poto_rate = RATE_PRESETS[rate_pidx]
+    elseif page == 8 then
+      -- K3 = active/coupe l'element surligne (meme logique que les autres pages de routing)
+      if os8_src_cursor <= #os8_src_keys then
+        local k = os8_src_keys[os8_src_cursor] ; os8_src[k] = not os8_src[k]
+      else
+        os8_pitch = not os8_pitch
+      end
     elseif page >= 9 and page <= 12 then
       local dev = page - 8
       midi_route[midi_cur_stream][dev] = not midi_route[midi_cur_stream][dev]
@@ -2688,7 +2693,7 @@ function redraw()
     end
     screen.level(os8_spread > 0 and 10 or 4) ; screen.move(66, 48)
     screen.text(string.format("spr %d%%", math.floor(os8_spread * 100)))
-    screen.level(4) ; screen.move(2, 62) ; screen.text("E2 sel   K2 tgl   E3 spread")
+    screen.level(4) ; screen.move(2, 62) ; screen.text("E2 sel  K3 tgl  K2 all")
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end

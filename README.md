@@ -218,7 +218,8 @@ The **TRANS source router** (combinable), a **PITCH** improvement and a stereo *
 |---|---|
 | E2 | Move cursor (INPUT / METABO / COMP / MGEN / PITCH) |
 | E3 | Stereo spread of the 3 TRANS voices (0–100%) |
-| K2 | Toggle the highlighted item ON/OFF |
+| K3 | Toggle the highlighted item ON/OFF |
+| K2 | All sources on / off |
 
 - **TRANS sources** (combinable): in TRANS mode the grains are matched to a "live voice" (pitch + energy + gate). Toggle any combination of **INPUT** (audio), **METABO** (the cell), **COMP** (the companion's improv), **MGEN** — when several are active, the **loudest leads**. Default INPUT only = unchanged behaviour.
 - **PITCH** (improvement): when on, each grain is **transposed to match the target note** (±2 octaves) — 8OS *sings the source's melody* with its sampled material, instead of only picking the nearest grain. Off = grains play at their original pitch.
@@ -230,7 +231,8 @@ The **TRANS source router** (combinable), a **PITCH** improvement and a stereo *
 |---|---|
 | E2 | Déplacer le curseur (INPUT / METABO / COMP / MGEN / PITCH) |
 | E3 | Spread stéréo des 3 voix TRANS (0–100%) |
-| K2 | Activer / couper l'élément surligné |
+| K3 | Activer / couper l'élément surligné |
+| K2 | Toutes les sources on / off |
 
 - **Sources TRANS** (combinables) : en TRANS, les grains sont matchés sur une « voix live » (pitch + énergie + gate). Active n'importe quelle combinaison de **INPUT** (audio), **METABO** (la cellule), **COMP** (l'impro du compagnon), **MGEN** — quand plusieurs sont actives, la **plus forte mène**. Défaut INPUT seul = inchangé.
 - **PITCH** (amélioration) : activé, chaque grain est **transposé pour coller à la note cible** (±2 octaves) — 8OS *chante la mélodie de la source* avec sa matière échantillonnée, au lieu de juste choisir le grain le plus proche. Off = grains à leur hauteur d'origine.
