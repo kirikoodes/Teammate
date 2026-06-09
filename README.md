@@ -733,11 +733,13 @@ A mode where **METABO randomly shakes up the MIDI GEN sequencer** — the living
 
 | Encoder / Key | Function |
 |---|---|
-| E2 | Drive — intensity 0–100% (0 = off) |
+| E2 | Drive — random-shake intensity 0–100% (0 = off) |
+| E3 | Note — METABO imposes its notes on MGEN 0–100% |
 | K2 | Scope — **LIGHT** / **FULL** |
 | K3 | Shake now (manual trigger) |
 
-- **Drive** (E2): how often METABO disrupts MGEN. The actual frequency = drive × the cell's **stress** — a calm cell rarely touches MGEN, a stressed cell shakes it constantly. Only acts while MGEN is running.
+- **Drive** (E2): how often METABO disrupts MGEN (regen / themes / breaks / styles). The actual frequency = drive × the cell's **stress** — a calm cell rarely touches MGEN, a stressed cell shakes it constantly. Only acts while MGEN is running.
+- **Note** (E3): how much **METABO drives the actual pitches** of MGEN. At each MGEN note, with probability = this amount, the note is replaced by **METABO's current note** (snapped to the MGEN scale, kept in MGEN's register) — the cell "sings through" MGEN's groove. 0 = MGEN keeps its own notes.
 - **Scope**: **LIGHT** = regenerate a random channel / change scale. **FULL** = also new themes, fire **breaks**, swap **styles**.
 - **K3** fires one random change immediately (works anytime). The last action is shown (`last: …`).
 
@@ -745,11 +747,13 @@ A mode where **METABO randomly shakes up the MIDI GEN sequencer** — the living
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| E2 | Drive — intensité 0–100% (0 = off) |
+| E2 | Drive — intensité des secousses 0–100% (0 = off) |
+| E3 | Note — METABO impose ses notes à MGEN 0–100% |
 | K2 | Portée — **LIGHT** / **FULL** |
 | K3 | Secouer maintenant (déclenche à la main) |
 
-- **Drive** (E2) : à quelle fréquence METABO bouscule MGEN. La fréquence réelle = drive × le **stress** de la cellule — calme = rare, stressée = secousses constantes. N'agit que si MGEN tourne.
+- **Drive** (E2) : à quelle fréquence METABO bouscule MGEN (regen / thèmes / breaks / styles). La fréquence réelle = drive × le **stress** de la cellule — calme = rare, stressée = secousses constantes. N'agit que si MGEN tourne.
+- **Note** (E3) : à quel point **METABO impose les hauteurs** de MGEN. À chaque note de MGEN, avec une probabilité = cette valeur, la note est remplacée par **la note courante de METABO** (recalée dans la gamme MGEN, registre gardé) — la cellule « chante à travers » le groove de MGEN. 0 = MGEN garde ses notes.
 - **Portée** : **LIGHT** = régénère un channel / change la gamme. **FULL** = aussi nouveaux thèmes, **breaks**, swaps de **styles**.
 - **K3** déclenche un changement au hasard tout de suite (à tout moment). La dernière action est affichée (`last: …`).
 

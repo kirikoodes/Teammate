@@ -1367,6 +1367,14 @@ local function mgen_start()
             if active then
               local nn, gd = note, sd * gate
               local mc = ch.midi_ch
+              -- METABO impose sa note (recalee gamme MGEN, registre garde) selon meta_note_inf
+              if meta_note_inf > 0 and metabolik.on and meta_freq > 30
+                 and math.random() < meta_note_inf then
+                local cnote = math.floor(69 + 12 * math.log(meta_freq / 440) / math.log(2) + 0.5)
+                while cnote < nn - 6 do cnote = cnote + 12 end
+                while cnote > nn + 6 do cnote = cnote - 12 end
+                nn = mgen_snap(cnote)
+              end
               -- nourrit METABO (mode COMP) : note -> freq, vel -> energie
               companion_feed(vel / 700, 440 * 2 ^ ((nn - 69) / 12), nn * 45, 0.1)
               -- capture pour NIAKABY (source MGEN)
@@ -2001,6 +2009,22 @@ _niaka_ok = nil ; _niaka_mod = nil
 meta_mgen_drive = 0      -- 0..1 intensite (0 = off)
 meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks, styles)
 meta_mgen_last  = "--"
+meta_note_inf   = 0      -- 0..1 : METABO impose ses notes a MGEN (page 25 E3)
+
+-- note la plus proche dans la gamme MGEN courante (rootee sur mgen_root)
+function mgen_snap(note)
+  local sc = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+  local L = #sc
+  local best, bd = note, 999
+  for o = -2, 8 do
+    for i = 1, L do
+      local cand = mgen_root + o * 12 + sc[i]
+      local dd = math.abs(cand - note)
+      if dd < bd then bd = dd ; best = cand end
+    end
+  end
+  return best
+end
 function meta_shake_mgen()
   local r = math.random()
   if meta_mgen_scope == 1 then
@@ -2211,6 +2235,7 @@ function enc(n, d)
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
     end
   elseif n == 3 then
+    if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
     if page == 1 then
       p_gate_thr    = util.clamp(p_gate_thr    + d * 0.001, 0.0001, 0.05)
     elseif page == 2 then
@@ -2415,15 +2440,19 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("METABO>MGEN")
     screen.move(126, 8) ; screen.text_right(mgen_running and "RUN" or "off")
-    screen.level(4)  ; screen.move(2, 22) ; screen.text("E2 DRIVE")
-    screen.level(15) ; screen.move(74, 22) ; screen.text(string.format("%d%%", math.floor(meta_mgen_drive * 100)))
-    screen.level(4)  ; screen.rect(2, 25, 120, 2) ; screen.stroke()
-    screen.level(12) ; screen.rect(2, 25, 120 * meta_mgen_drive, 2) ; screen.fill()
-    screen.level(4)  ; screen.move(2, 40) ; screen.text("K2 SCOPE")
-    screen.level(15) ; screen.move(74, 40) ; screen.text(meta_mgen_scope == 2 and "FULL" or "LIGHT")
-    screen.level(4)  ; screen.move(2, 52) ; screen.text("last:")
-    screen.level(10) ; screen.move(32, 52) ; screen.text(meta_mgen_last or "--")
-    screen.level(4)  ; screen.move(2, 63) ; screen.text("E2 drive K2 scope K3 shake")
+    screen.level(4)  ; screen.move(2, 20) ; screen.text("E2 DRIVE")
+    screen.level(15) ; screen.move(74, 20) ; screen.text(string.format("%d%%", math.floor(meta_mgen_drive * 100)))
+    screen.level(4)  ; screen.rect(2, 23, 120, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 23, 120 * meta_mgen_drive, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 34) ; screen.text("E3 NOTE")
+    screen.level(15) ; screen.move(74, 34) ; screen.text(string.format("%d%%", math.floor(meta_note_inf * 100)))
+    screen.level(4)  ; screen.rect(2, 37, 120, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 37, 120 * meta_note_inf, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 48) ; screen.text("K2 SCOPE")
+    screen.level(15) ; screen.move(74, 48) ; screen.text(meta_mgen_scope == 2 and "FULL" or "LIGHT")
+    screen.level(4)  ; screen.move(2, 58) ; screen.text("last:")
+    screen.level(10) ; screen.move(32, 58) ; screen.text(meta_mgen_last or "--")
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 shake now")
     screen.update() ; return
   end
 
