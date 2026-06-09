@@ -1236,8 +1236,12 @@ local function mgen_gen_seq(ci)
 end
 
 local function mgen_gen_all(keep_pos)
+  -- SYNTHESE : on tire une palette de quelques genres (selon tes gouts), melangee sur les 16 channels
+  local palette = {}
+  local npal = 2 + math.random(0, 2)   -- 2..4 genres qui se melangent dans le theme
+  for _ = 1, npal do palette[#palette + 1] = mgen_pick_style() end
   for i = 1, 16 do
-    local si  = mgen_pick_style()   -- style pondere par ton profil de genres (synthese globale)
+    local si  = palette[math.random(#palette)]   -- chaque channel pioche dans la palette commune
     local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
     mgen_ch[i].style_idx = si
     -- octave initialise ici (seul endroit), jamais ecrase par gen_seq
