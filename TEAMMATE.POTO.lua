@@ -268,6 +268,7 @@ local mgen_tap_times = {}   -- tap tempo : horodatages des derniers taps
 local mgen_mut_idx   = 3
 local MGEN_MUT_RATES = {0, 0.05, 0.12, 0.22, 0.40}
 local mgen_mut_rate  = MGEN_MUT_RATES[mgen_mut_idx]
+mgen_evo_meta        = false   -- Evo pilote par METABO (mode META, global)
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -1256,13 +1257,22 @@ local function mgen_gen_all(keep_pos)
   end
 end
 
+-- taux d'evolution effectif : soit le reglage manuel, soit pilote par METABO (mode META)
+function mgen_eff_mut()
+  if mgen_evo_meta then
+    return (metabolik and metabolik.on) and (metabolik.stressFx or 0) * 0.5 or 0
+  end
+  return mgen_mut_rate
+end
+
 local function mgen_mutate_seq(ci)
   local ch  = mgen_ch[ci]
   local sn  = MGEN_STYLE_NAMES[ch.style_idx]
   local def = MGEN_STYLE_DEF[sn]
   local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+  local mr  = mgen_eff_mut()
   for s = 1, #ch.seq do
-    if math.random() > mgen_mut_rate then goto next_step end
+    if math.random() > mr then goto next_step end
     local step = ch.seq[s]
     local r = math.random()
     if r < 0.38 then
@@ -1402,7 +1412,7 @@ local function mgen_start()
           ch.step_cur = (ch.step_cur % ch.steps) + 1
           if ch.step_cur == 1 then
             if ch.brk then ch.brk = false end
-            if mgen_mut_rate > 0 then mgen_mutate_seq(i) end
+            if mgen_eff_mut() > 0 then mgen_mutate_seq(i) end
           end
         end
       end
@@ -2460,8 +2470,13 @@ function key(n, z)
   elseif n == 2 and page == 6 then
     os8_sync = not os8_sync
   elseif n == 2 and page == 14 then
-    mgen_mut_idx  = (mgen_mut_idx % #MGEN_MUT_RATES) + 1
-    mgen_mut_rate = MGEN_MUT_RATES[mgen_mut_idx]
+    -- cycle : 0 / 5 / 12 / 22 / 40% (manuel) puis META (pilote par le stress METABO)
+    mgen_mut_idx = (mgen_mut_idx % (#MGEN_MUT_RATES + 1)) + 1
+    if mgen_mut_idx > #MGEN_MUT_RATES then
+      mgen_evo_meta = true
+    else
+      mgen_evo_meta = false ; mgen_mut_rate = MGEN_MUT_RATES[mgen_mut_idx]
+    end
   elseif n == 2 and page == 17 then
     spat.mode = (spat.mode % #SPAT_MODES) + 1
   elseif n == 2 and page == 13 then
@@ -2749,9 +2764,9 @@ function redraw()
   end
   -- indicateurs de mode sur la meme ligne, a droite
   if page == 14 then
-    screen.level(mgen_mut_rate > 0 and 9 or 3)
+    screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 9 or 3)
     screen.move(84, 37)
-    screen.text(string.format("~%d%% K2", math.floor(mgen_mut_rate * 100)))
+    screen.text(mgen_evo_meta and "META K2" or string.format("~%d%% K2", math.floor(mgen_mut_rate * 100)))
   elseif p_voice or p_deaf then
     screen.level(12)
     screen.move(104, 37)
@@ -2945,9 +2960,9 @@ function redraw()
       screen.text(#mgen_tap_times >= 2 and
         string.format("TAP %d", #mgen_tap_times) or "K2:tap")
     end
-    screen.level(mgen_mut_rate > 0 and 8 or 3)
+    screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 8 or 3)
     screen.move(80, 44)
-    screen.text(string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
+    screen.text(mgen_evo_meta and "META" or string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
 
   elseif page == 14 then
     local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL","CLUB","KPOP","ORNT","RAVE","TRNC"}

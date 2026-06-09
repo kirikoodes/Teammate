@@ -279,10 +279,10 @@ Per-channel configuration. Shows 4 channels at a time, scrolls automatically wit
 |---|---|
 | E2 | Select channel (1–16) |
 | E3 | Style for selected channel — regenerates its sequence |
-| K2 | Evo rate — cycle 0 / 5 / 12 / 22 / 40% mutation per step per cycle |
+| K2 | Evo rate — cycle 0 / 5 / 12 / 22 / 40% / **META** mutation per step per cycle |
 | K3 | Toggle selected channel ON / OFF |
 
-**Evo mode**: each time a channel completes a full cycle, each step has a chance of mutating — notes drift to an adjacent scale degree, gates and velocities shift slightly. At 12% (default) sequences evolve slowly and organically. At 40% they transform fast. At 0% they stay fixed.
+**Evo mode**: each time a channel completes a full cycle, each step has a chance of mutating — notes drift to an adjacent scale degree, gates and velocities shift slightly. At 12% (default) sequences evolve slowly and organically. At 40% they transform fast. At 0% they stay fixed. **META** (last step of the K2 cycle) connects the evolution to METABO: the live mutation rate follows the **cell's stress** (calm = frozen, stressed = mutates a lot) — toggleable by cycling K2 off META.
 
 **Styles:**
 
@@ -312,10 +312,10 @@ Per-channel configuration. Shows 4 channels at a time, scrolls automatically wit
 |---|---|
 | E2 | Sélectionner le channel (1–16) |
 | E3 | Style du channel sélectionné — régénère sa séquence |
-| K2 | Taux Evo — cycle 0 / 5 / 12 / 22 / 40% de mutation par step par cycle |
+| K2 | Taux Evo — cycle 0 / 5 / 12 / 22 / 40% / **META** de mutation par step par cycle |
 | K3 | Activer / désactiver le channel sélectionné |
 
-**Mode Evo** : à chaque fin de cycle, chaque step a une chance de muter — les notes glissent vers un degré voisin dans la gamme, gates et vélocités dérivent légèrement. À 12% (défaut) les séquences évoluent lentement. À 40% elles se transforment vite. À 0% elles restent fixes.
+**Mode Evo** : à chaque fin de cycle, chaque step a une chance de muter — les notes glissent vers un degré voisin dans la gamme, gates et vélocités dérivent légèrement. À 12% (défaut) les séquences évoluent lentement. À 40% elles se transforment vite. À 0% elles restent fixes. **META** (dernier cran du cycle K2) connecte l'évolution à METABO : le taux de mutation suit le **stress de la cellule** (calme = figé, stressé = mute beaucoup) — désactivable en cyclant K2 hors META.
 
 **Styles :**
 
