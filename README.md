@@ -785,29 +785,29 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 ---
 
 ### Page 27 — MGEN TASTE
-MGEN **learns your taste in scales**: validate the scale you like, reject the one you don't, and future "new themes" pick the **scale** weighted by your preferences.
+MGEN **learns your taste in genres** — a **global synthesis across all channels**, not single notes. Validate the themes you like, reject the ones you don't, and future "new themes" lean toward your preferred **mix of styles**.
 
 | Encoder / Key | Function |
 |---|---|
-| K3 | **LIKE** — boost the weight of the current scale |
-| K2 | **DISLIKE** — lower its weight |
+| K3 | **LIKE** — boost the genres (styles) of the whole current theme |
+| K2 | **DISLIKE** — lower them |
 
-- LIKE/DISLIKE adjusts the weight of the **current MGEN scale** (×1.4 / ×0.6, clamped). The scale being judged is marked `>` in the list.
-- When a new theme is generated (page 13 **K3 START** / **K2 new theme**, or via METABO>MGEN), the **scale is chosen weighted by your taste** — MGEN drifts toward the scales you've liked and away from the ones you've rejected. You can still set the scale manually anytime (page 13 E3).
-- The page shows your **taste profile**: all scales ranked by learned weight (bars).
-- **Persistent memory**: your taste is saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) on every like/dislike and reloaded on startup — MGEN remembers across sessions and reboots.
+- LIKE/DISLIKE judges the **blend of styles across all 16 channels** (the global genre of the theme) — each style present is nudged ×1.4 / ×0.6 (clamped).
+- When a new theme is generated (page 13 **K3 START** / **K2 new theme**, or via METABO>MGEN), each channel's style is picked **weighted by your genre profile** — MGEN drifts toward the genre mixes you've liked and away from the ones you've rejected.
+- The page shows your **genre profile**: the top styles ranked by learned weight (bars).
+- **Persistent memory**: saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) on every like/dislike and reloaded on startup.
 
-*MGEN **apprend tes goûts en gammes** : valide la gamme que tu aimes, rejette celle que tu n'aimes pas — les futurs « new themes » choisissent la **gamme** pondérée par tes préférences.*
+*MGEN **apprend tes goûts en genres** — une **synthèse globale sur tous les channels**, pas des notes isolées. Valide les thèmes que tu aimes, rejette ceux que tu n'aimes pas — les futurs « new themes » privilégient ton **mélange de styles** préféré.*
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| K3 | **LIKE** — augmente le poids de la gamme courante |
-| K2 | **DISLIKE** — baisse son poids |
+| K3 | **LIKE** — favorise les genres (styles) de tout le thème courant |
+| K2 | **DISLIKE** — les défavorise |
 
-- LIKE/DISLIKE ajuste le poids de la **gamme MGEN courante** (×1.4 / ×0.6, borné). La gamme jugée est marquée `>` dans la liste.
-- À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), la **gamme est tirée pondérée par tes goûts** — MGEN dérive vers les gammes aimées et évite celles rejetées. Tu peux toujours fixer la gamme à la main (page 13 E3).
-- La page affiche ton **profil de goûts** : toutes les gammes classées par poids appris (barres).
-- **Mémoire persistante** : tes goûts sont sauvegardés sur la carte SD du norns (`dust/data/TEAMMATE.POTO/`) à chaque like/dislike et rechargés au démarrage — MGEN se souvient entre les sessions et les reboots.
+- LIKE/DISLIKE juge le **blend de styles des 16 channels** (le genre global du thème) — chaque style présent est ajusté ×1.4 / ×0.6 (borné).
+- À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), le style de chaque channel est tiré **pondéré par ton profil de genres** — MGEN dérive vers les mélanges de genres aimés et évite ceux rejetés.
+- La page affiche ton **profil de genres** : les top styles classés par poids appris (barres).
+- **Mémoire persistante** : sauvegardé sur la carte SD (`dust/data/TEAMMATE.POTO/`) à chaque like/dislike, rechargé au démarrage.
 
 ---
 

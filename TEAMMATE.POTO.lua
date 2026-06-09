@@ -1236,9 +1236,8 @@ local function mgen_gen_seq(ci)
 end
 
 local function mgen_gen_all(keep_pos)
-  mgen_scale_idx = mgen_pick_scale()   -- gamme choisie selon tes gouts appris
   for i = 1, 16 do
-    local si  = math.random(#MGEN_STYLE_NAMES)
+    local si  = mgen_pick_style()   -- style pondere par ton profil de genres (synthese globale)
     local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
     mgen_ch[i].style_idx = si
     -- octave initialise ici (seul endroit), jamais ecrase par gen_seq
@@ -2014,22 +2013,23 @@ meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks
 meta_mgen_last  = "--"
 meta_note_inf   = 0      -- 0..1 : METABO impose ses notes a MGEN (page 25 E3)
 
--- ===== MGEN apprend tes gouts : poids par GAMME (LIKE/DISLIKE, page 27) =====
-mgen_scale_w    = {}
-for i = 1, #MGEN_SCALE_NAMES do mgen_scale_w[i] = 1.0 end
+-- ===== MGEN apprend tes gouts : profil de GENRES (synthese globale, LIKE/DISLIKE, page 27) =====
+-- on juge le BLEND de styles de TOUS les channels (le genre global du theme), pas une note.
+mgen_style_w    = {}
+for i = 1, #MGEN_STYLE_NAMES do mgen_style_w[i] = 1.0 end
 mgen_taste_last = "--"
 
--- tirage de gamme pondere par les gouts appris
-function mgen_pick_scale()
+-- tirage de style pondere par le profil de genres appris
+function mgen_pick_style()
   local total = 0
-  for i = 1, #MGEN_SCALE_NAMES do total = total + (mgen_scale_w[i] or 1) end
-  if total <= 0 then return math.random(#MGEN_SCALE_NAMES) end
+  for i = 1, #MGEN_STYLE_NAMES do total = total + (mgen_style_w[i] or 1) end
+  if total <= 0 then return math.random(#MGEN_STYLE_NAMES) end
   local r, acc = math.random() * total, 0
-  for i = 1, #MGEN_SCALE_NAMES do
-    acc = acc + (mgen_scale_w[i] or 1)
+  for i = 1, #MGEN_STYLE_NAMES do
+    acc = acc + (mgen_style_w[i] or 1)
     if r <= acc then return i end
   end
-  return math.random(#MGEN_SCALE_NAMES)
+  return math.random(#MGEN_STYLE_NAMES)
 end
 
 -- ===== memoire des gouts : sauvegarde/charge sur la carte (dossier data du script) =====
@@ -2037,7 +2037,7 @@ function mgen_taste_save()
   pcall(function()
     if norns and norns.state and norns.state.data then
       util.make_dir(norns.state.data)
-      tab.save(mgen_scale_w, norns.state.data .. "mgen_taste_scale.data")
+      tab.save(mgen_style_w, norns.state.data .. "mgen_taste_genre.data")
     end
   end)
 end
@@ -2045,21 +2045,28 @@ end
 function mgen_taste_load()
   pcall(function()
     if norns and norns.state and norns.state.data then
-      local t = tab.load(norns.state.data .. "mgen_taste_scale.data")
+      local t = tab.load(norns.state.data .. "mgen_taste_genre.data")
       if type(t) == "table" then
-        for i = 1, #MGEN_SCALE_NAMES do
-          if type(t[i]) == "number" then mgen_scale_w[i] = t[i] end
+        for i = 1, #MGEN_STYLE_NAMES do
+          if type(t[i]) == "number" then mgen_style_w[i] = t[i] end
         end
       end
     end
   end)
 end
 
--- LIKE (+) / DISLIKE (-) : ajuste le poids de la GAMME courante
+-- LIKE (+) / DISLIKE (-) : synthese globale -> juge les styles de TOUS les channels du theme
 function mgen_taste(like)
   local f = like and 1.4 or 0.6
-  mgen_scale_w[mgen_scale_idx] = math.max(0.1, math.min(8, mgen_scale_w[mgen_scale_idx] * f))
-  mgen_taste_last = (like and "LIKE " or "DISLIKE ") .. MGEN_SCALE_NAMES[mgen_scale_idx]
+  local seen = {}
+  for i = 1, 16 do
+    local si = mgen_ch[i].style_idx
+    if not seen[si] then
+      mgen_style_w[si] = math.max(0.1, math.min(8, mgen_style_w[si] * f))
+      seen[si] = true
+    end
+  end
+  mgen_taste_last = like and "LIKE" or "DISLIKE"
   mgen_taste_save()   -- persiste les gouts sur la carte
 end
 
@@ -2524,18 +2531,19 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
     screen.level(8)  ; screen.move(126, 8) ; screen.text_right("K3+  K2-")
-    -- classement des GAMMES par gout appris (la gamme courante est marquee)
+    -- profil de GENRES (synthese globale) : top styles par gout appris
     local t = {}
-    for i = 1, #MGEN_SCALE_NAMES do t[#t + 1] = { n = MGEN_SCALE_NAMES[i], w = mgen_scale_w[i] or 1, cur = (i == mgen_scale_idx) } end
+    for i = 1, #MGEN_STYLE_NAMES do t[#t + 1] = { n = MGEN_STYLE_NAMES[i], w = mgen_style_w[i] or 1 } end
     table.sort(t, function(a, b) return a.w > b.w end)
     local maxw = t[1] and t[1].w or 1
     local ys = { 18, 25, 32, 39, 46, 53, 60 }
-    for k = 1, #t do
+    for k = 1, 7 do
       local row = t[k]
-      screen.level(row.cur and 15 or 8) ; screen.move(2, ys[k])
-      screen.text((row.cur and ">" or " ") .. row.n)
-      screen.level(4) ; screen.rect(58, ys[k] - 4, 56, 3) ; screen.stroke()
-      screen.level(row.w >= 1 and 13 or 5) ; screen.rect(58, ys[k] - 4, 56 * (row.w / (maxw + 0.001)), 3) ; screen.fill()
+      if row then
+        screen.level(8) ; screen.move(2, ys[k]) ; screen.text(row.n)
+        screen.level(4) ; screen.rect(62, ys[k] - 4, 56, 3) ; screen.stroke()
+        screen.level(row.w >= 1 and 13 or 5) ; screen.rect(62, ys[k] - 4, 56 * (row.w / (maxw + 0.001)), 3) ; screen.fill()
+      end
     end
     screen.update() ; return
   end
