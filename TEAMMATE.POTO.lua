@@ -1665,6 +1665,7 @@ end
 -- respond
 ---------------------------------------------------------------------
 local function respond(ref_n)
+  if not comp_on then return end          -- compagnon coupe (LIVE) : ecoute mais se tait
   local s = pick_strat()
   strat_name = s
   last_strat = s
@@ -2055,8 +2056,9 @@ end
 
 -- ===== PAGE LIVE : armer/couper les modes en un seul endroit (set live) =====
 audio_midi_on = true     -- Audio->MIDI actif (si route page 16) ; armable depuis LIVE
+comp_on = true           -- compagnon (impro corpus) repond ; off = ecoute mais se tait
 live_cursor = 1
-LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO" }
+LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO" }
 
 function live_toggle(i)
   if i == 1 then
@@ -2077,6 +2079,9 @@ function live_toggle(i)
     if not niakaby.on then niakaby.release() end
   elseif i == 7 then
     audio_midi_on = not audio_midi_on
+  elseif i == 8 then
+    comp_on = not comp_on
+    if not comp_on then midi_cc_all(1, 123, 0) end   -- relache l'impro
   end
 end
 
@@ -2088,6 +2093,7 @@ function live_all_off()
   metabolik.on = false
   if niakaby.on then niakaby.on = false ; niakaby.release() end
   audio_midi_on = false
+  comp_on = false
   for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
@@ -2464,10 +2470,11 @@ function redraw()
     screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 panic")
     local states = { p_poto_on and "ON" or "off", os8_mode, mgen_running and "ON" or "off",
                      spat.on and "ON" or "off", metabolik.on and "ON" or "off",
-                     niakaby.on and "ON" or "off", audio_midi_on and "ON" or "off" }
+                     niakaby.on and "ON" or "off", audio_midi_on and "ON" or "off",
+                     comp_on and "ON" or "off" }
     local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
-                     niakaby.on, audio_midi_on }
-    local ys     = { 18, 25, 32, 39, 46, 53, 60 }
+                     niakaby.on, audio_midi_on, comp_on }
+    local ys     = { 14, 21, 28, 35, 42, 49, 56, 63 }
     for i = 1, #LIVE_NAMES do
       local sel = (i == live_cursor)
       screen.level(sel and 15 or (ons[i] and 11 or 4))
