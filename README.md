@@ -212,23 +212,27 @@ POtO grain parameters.
 ---
 
 ### Page 8 — 8OS SRC / CLEAR
-The **TRANS source router** + clear the 8OS bank.
+The **TRANS source router** (combinable) + a **PITCH** improvement + clear the bank.
 
 | Encoder / Key | Function |
 |---|---|
-| E2 | **TRANS source** — **INPUT** / **METABO** / **COMP** / **MGEN** |
+| E2 | Move cursor (INPUT / METABO / COMP / MGEN / PITCH) |
+| K2 | Toggle the highlighted item ON/OFF |
 | K3 | Clear 8OS bank |
 
-- **TRANS source** (E2): in TRANS mode, the 8OS grains are matched to a "live voice" (pitch + energy + gate). This router chooses **who that live voice is** — the audio **INPUT** (default), **METABO** (the cell), the **COMP**anion's improv, or **MGEN**. So the other modes can drive 8OS's grain matching if you want. Default INPUT = unchanged behaviour.
+- **TRANS sources** (combinable): in TRANS mode the grains are matched to a "live voice" (pitch + energy + gate). Toggle any combination of **INPUT** (audio), **METABO** (the cell), **COMP** (the companion's improv), **MGEN** — when several are active, the **loudest leads**. Default INPUT only = unchanged behaviour.
+- **PITCH** (improvement): when on, each grain is **transposed to match the target note** (±2 octaves) — 8OS *sings the source's melody* with its sampled material, instead of only picking the nearest grain. Off = grains play at their original pitch.
 
-*Le **routeur de source TRANS** + effacer le bank 8OS.*
+*Le **routeur de source TRANS** (combinable) + une amélioration **PITCH** + effacer le bank.*
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| E2 | **Source TRANS** — **INPUT** / **METABO** / **COMP** / **MGEN** |
+| E2 | Déplacer le curseur (INPUT / METABO / COMP / MGEN / PITCH) |
+| K2 | Activer / couper l'élément surligné |
 | K3 | Effacer le bank 8OS |
 
-- **Source TRANS** (E2) : en mode TRANS, les grains 8OS sont matchés sur une « voix live » (pitch + énergie + gate). Ce routeur choisit **qui est cette voix** — l'**INPUT** audio (défaut), **METABO** (la cellule), l'impro du **COMP**agnon, ou **MGEN**. Les autres modes peuvent ainsi piloter le matching de 8OS si tu veux. Défaut INPUT = comportement inchangé.
+- **Sources TRANS** (combinables) : en TRANS, les grains sont matchés sur une « voix live » (pitch + énergie + gate). Active n'importe quelle combinaison de **INPUT** (audio), **METABO** (la cellule), **COMP** (l'impro du compagnon), **MGEN** — quand plusieurs sont actives, la **plus forte mène**. Défaut INPUT seul = inchangé.
+- **PITCH** (amélioration) : activé, chaque grain est **transposé pour coller à la note cible** (±2 octaves) — 8OS *chante la mélodie de la source* avec sa matière échantillonnée, au lieu de juste choisir le grain le plus proche. Off = grains à leur hauteur d'origine.
 
 ---
 

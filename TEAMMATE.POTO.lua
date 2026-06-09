@@ -538,36 +538,46 @@ local function cur_midi_note()
   return math.floor(69 + 12 * math.log(cur_freq / 440) / math.log(2) + 0.5)
 end
 
--- ===== ROUTEUR 8OS TRANS : qui pilote le matching des grains (la "voix live") =====
-os8_src_names = {"INPUT","METABO","COMP","MGEN"}
-os8_src_idx   = 1
+-- ===== ROUTEUR 8OS TRANS : sources combinables qui pilotent le matching (la "voix live") =====
+os8_src        = { input = true, metabo = false, comp = false, mgen = false }
+os8_src_keys   = { "input", "metabo", "comp", "mgen" }
+os8_src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
+os8_src_cursor = 1
+os8_pitch      = false  -- ameliore : transpose le grain pour coller a la note cible (suit la melodie)
 os8_in_gate   = false   -- voix live routee : gate
-os8_in_midi   = -1      -- note MIDI (-1 = pas de pitch)
+os8_in_midi   = -1      -- note MIDI cible (-1 = pas de pitch)
 os8_in_rms    = 0       -- energie
 os8_in_centroid = 0     -- timbre
 
--- met a jour la voix live selon la source choisie (appelee ~30 Hz)
+local function os8_f2midi(f) return (f and f > 30) and math.floor(69 + 12*math.log(f/440)/math.log(2) + 0.5) or -1 end
+
+-- met a jour la voix live : parmi les sources actives, la PLUS FORTE mene (appelee ~30 Hz)
 function os8_route()
-  local s = os8_src_idx or 1
-  if s == 2 then        -- METABO
-    local e = meta_energy or 0
-    os8_in_gate = e > 0.05
-    os8_in_midi = (meta_freq and meta_freq > 30) and math.floor(69 + 12*math.log(meta_freq/440)/math.log(2) + 0.5) or -1
-    os8_in_rms = e ; os8_in_centroid = (meta_freq or 0) * 3
-  elseif s == 3 then    -- COMP (impro du compagnon)
-    os8_in_gate = (comp_rms or 0) > 0.02
-    os8_in_midi = (comp_freq and comp_freq > 30) and math.floor(69 + 12*math.log(comp_freq/440)/math.log(2) + 0.5) or -1
-    os8_in_rms = comp_rms or 0 ; os8_in_centroid = comp_centroid or 0
-  elseif s == 4 then    -- MGEN
-    local e = mgen_nenergy or 0
-    os8_in_gate = e > 0.05
-    os8_in_midi = (mgen_nfreq and mgen_nfreq > 30) and math.floor(69 + 12*math.log(mgen_nfreq/440)/math.log(2) + 0.5) or -1
-    os8_in_rms = e ; os8_in_centroid = (mgen_nfreq or 0) * 3
-  else                  -- INPUT (audio live, defaut)
-    os8_in_gate = cur_gate > 0.5
-    os8_in_midi = (cur_freq >= 20) and math.floor(69 + 12*math.log(cur_freq/440)/math.log(2) + 0.5) or -1
-    os8_in_rms = rms_smooth ; os8_in_centroid = cur_centroid
+  os8_in_gate = false ; os8_in_midi = -1 ; os8_in_rms = 0 ; os8_in_centroid = 0
+  local best = -1
+  local s = os8_src
+  if s.input and cur_gate > 0.5 and rms_smooth > best then
+    best = rms_smooth ; os8_in_gate = true ; os8_in_midi = os8_f2midi(cur_freq) ; os8_in_rms = rms_smooth ; os8_in_centroid = cur_centroid
   end
+  if s.metabo then local e = meta_energy or 0
+    if e > 0.05 and e > best then best = e ; os8_in_gate = true ; os8_in_midi = os8_f2midi(meta_freq) ; os8_in_rms = e ; os8_in_centroid = (meta_freq or 0)*3 end
+  end
+  if s.comp then local e = comp_rms or 0
+    if e > 0.02 and e > best then best = e ; os8_in_gate = true ; os8_in_midi = os8_f2midi(comp_freq) ; os8_in_rms = e ; os8_in_centroid = comp_centroid or 0 end
+  end
+  if s.mgen then local e = mgen_nenergy or 0
+    if e > 0.05 and e > best then best = e ; os8_in_gate = true ; os8_in_midi = os8_f2midi(mgen_nfreq) ; os8_in_rms = e ; os8_in_centroid = (mgen_nfreq or 0)*3 end
+  end
+end
+
+-- rate de lecture du grain : 1.0, ou transpose pour coller a la note cible (PITCH on)
+function os8_grain_rate(g)
+  if os8_pitch and os8_in_midi >= 0 and g.note and g.note >= 0 then
+    local r = 2 ^ ((os8_in_midi - g.note) / 12)
+    if r < 0.25 then r = 0.25 elseif r > 4 then r = 4 end
+    return r
+  end
+  return 1.0
 end
 
 -- cherche le grain le plus proche (attract=true) ou le plus eloigne (false)
@@ -733,7 +743,7 @@ local function os8_set(mode)
             softcut.loop_start(5, g.pos)
             softcut.loop_end(5,   g.pos + gs)
             softcut.position(5, g.pos)
-            softcut.rate(5, 1.0)
+            softcut.rate(5, os8_grain_rate(g))
             softcut.play(5, 1)
             softcut.level(5, os8_vol)                       -- attaque douce (slew)
             local n5 = freq_to_midi(g.pitch)
@@ -767,7 +777,7 @@ local function os8_set(mode)
             softcut.loop_start(6, g.pos)
             softcut.loop_end(6,   g.pos + gs)
             softcut.position(6, g.pos)
-            softcut.rate(6, 1.0)
+            softcut.rate(6, os8_grain_rate(g))
             softcut.play(6, 1)
             softcut.level(6, os8_vol * 0.65)               -- attaque douce (slew)
             local n6 = freq_to_midi(g.pitch)
@@ -801,7 +811,7 @@ local function os8_set(mode)
             softcut.loop_start(3, g.pos)
             softcut.loop_end(3,   g.pos + gs)
             softcut.position(3, g.pos)
-            softcut.rate(3, 1.0)
+            softcut.rate(3, os8_grain_rate(g))
             softcut.play(3, 1)
             softcut.level(3, os8_vol * 0.40)               -- attaque douce (slew)
             local n3 = freq_to_midi(g.pitch)
@@ -2363,7 +2373,7 @@ function enc(n, d)
     elseif page == 7 then
       p_poto_size   = util.clamp(p_poto_size   + d * 0.01, 0.05, 0.40)
     elseif page == 8 then
-      os8_src_idx   = ((os8_src_idx - 1 + d) % #os8_src_names) + 1   -- routeur 8OS TRANS
+      os8_src_cursor = util.clamp(os8_src_cursor + d, 1, #os8_src_keys + 1)   -- 4 sources + PITCH
     elseif page >= 9 and page <= 12 then
       midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 4)
     elseif page == 13 then
@@ -2496,6 +2506,12 @@ function key(n, z)
     p_poto_poly = (p_poto_poly % #POTO_POLY_NAMES) + 1
   elseif n == 2 and page == 6 then
     os8_sync = not os8_sync
+  elseif n == 2 and page == 8 then
+    if os8_src_cursor <= #os8_src_keys then
+      local k = os8_src_keys[os8_src_cursor] ; os8_src[k] = not os8_src[k]
+    else
+      os8_pitch = not os8_pitch
+    end
   elseif n == 2 and page == 14 then
     -- cycle : 0 / 5 / 12 / 22 / 40% (manuel) puis META (pilote par le stress METABO)
     mgen_mut_idx = (mgen_mut_idx % (#MGEN_MUT_RATES + 1)) + 1
@@ -2930,15 +2946,21 @@ function redraw()
     screen.text(string.format("K3 rate x%.2f", p_poto_rate))
 
   elseif page == 8 then
-    screen.level(10)
-    screen.move(0, 50)
-    screen.text("E2 TRANS src: " .. os8_src_names[os8_src_idx])
-    screen.level(os8_rec_n > 0 and 12 or 5)
-    screen.move(0, 57)
-    screen.text(string.format("8OS bank  %d grains", os8_rec_n))
-    screen.level(5)
-    screen.move(0, 64)
-    screen.text("K3 : clear bank")
+    screen.level(4) ; screen.move(0, 38) ; screen.text("TRANS src  (E2 sel  K2 tgl)")
+    -- 4 sources + PITCH, en deux colonnes
+    local cols = { {2,44}, {2,51}, {2,58}, {66,44}, {66,51} }
+    local items = { os8_src_labels[1], os8_src_labels[2], os8_src_labels[3], os8_src_labels[4], "PITCH" }
+    for i = 1, 5 do
+      local on  = (i <= 4) and os8_src[os8_src_keys[i]] or os8_pitch
+      local sel = (i == os8_src_cursor)
+      local x, y = cols[i][1], cols[i][2]
+      screen.level(sel and 15 or (on and 10 or 4))
+      screen.move(x, y) ; screen.text((sel and ">" or " ") .. items[i])
+      screen.level(on and 15 or 3) ; screen.move(x + 44, y) ; screen.text(on and "[X]" or "[ ]")
+    end
+    screen.level(os8_rec_n > 0 and 12 or 5) ; screen.move(66, 58)
+    screen.text(os8_rec_n .. "gr")
+    screen.level(5) ; screen.move(0, 64) ; screen.text("K3 : clear bank")
 
   elseif page >= 9 and page <= 12 then
     local dev    = page - 8
