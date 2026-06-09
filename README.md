@@ -729,33 +729,33 @@ Choose **what NIAKABY harmonizes** — the three sources are **independent toggl
 ---
 
 ### Page 25 — METABO>MGEN
-A mode where **METABO randomly shakes up the MIDI GEN sequencer** — the living cell mutates the machine. Opt-in (DRIVE 0 = off, MGEN untouched).
+A mode where **METABO triggers MGEN's random "new theme"** (the K2-on-page-13 regeneration) by itself, driven by the cell. Opt-in (DRIVE 0 = off, MGEN untouched).
 
 | Encoder / Key | Function |
 |---|---|
-| E2 | Drive — random-shake intensity 0–100% (0 = off) |
+| E2 | Drive — how often METABO fires a new theme, 0–100% (0 = off) |
 | E3 | Note — METABO imposes its notes on MGEN 0–100% |
 | K2 | Scope — **LIGHT** / **FULL** |
-| K3 | Shake now (manual trigger) |
+| K3 | New theme now (manual trigger) |
 
-- **Drive** (E2): how often METABO disrupts MGEN (regen / themes / breaks / styles). The actual frequency = drive × the cell's **stress** — a calm cell rarely touches MGEN, a stressed cell shakes it constantly. Only acts while MGEN is running.
-- **Note** (E3): how much **METABO drives the actual pitches** of MGEN. At each MGEN note, with probability = this amount, the note is replaced by **METABO's current note** (snapped to the MGEN scale, kept in MGEN's register) — the cell "sings through" MGEN's groove. 0 = MGEN keeps its own notes.
-- **Scope**: **LIGHT** = regenerate a random channel / change scale. **FULL** = also new themes, fire **breaks**, swap **styles**.
-- **K3** fires one random change immediately (works anytime). The last action is shown (`last: …`).
+- **Drive** (E2): how often METABO fires a **new theme** = the random full regeneration (same as **K2 on page 13**). Frequency = drive × the cell's **stress** — calm cell rarely regenerates, stressed cell regenerates often. Only while MGEN is running.
+- **Note** (E3): how much **METABO drives the actual pitches** of MGEN. At each MGEN note, with probability = this amount, the note is replaced by **METABO's current note** (snapped to the MGEN scale, kept in MGEN's register). 0 = MGEN keeps its own notes.
+- **Scope**: **LIGHT** = just new themes. **FULL** = mostly new themes + occasional **breaks** / scale changes.
+- **K3** fires a new theme immediately (works anytime). The last action is shown (`last: …`).
 
-*Un mode où **METABO bouscule le séquenceur MIDI GEN au hasard** — la cellule vivante mute la machine. Opt-in (DRIVE 0 = off, MGEN intact).*
+*Un mode où **METABO déclenche le « new theme » aléatoire de MGEN** (le K2 de la page 13) tout seul, piloté par la cellule. Opt-in (DRIVE 0 = off, MGEN intact).*
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| E2 | Drive — intensité des secousses 0–100% (0 = off) |
+| E2 | Drive — à quelle fréquence METABO lance un new theme 0–100% (0 = off) |
 | E3 | Note — METABO impose ses notes à MGEN 0–100% |
 | K2 | Portée — **LIGHT** / **FULL** |
-| K3 | Secouer maintenant (déclenche à la main) |
+| K3 | New theme maintenant (déclenche à la main) |
 
-- **Drive** (E2) : à quelle fréquence METABO bouscule MGEN (regen / thèmes / breaks / styles). La fréquence réelle = drive × le **stress** de la cellule — calme = rare, stressée = secousses constantes. N'agit que si MGEN tourne.
-- **Note** (E3) : à quel point **METABO impose les hauteurs** de MGEN. À chaque note de MGEN, avec une probabilité = cette valeur, la note est remplacée par **la note courante de METABO** (recalée dans la gamme MGEN, registre gardé) — la cellule « chante à travers » le groove de MGEN. 0 = MGEN garde ses notes.
-- **Portée** : **LIGHT** = régénère un channel / change la gamme. **FULL** = aussi nouveaux thèmes, **breaks**, swaps de **styles**.
-- **K3** déclenche un changement au hasard tout de suite (à tout moment). La dernière action est affichée (`last: …`).
+- **Drive** (E2) : à quelle fréquence METABO lance un **new theme** = la régénération aléatoire complète (comme **K2 page 13**). Fréquence = drive × le **stress** de la cellule — calme = rare, stressée = souvent. N'agit que si MGEN tourne.
+- **Note** (E3) : à quel point **METABO impose les hauteurs** de MGEN. À chaque note de MGEN, avec une probabilité = cette valeur, la note est remplacée par **la note courante de METABO** (recalée dans la gamme MGEN, registre gardé). 0 = MGEN garde ses notes.
+- **Portée** : **LIGHT** = juste des new themes. **FULL** = surtout des new themes + parfois un **break** / changement de gamme.
+- **K3** déclenche un new theme tout de suite (à tout moment). La dernière action est affichée (`last: …`).
 
 ---
 

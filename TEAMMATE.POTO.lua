@@ -2113,28 +2113,21 @@ function mgen_snap(note)
   end
   return best
 end
+-- METABO declenche le RANDOM de MGEN = un "new theme" (comme K2 page 13, regenere tout)
 function meta_shake_mgen()
-  local r = math.random()
   if meta_mgen_scope == 1 then
-    if r < 0.7 then
-      local ci = math.random(16) ; mgen_gen_seq(ci) ; meta_mgen_last = "regen ch" .. ci
-    else
-      mgen_scale_idx = math.random(#MGEN_SCALE_NAMES) ; meta_mgen_last = "gamme " .. MGEN_SCALE_NAMES[mgen_scale_idx]
-    end
+    mgen_gen_all(true) ; meta_mgen_last = "new theme"   -- LIGHT : juste le new theme (le random page 13)
   else
-    if r < 0.30 then
-      local ci = math.random(16) ; mgen_gen_seq(ci) ; meta_mgen_last = "regen ch" .. ci
-    elseif r < 0.50 then
-      mgen_scale_idx = math.random(#MGEN_SCALE_NAMES) ; meta_mgen_last = "gamme " .. MGEN_SCALE_NAMES[mgen_scale_idx]
-    elseif r < 0.70 then
+    -- FULL : new theme la plupart du temps + parfois un break / un changement de gamme
+    local r = math.random()
+    if r < 0.72 then
       mgen_gen_all(true) ; meta_mgen_last = "new theme"
     elseif r < 0.88 then
       local bt = math.random(#MGEN_BREAK_NAMES)
       for i = 1, 16 do if mgen_ch[i].on then mgen_ch[i].brk = true ; mgen_ch[i].brk_type = bt end end
       meta_mgen_last = "break " .. MGEN_BREAK_NAMES[bt]
     else
-      local ci = math.random(16) ; mgen_ch[ci].style_idx = math.random(#MGEN_STYLE_NAMES) ; mgen_gen_seq(ci)
-      meta_mgen_last = "style ch" .. ci
+      mgen_scale_idx = math.random(#MGEN_SCALE_NAMES) ; meta_mgen_last = "gamme " .. MGEN_SCALE_NAMES[mgen_scale_idx]
     end
   end
 end
@@ -2659,7 +2652,7 @@ function redraw()
     screen.level(15) ; screen.move(74, 48) ; screen.text(meta_mgen_scope == 2 and "FULL" or "LIGHT")
     screen.level(4)  ; screen.move(2, 58) ; screen.text("last:")
     screen.level(10) ; screen.move(32, 58) ; screen.text(meta_mgen_last or "--")
-    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 shake now")
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 new theme now")
     screen.update() ; return
   end
 
