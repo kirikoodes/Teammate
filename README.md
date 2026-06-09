@@ -759,7 +759,7 @@ A mode where **METABO triggers MGEN's random "new theme"** (the K2-on-page-13 re
 
 ---
 
-### Page 26 — LIVE
+### Page 27 — LIVE (last page)
 A single page to **arm / disarm the modes** during a set. Dial in each mode's parameters on its own page, then come here to toggle them live.
 
 | Encoder / Key | Function |
@@ -784,7 +784,7 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 
 ---
 
-### Page 27 — MGEN TASTE
+### Page 26 — MGEN TASTE
 MGEN learns the **genre combinations** you like — the full layout of genres across the 16 channels (a global view), not single notes. It keeps a **bank of liked combinations** and reuses/varies them.
 
 | Encoder / Key | Function |

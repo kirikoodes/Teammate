@@ -2358,15 +2358,15 @@ function enc(n, d)
       niakaby.enc_src(2, d)
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
-    elseif page == 26 then
-      live_cursor = ((live_cursor - 1 + d) % #LIVE_NAMES) + 1
     elseif page == 27 then
+      live_cursor = ((live_cursor - 1 + d) % #LIVE_NAMES) + 1
+    elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
     end
   elseif n == 3 then
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
-    if page == 27 then mgen_recall = util.clamp(mgen_recall + d * 0.05, 0, 1) end
+    if page == 26 then mgen_recall = util.clamp(mgen_recall + d * 0.05, 0, 1) end
     if page == 1 then
       p_gate_thr    = util.clamp(p_gate_thr    + d * 0.001, 0.0001, 0.05)
     elseif page == 2 then
@@ -2440,12 +2440,12 @@ function key(n, z)
     elseif n == 3 then meta_shake_mgen() end
     redraw() ; return
   end
-  if page == 26 then
+  if page == 27 then
     if n == 3 then live_toggle(live_cursor)
     elseif n == 2 then live_all_off() end
     redraw() ; return
   end
-  if page == 27 then
+  if page == 26 then
     if n == 3 then mgen_taste(true)
     elseif n == 2 then mgen_taste(false) end
     redraw() ; return
@@ -2557,7 +2557,7 @@ function redraw()
   screen.clear()
   screen.aa(0)
 
-  if page == 27 then
+  if page == 26 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
     screen.level(8)  ; screen.move(126, 8)
@@ -2590,7 +2590,7 @@ function redraw()
     screen.text(string.format("E3 recall %d%%   E2 parcourt", math.floor(mgen_recall * 100)))
     screen.update() ; return
   end
-  if page == 26 then
+  if page == 27 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
     screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 panic")
