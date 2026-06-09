@@ -2907,24 +2907,6 @@ function redraw()
     screen.text(string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
 
   elseif page == 14 then
-    -- mini-sequenceur du channel selectionne : steps + tete de lecture qui bouge
-    local selch = mgen_ch[mgen_sel_ch]
-    if selch and selch.seq and #selch.seq > 0 then
-      local n = #selch.seq
-      local w = 124 / n
-      for s = 1, n do
-        local sv  = selch.seq[s]
-        local x   = 2 + (s - 1) * w
-        local cur = (s == selch.step_cur)
-        if cur then
-          screen.level(15) ; screen.rect(x, 39, math.max(1, w - 0.5), 4) ; screen.fill()
-        elseif sv and sv.active then
-          screen.level(8)  ; screen.rect(x, 40, math.max(1, w - 0.5), 3) ; screen.fill()
-        else
-          screen.level(2)  ; screen.rect(x, 41, math.max(1, w - 0.5), 1) ; screen.fill()
-        end
-      end
-    end
     local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL","CLUB","KPOP","ORNT","RAVE","TRNC"}
     local vs = math.floor((mgen_sel_ch - 1) / 4) * 4 + 1
     local ys = {44, 50, 57, 64}
