@@ -2588,8 +2588,6 @@ function key(n, z)
     elseif page == 7 then
       rate_pidx = (rate_pidx % #RATE_PRESETS) + 1
       p_poto_rate = RATE_PRESETS[rate_pidx]
-    elseif page == 8 then
-      os8_bank = {} ; os8_rec_n = 0
     elseif page >= 9 and page <= 12 then
       local dev = page - 8
       midi_route[midi_cur_stream][dev] = not midi_route[midi_cur_stream][dev]
@@ -2690,7 +2688,7 @@ function redraw()
     end
     screen.level(os8_spread > 0 and 10 or 4) ; screen.move(66, 48)
     screen.text(string.format("spr %d%%", math.floor(os8_spread * 100)))
-    screen.level(4) ; screen.move(2, 62) ; screen.text("E2sel K2tgl E3spr K3clr")
+    screen.level(4) ; screen.move(2, 62) ; screen.text("E2 sel   K2 tgl   E3 spread")
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
