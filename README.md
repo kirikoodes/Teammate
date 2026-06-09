@@ -624,7 +624,7 @@ What feeds the cell, and how strongly it reacts to the companion.
 
 This page is the **two-way link** between the companion and the cell.
 
-- **Feed source** (E2): **INPUT** = live audio (mic/line) · **COMP** = **the companion feeds METABO** (corpus improv + MIDI GEN drive the metabolism, so METABO breathes with the companion and falls silent when it rests) · **MIX** = both (the louder leads).
+- **Feed source** (E2): **INPUT** = live audio (mic/line) · **COMP** = **the companion feeds METABO** (the companion's corpus improvisation drives the metabolism, so METABO breathes with it and falls silent when it rests) · **MIX** = both (the louder leads).
 - **Reaction** (E3): low = smooth/slow (the cell glides, fairly independent); high = snappy/tight (the cell tracks every companion event, energy decays fast → more silences between phrases). Controls both the companion-energy decay and the sensitivity.
 - **Influence** (K2): the reverse direction — **the cell nudges the companion's choices**. Opt-in and non-destructive (your manual settings aren't changed; it only biases the strategy weights at decision time). A **stressed** cell (monotony) pushes the companion toward **CONTRASTE / DENSIFICATION** (to break the monotony); a **calm** cell gives more **space** (SPARSE / SILENCE). **OFF** = companion completely untouched.
 
@@ -639,7 +639,7 @@ This page is the **two-way link** between the companion and the cell.
 
 Cette page est le **lien bidirectionnel** entre le compagnon et la cellule.
 
-- **Source** (E2) : **INPUT** = audio live (micro/ligne) · **COMP** = **le compagnon nourrit METABO** (impro corpus + MIDI GEN pilotent le métabolisme, donc METABO respire avec le compagnon et se tait quand il se repose) · **MIX** = les deux (le plus fort mène).
+- **Source** (E2) : **INPUT** = audio live (micro/ligne) · **COMP** = **le compagnon nourrit METABO** (l'impro corpus du compagnon pilote le métabolisme, donc METABO respire avec lui et se tait quand il se repose) · **MIX** = les deux (le plus fort mène).
 - **Réaction** (E3) : bas = lisse/lent (la cellule glisse, assez indépendante) ; haut = vif/serré (la cellule suit chaque événement du compagnon, l'énergie décroît vite → plus de silences entre les phrases). Agit sur le decay de l'énergie compagnon et la sensibilité.
 - **Influence** (K2) : le sens inverse — **la cellule infléchit les choix du compagnon**. Opt-in et non destructif (tes réglages manuels ne changent pas ; ça ne fait que biaiser les poids de stratégie au moment de décider). Une cellule **stressée** (monotonie) pousse le compagnon vers **CONTRASTE / DENSIFICATION** (pour casser la monotonie) ; une cellule **calme** laisse plus d'**espace** (SPARSE / SILENCE). **OFF** = compagnon totalement inchangé.
 

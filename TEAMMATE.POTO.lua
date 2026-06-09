@@ -1376,9 +1376,8 @@ local function mgen_start()
                 while cnote > nn + 6 do cnote = cnote - 12 end
                 nn = mgen_snap(cnote)
               end
-              -- nourrit METABO (mode COMP) : note -> freq, vel -> energie
-              companion_feed(vel / 700, 440 * 2 ^ ((nn - 69) / 12), nn * 45, 0.1)
-              -- capture pour NIAKABY (source MGEN)
+              -- capture pour NIAKABY (source MGEN) UNIQUEMENT
+              -- (pas de companion_feed ici : COMP = impro du compagnon seulement, distinct de MGEN)
               mgen_nfreq = 440 * 2 ^ ((nn - 69) / 12)
               if vel / 127 > mgen_nenergy then mgen_nenergy = vel / 127 end
               for d = 1, 4 do
