@@ -2673,6 +2673,26 @@ function redraw()
     end
     screen.update() ; return
   end
+  if page == 8 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("8OS")
+    screen.level(os8_rec_n > 0 and 12 or 4) ; screen.move(126, 8) ; screen.text_right(os8_rec_n .. " gr")
+    screen.level(4) ; screen.move(2, 18) ; screen.text("TRANS source")
+    local pos    = { {2,28}, {66,28}, {2,38}, {66,38}, {2,48} }
+    local labels = { os8_src_labels[1], os8_src_labels[2], os8_src_labels[3], os8_src_labels[4], "PITCH" }
+    for i = 1, 5 do
+      local on  = (i <= 4) and os8_src[os8_src_keys[i]] or os8_pitch
+      local sel = (i == os8_src_cursor)
+      local x, y = pos[i][1], pos[i][2]
+      screen.level(sel and 15 or (on and 10 or 4))
+      screen.move(x, y) ; screen.text((sel and ">" or " ") .. labels[i])
+      screen.level(on and 15 or 3) ; screen.move(x + 44, y) ; screen.text(on and "[X]" or "[ ]")
+    end
+    screen.level(os8_spread > 0 and 10 or 4) ; screen.move(66, 48)
+    screen.text(string.format("spr %d%%", math.floor(os8_spread * 100)))
+    screen.level(4) ; screen.move(2, 62) ; screen.text("E2sel K2tgl E3spr K3clr")
+    screen.update() ; return
+  end
   if page == 18 then metabolik.redraw() ; return end
   if page == 19 then
     screen.clear() ; screen.font_size(8)
@@ -2956,24 +2976,6 @@ function redraw()
       math.floor(p_poto_spread * 100)))
     screen.move(0, 64)
     screen.text(string.format("K3 rate x%.2f", p_poto_rate))
-
-  elseif page == 8 then
-    screen.level(4) ; screen.move(0, 38) ; screen.text("TRANS src  (E2 sel  K2 tgl)")
-    -- 4 sources + PITCH, en deux colonnes
-    local cols = { {2,44}, {2,51}, {2,58}, {66,44}, {66,51} }
-    local items = { os8_src_labels[1], os8_src_labels[2], os8_src_labels[3], os8_src_labels[4], "PITCH" }
-    for i = 1, 5 do
-      local on  = (i <= 4) and os8_src[os8_src_keys[i]] or os8_pitch
-      local sel = (i == os8_src_cursor)
-      local x, y = cols[i][1], cols[i][2]
-      screen.level(sel and 15 or (on and 10 or 4))
-      screen.move(x, y) ; screen.text((sel and ">" or " ") .. items[i])
-      screen.level(on and 15 or 3) ; screen.move(x + 44, y) ; screen.text(on and "[X]" or "[ ]")
-    end
-    screen.level(os8_rec_n > 0 and 12 or 5) ; screen.move(66, 58)
-    screen.text(os8_rec_n .. "gr")
-    screen.level(os8_spread > 0 and 10 or 5) ; screen.move(0, 64)
-    screen.text(string.format("E3 spread %d%%  K3 clr", math.floor(os8_spread * 100)))
 
   elseif page >= 9 and page <= 12 then
     local dev    = page - 8
