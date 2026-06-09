@@ -1236,12 +1236,16 @@ local function mgen_gen_seq(ci)
 end
 
 local function mgen_gen_all(keep_pos)
-  -- SYNTHESE : on tire une palette de quelques genres (selon tes gouts), melangee sur les 16 channels
-  local palette = {}
-  local npal = 2 + math.random(0, 2)   -- 2..4 genres qui se melangent dans le theme
-  for _ = 1, npal do palette[#palette + 1] = mgen_pick_style() end
+  -- soit on RAPPELLE une combinaison aimee (avec une legere variation), soit theme frais diversifie
+  local recall = (#mgen_liked > 0 and math.random() < 0.6) and mgen_liked[math.random(#mgen_liked)] or nil
   for i = 1, 16 do
-    local si  = palette[math.random(#palette)]   -- chaque channel pioche dans la palette commune
+    local si
+    if recall then
+      si = recall[i] or math.random(#MGEN_STYLE_NAMES)
+      if math.random() < 0.12 then si = math.random(#MGEN_STYLE_NAMES) end   -- variation legere
+    else
+      si = math.random(#MGEN_STYLE_NAMES)                                    -- vision globale : tous les genres
+    end
     local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
     mgen_ch[i].style_idx = si
     -- octave initialise ici (seul endroit), jamais ecrase par gen_seq
@@ -2017,31 +2021,24 @@ meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks
 meta_mgen_last  = "--"
 meta_note_inf   = 0      -- 0..1 : METABO impose ses notes a MGEN (page 25 E3)
 
--- ===== MGEN apprend tes gouts : profil de GENRES (synthese globale, LIKE/DISLIKE, page 27) =====
--- on juge le BLEND de styles de TOUS les channels (le genre global du theme), pas une note.
-mgen_style_w    = {}
-for i = 1, #MGEN_STYLE_NAMES do mgen_style_w[i] = 1.0 end
+-- ===== MGEN apprend tes COMBINAISONS : banque des reparitions de genres aimees (page 27) =====
+-- une "combinaison" = le genre des 16 channels (vision globale). LIKE memorise la combo,
+-- DISLIKE oublie la plus proche. Les new themes rappellent/varient tes combos aimees.
+mgen_liked      = {}     -- liste de combos ; chaque combo = { style_idx x16 }
 mgen_taste_last = "--"
 
--- tirage de style pondere par le profil de genres appris
-function mgen_pick_style()
-  local total = 0
-  for i = 1, #MGEN_STYLE_NAMES do total = total + (mgen_style_w[i] or 1) end
-  if total <= 0 then return math.random(#MGEN_STYLE_NAMES) end
-  local r, acc = math.random() * total, 0
-  for i = 1, #MGEN_STYLE_NAMES do
-    acc = acc + (mgen_style_w[i] or 1)
-    if r <= acc then return i end
-  end
-  return math.random(#MGEN_STYLE_NAMES)
+local function mgen_capture_combo()
+  local c = {} ; for i = 1, 16 do c[i] = mgen_ch[i].style_idx end ; return c
+end
+local function mgen_combo_dist(a, b)
+  local d = 0 ; for i = 1, 16 do if a[i] ~= b[i] then d = d + 1 end end ; return d
 end
 
--- ===== memoire des gouts : sauvegarde/charge sur la carte (dossier data du script) =====
 function mgen_taste_save()
   pcall(function()
     if norns and norns.state and norns.state.data then
       util.make_dir(norns.state.data)
-      tab.save(mgen_style_w, norns.state.data .. "mgen_taste_genre.data")
+      tab.save(mgen_liked, norns.state.data .. "mgen_combos.data")
     end
   end)
 end
@@ -2049,29 +2046,32 @@ end
 function mgen_taste_load()
   pcall(function()
     if norns and norns.state and norns.state.data then
-      local t = tab.load(norns.state.data .. "mgen_taste_genre.data")
-      if type(t) == "table" then
-        for i = 1, #MGEN_STYLE_NAMES do
-          if type(t[i]) == "number" then mgen_style_w[i] = t[i] end
-        end
-      end
+      local t = tab.load(norns.state.data .. "mgen_combos.data")
+      if type(t) == "table" then mgen_liked = t end
     end
   end)
 end
 
--- LIKE (+) / DISLIKE (-) : synthese globale -> juge les styles de TOUS les channels du theme
+-- LIKE = memorise la combinaison de genres courante ; DISLIKE = oublie la plus proche
 function mgen_taste(like)
-  local f = like and 1.4 or 0.6
-  local seen = {}
-  for i = 1, 16 do
-    local si = mgen_ch[i].style_idx
-    if not seen[si] then
-      mgen_style_w[si] = math.max(0.1, math.min(8, mgen_style_w[si] * f))
-      seen[si] = true
+  if like then
+    local c = mgen_capture_combo()
+    for _, e in ipairs(mgen_liked) do
+      if mgen_combo_dist(e, c) <= 1 then mgen_taste_last = "deja aimee" ; return end
     end
+    mgen_liked[#mgen_liked + 1] = c
+    while #mgen_liked > 24 do table.remove(mgen_liked, 1) end
+    mgen_taste_last = "LIKE (" .. #mgen_liked .. ")"
+  else
+    local cur, bi, bd = mgen_capture_combo(), nil, 99
+    for i, e in ipairs(mgen_liked) do
+      local dd = mgen_combo_dist(e, cur)
+      if dd < bd then bd = dd ; bi = i end
+    end
+    if bi then table.remove(mgen_liked, bi) ; mgen_taste_last = "forget (" .. #mgen_liked .. ")"
+    else mgen_taste_last = "rien" end
   end
-  mgen_taste_last = like and "LIKE" or "DISLIKE"
-  mgen_taste_save()   -- persiste les gouts sur la carte
+  mgen_taste_save()
 end
 
 -- note la plus proche dans la gamme MGEN courante (rootee sur mgen_root)
@@ -2534,19 +2534,29 @@ function redraw()
   if page == 27 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
-    screen.level(8)  ; screen.move(126, 8) ; screen.text_right("K3+  K2-")
-    -- profil de GENRES (synthese globale) : top styles par gout appris
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right("K3+ K2- (" .. #mgen_liked .. ")")
+    -- frequence des genres dans tes COMBINAISONS aimees (vision globale de ce que tu aimes)
+    local freq = {}
+    for i = 1, #MGEN_STYLE_NAMES do freq[i] = 0 end
+    for _, c in ipairs(mgen_liked) do
+      for i = 1, 16 do if c[i] then freq[c[i]] = freq[c[i]] + 1 end end
+    end
     local t = {}
-    for i = 1, #MGEN_STYLE_NAMES do t[#t + 1] = { n = MGEN_STYLE_NAMES[i], w = mgen_style_w[i] or 1 } end
+    for i = 1, #MGEN_STYLE_NAMES do t[#t + 1] = { n = MGEN_STYLE_NAMES[i], w = freq[i] } end
     table.sort(t, function(a, b) return a.w > b.w end)
-    local maxw = t[1] and t[1].w or 1
-    local ys = { 18, 25, 32, 39, 46, 53, 60 }
-    for k = 1, 7 do
-      local row = t[k]
-      if row then
-        screen.level(8) ; screen.move(2, ys[k]) ; screen.text(row.n)
-        screen.level(4) ; screen.rect(62, ys[k] - 4, 56, 3) ; screen.stroke()
-        screen.level(row.w >= 1 and 13 or 5) ; screen.rect(62, ys[k] - 4, 56 * (row.w / (maxw + 0.001)), 3) ; screen.fill()
+    local maxw = math.max(1, t[1] and t[1].w or 1)
+    if #mgen_liked == 0 then
+      screen.level(4) ; screen.move(2, 30) ; screen.text("aucune combo aimee")
+      screen.move(2, 40) ; screen.text("K3 = aimer le theme courant")
+    else
+      local ys = { 18, 25, 32, 39, 46, 53, 60 }
+      for k = 1, 7 do
+        local row = t[k]
+        if row and row.w > 0 then
+          screen.level(8) ; screen.move(2, ys[k]) ; screen.text(row.n)
+          screen.level(4) ; screen.rect(62, ys[k] - 4, 56, 3) ; screen.stroke()
+          screen.level(13) ; screen.rect(62, ys[k] - 4, 56 * (row.w / maxw), 3) ; screen.fill()
+        end
       end
     end
     screen.update() ; return

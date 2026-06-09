@@ -785,29 +785,29 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 ---
 
 ### Page 27 — MGEN TASTE
-MGEN **learns your taste in genres** — a **global synthesis across all channels**, not single notes. Validate the themes you like, reject the ones you don't, and future "new themes" lean toward your preferred **mix of styles**.
+MGEN learns the **genre combinations** you like — the full layout of genres across the 16 channels (a global view), not single notes. It keeps a **bank of liked combinations** and reuses/varies them.
 
 | Encoder / Key | Function |
 |---|---|
-| K3 | **LIKE** — boost the genres (styles) of the whole current theme |
-| K2 | **DISLIKE** — lower them |
+| K3 | **LIKE** — save the current combination (the 16-channel genre layout) to the bank |
+| K2 | **DISLIKE** — forget the closest liked combination |
 
-- LIKE/DISLIKE judges the **blend of styles across all 16 channels** (the global genre of the theme) — each style present is nudged ×1.4 / ×0.6 (clamped).
-- When a new theme is generated (page 13 **K3 START** / **K2 new theme**, or via METABO>MGEN), each channel's style is picked **weighted by your genre profile** — MGEN drifts toward the genre mixes you've liked and away from the ones you've rejected.
-- The page shows your **genre profile**: the top styles ranked by learned weight (bars).
-- **Persistent memory**: saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) on every like/dislike and reloaded on startup.
+- A **combination** = the genre (style) of each of the 16 channels. LIKE snapshots it (up to 24 stored, near-duplicates skipped); DISLIKE removes the most similar one.
+- When a new theme is generated (page 13 **K3 START** / **K2 new theme**, or via METABO>MGEN), MGEN ~60% of the time **recalls a liked combination** (with a slight variation) and ~40% generates a fresh fully-diverse theme — so you keep getting the layouts you liked, plus surprises.
+- The page shows how many combos are saved and a **genre-frequency profile** across all your liked combinations (which genres dominate the layouts you like).
+- **Persistent memory**: the bank is saved to the norns SD card (`dust/data/TEAMMATE.POTO/mgen_combos.data`) and reloaded on startup.
 
-*MGEN **apprend tes goûts en genres** — une **synthèse globale sur tous les channels**, pas des notes isolées. Valide les thèmes que tu aimes, rejette ceux que tu n'aimes pas — les futurs « new themes » privilégient ton **mélange de styles** préféré.*
+*MGEN apprend les **combinaisons de genres** que tu aimes — la répartition complète des genres sur les 16 channels (vision globale), pas des notes isolées. Il garde une **banque de combinaisons aimées** et les réutilise/varie.*
 
 | Encodeur / Touche | Fonction |
 |---|---|
-| K3 | **LIKE** — favorise les genres (styles) de tout le thème courant |
-| K2 | **DISLIKE** — les défavorise |
+| K3 | **LIKE** — mémorise la combinaison courante (la répartition genre des 16 channels) |
+| K2 | **DISLIKE** — oublie la combinaison aimée la plus proche |
 
-- LIKE/DISLIKE juge le **blend de styles des 16 channels** (le genre global du thème) — chaque style présent est ajusté ×1.4 / ×0.6 (borné).
-- À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), le style de chaque channel est tiré **pondéré par ton profil de genres** — MGEN dérive vers les mélanges de genres aimés et évite ceux rejetés.
-- La page affiche ton **profil de genres** : les top styles classés par poids appris (barres).
-- **Mémoire persistante** : sauvegardé sur la carte SD (`dust/data/TEAMMATE.POTO/`) à chaque like/dislike, rechargé au démarrage.
+- Une **combinaison** = le genre (style) de chacun des 16 channels. LIKE en fait un snapshot (jusqu'à 24, quasi-doublons ignorés) ; DISLIKE retire la plus proche.
+- À chaque nouveau thème (page 13 **K3 START** / **K2 new theme**, ou via METABO>MGEN), MGEN **rappelle ~60% du temps une combinaison aimée** (avec une légère variation) et génère ~40% du temps un thème frais pleinement diversifié — tu retrouves ce que tu as aimé, avec des surprises.
+- La page affiche le nombre de combos mémorisées et un **profil de fréquence des genres** sur toutes tes combinaisons aimées (quels genres dominent les répartitions que tu aimes).
+- **Mémoire persistante** : la banque est sauvegardée sur la carte SD (`dust/data/TEAMMATE.POTO/mgen_combos.data`) et rechargée au démarrage.
 
 ---
 
