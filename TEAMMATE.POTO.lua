@@ -2051,6 +2051,40 @@ function meta_shake_mgen()
   end
 end
 
+-- ===== PAGE LIVE : armer/couper les modes en un seul endroit (set live) =====
+live_cursor = 1
+LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY" }
+
+function live_toggle(i)
+  if i == 1 then
+    poto_set(not p_poto_on)
+  elseif i == 2 then
+    local seq = { "OFF", "REC", "TRANS" } ; local nxt = 1
+    for k, m in ipairs(seq) do if m == os8_mode then nxt = (k % #seq) + 1 end end
+    os8_set(seq[nxt])
+  elseif i == 3 then
+    if mgen_running then mgen_stop() else mgen_gen_all() ; mgen_start() end
+  elseif i == 4 then
+    spat.on = not spat.on
+    if spat.on then spat_start() else spat_stop() end
+  elseif i == 5 then
+    metabolik.on = not metabolik.on
+  elseif i == 6 then
+    niakaby.on = not niakaby.on
+    if not niakaby.on then niakaby.release() end
+  end
+end
+
+function live_all_off()
+  if p_poto_on then poto_set(false) end
+  if os8_mode ~= "OFF" then os8_set("OFF") end
+  if mgen_running then mgen_stop() end
+  if spat.on then spat.on = false ; spat_stop() end
+  metabolik.on = false
+  if niakaby.on then niakaby.on = false ; niakaby.release() end
+  for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
+end
+
 function init()
   math.randomseed(os.time())
   mgen_gen_all()
@@ -2188,7 +2222,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 25) + 1
+    page = ((page - 1 + d) % 26) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2233,6 +2267,8 @@ function enc(n, d)
       niakaby.enc_src(2, d)
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
+    elseif page == 26 then
+      live_cursor = ((live_cursor - 1 + d) % #LIVE_NAMES) + 1
     end
   elseif n == 3 then
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
@@ -2307,6 +2343,11 @@ function key(n, z)
   if page == 25 then
     if n == 2 then meta_mgen_scope = (meta_mgen_scope == 1) and 2 or 1
     elseif n == 3 then meta_shake_mgen() end
+    redraw() ; return
+  end
+  if page == 26 then
+    if n == 3 then live_toggle(live_cursor)
+    elseif n == 2 then live_all_off() end
     redraw() ; return
   end
   if page == 19 then
@@ -2411,6 +2452,24 @@ function redraw()
   screen.clear()
   screen.aa(0)
 
+  if page == 26 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("E2sel K3tgl")
+    local states = { p_poto_on and "ON" or "off", os8_mode, mgen_running and "ON" or "off",
+                     spat.on and "ON" or "off", metabolik.on and "ON" or "off", niakaby.on and "ON" or "off" }
+    local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on, niakaby.on }
+    local ys     = { 20, 27, 34, 41, 48, 55 }
+    for i = 1, 6 do
+      local sel = (i == live_cursor)
+      screen.level(sel and 15 or (ons[i] and 11 or 4))
+      screen.move(2, ys[i]) ; screen.text((sel and ">" or " ") .. LIVE_NAMES[i])
+      screen.level(ons[i] and 15 or 3)
+      screen.move(78, ys[i]) ; screen.text(states[i])
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("K2 = ALL OFF (panic)")
+    screen.update() ; return
+  end
   if page == 18 then metabolik.redraw() ; return end
   if page == 19 then
     screen.clear() ; screen.font_size(8)
@@ -2490,7 +2549,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/25")
+  screen.text(page .. "/26")
 
   if rec_on then
     screen.level(15)

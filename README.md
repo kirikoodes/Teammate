@@ -74,13 +74,13 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→25)
+E1        — previous / next page (loops 1→26)
 K3        — main action for current page (see table)
 ```
 
 ---
 
-## The 25 pages
+## The 26 pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -756,6 +756,29 @@ A mode where **METABO randomly shakes up the MIDI GEN sequencer** — the living
 - **Note** (E3) : à quel point **METABO impose les hauteurs** de MGEN. À chaque note de MGEN, avec une probabilité = cette valeur, la note est remplacée par **la note courante de METABO** (recalée dans la gamme MGEN, registre gardé) — la cellule « chante à travers » le groove de MGEN. 0 = MGEN garde ses notes.
 - **Portée** : **LIGHT** = régénère un channel / change la gamme. **FULL** = aussi nouveaux thèmes, **breaks**, swaps de **styles**.
 - **K3** déclenche un changement au hasard tout de suite (à tout moment). La dernière action est affichée (`last: …`).
+
+---
+
+### Page 26 — LIVE
+A single page to **arm / disarm the modes** during a set. Dial in each mode's parameters on its own page, then come here to toggle them live.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Move cursor through the modes |
+| K3 | Toggle the highlighted mode (8OS cycles OFF → REC → TRANS) |
+| K2 | **ALL OFF** — panic: stops every mode + all-notes-off on every stream |
+
+- Modes listed: **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY** — each shows its live state (`ON` / `off`, or `OFF/REC/TRANS` for 8OS). Active modes are brighter.
+
+*Une seule page pour **armer / couper les modes** en live. Règle les paramètres de chaque mode sur sa page, puis viens ici pour les activer pendant le set.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Déplacer le curseur dans la liste |
+| K3 | Activer / couper le mode surligné (8OS cycle OFF → REC → TRANS) |
+| K2 | **ALL OFF** — panic : coupe tous les modes + all-notes-off sur tous les streams |
+
+- Modes listés : **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY** — chacun affiche son état live. Les modes actifs sont plus lumineux.
 
 ---
 
