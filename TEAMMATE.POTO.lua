@@ -544,6 +544,7 @@ os8_src_keys   = { "input", "metabo", "comp", "mgen" }
 os8_src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
 os8_src_cursor = 1
 os8_pitch      = false  -- ameliore : transpose le grain pour coller a la note cible (suit la melodie)
+os8_spread     = 0      -- 0..1 : spread stereo des 3 voix (V5 gauche, V6 droite, V3 centre)
 os8_in_gate   = false   -- voix live routee : gate
 os8_in_midi   = -1      -- note MIDI cible (-1 = pas de pitch)
 os8_in_rms    = 0       -- energie
@@ -568,6 +569,12 @@ function os8_route()
   if s.mgen then local e = mgen_nenergy or 0
     if e > 0.05 and e > best then best = e ; os8_in_gate = true ; os8_in_midi = os8_f2midi(mgen_nfreq) ; os8_in_rms = e ; os8_in_centroid = (mgen_nfreq or 0)*3 end
   end
+end
+
+-- pan stereo d'une voix TRANS selon le spread (V5 gauche / V6 droite / V3 centre)
+function os8_pan(v)
+  local s = os8_spread or 0
+  if v == 5 then return -s elseif v == 6 then return s else return 0 end
 end
 
 -- rate de lecture du grain : 1.0, ou transpose pour coller a la note cible (PITCH on)
@@ -744,6 +751,7 @@ local function os8_set(mode)
             softcut.loop_end(5,   g.pos + gs)
             softcut.position(5, g.pos)
             softcut.rate(5, os8_grain_rate(g))
+            if not spat.on then softcut.pan(5, os8_pan(5)) end
             softcut.play(5, 1)
             softcut.level(5, os8_vol)                       -- attaque douce (slew)
             local n5 = freq_to_midi(g.pitch)
@@ -778,6 +786,7 @@ local function os8_set(mode)
             softcut.loop_end(6,   g.pos + gs)
             softcut.position(6, g.pos)
             softcut.rate(6, os8_grain_rate(g))
+            if not spat.on then softcut.pan(6, os8_pan(6)) end
             softcut.play(6, 1)
             softcut.level(6, os8_vol * 0.65)               -- attaque douce (slew)
             local n6 = freq_to_midi(g.pitch)
@@ -812,6 +821,7 @@ local function os8_set(mode)
             softcut.loop_end(3,   g.pos + gs)
             softcut.position(3, g.pos)
             softcut.rate(3, os8_grain_rate(g))
+            if not spat.on then softcut.pan(3, os8_pan(3)) end
             softcut.play(3, 1)
             softcut.level(3, os8_vol * 0.40)               -- attaque douce (slew)
             local n3 = freq_to_midi(g.pitch)
@@ -2431,6 +2441,8 @@ function enc(n, d)
       os8_size      = util.clamp(os8_size      + d * 0.01, 0.02, 0.50)
     elseif page == 7 then
       p_poto_spread = util.clamp(p_poto_spread + d * 0.01, 0.0, 0.30)
+    elseif page == 8 then
+      os8_spread = util.clamp(os8_spread + d * 0.05, 0.0, 1.0)
     elseif page >= 9 and page <= 12 then
       if midi_cur_stream <= 3 then
         local dev = page - 8
@@ -2960,7 +2972,8 @@ function redraw()
     end
     screen.level(os8_rec_n > 0 and 12 or 5) ; screen.move(66, 58)
     screen.text(os8_rec_n .. "gr")
-    screen.level(5) ; screen.move(0, 64) ; screen.text("K3 : clear bank")
+    screen.level(os8_spread > 0 and 10 or 5) ; screen.move(0, 64)
+    screen.text(string.format("E3 spread %d%%  K3 clr", math.floor(os8_spread * 100)))
 
   elseif page >= 9 and page <= 12 then
     local dev    = page - 8

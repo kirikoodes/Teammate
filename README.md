@@ -217,22 +217,26 @@ The **TRANS source router** (combinable) + a **PITCH** improvement + clear the b
 | Encoder / Key | Function |
 |---|---|
 | E2 | Move cursor (INPUT / METABO / COMP / MGEN / PITCH) |
+| E3 | Stereo spread of the 3 TRANS voices (0–100%) |
 | K2 | Toggle the highlighted item ON/OFF |
 | K3 | Clear 8OS bank |
 
 - **TRANS sources** (combinable): in TRANS mode the grains are matched to a "live voice" (pitch + energy + gate). Toggle any combination of **INPUT** (audio), **METABO** (the cell), **COMP** (the companion's improv), **MGEN** — when several are active, the **loudest leads**. Default INPUT only = unchanged behaviour.
 - **PITCH** (improvement): when on, each grain is **transposed to match the target note** (±2 octaves) — 8OS *sings the source's melody* with its sampled material, instead of only picking the nearest grain. Off = grains play at their original pitch.
+- **Spread** (E3): static stereo spread of the 3 TRANS voices — V5 left, V6 right, V3 centre, by the chosen amount. (When SPAT is ON it takes over the panning instead.)
 
 *Le **routeur de source TRANS** (combinable) + une amélioration **PITCH** + effacer le bank.*
 
 | Encodeur / Touche | Fonction |
 |---|---|
 | E2 | Déplacer le curseur (INPUT / METABO / COMP / MGEN / PITCH) |
+| E3 | Spread stéréo des 3 voix TRANS (0–100%) |
 | K2 | Activer / couper l'élément surligné |
 | K3 | Effacer le bank 8OS |
 
 - **Sources TRANS** (combinables) : en TRANS, les grains sont matchés sur une « voix live » (pitch + énergie + gate). Active n'importe quelle combinaison de **INPUT** (audio), **METABO** (la cellule), **COMP** (l'impro du compagnon), **MGEN** — quand plusieurs sont actives, la **plus forte mène**. Défaut INPUT seul = inchangé.
 - **PITCH** (amélioration) : activé, chaque grain est **transposé pour coller à la note cible** (±2 octaves) — 8OS *chante la mélodie de la source* avec sa matière échantillonnée, au lieu de juste choisir le grain le plus proche. Off = grains à leur hauteur d'origine.
+- **Spread** (E3) : spread stéréo statique des 3 voix TRANS — V5 à gauche, V6 à droite, V3 au centre, selon le réglage. (Quand SPAT est ON, c'est lui qui gère le pan à la place.)
 
 ---
 
