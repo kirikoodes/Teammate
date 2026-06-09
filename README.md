@@ -789,6 +789,7 @@ MGEN learns the **genre combinations** you like — the full layout of genres ac
 
 | Encoder / Key | Function |
 |---|---|
+| E2 | Browse the bank — load the selected liked combination live (0 = leave current) |
 | K3 | **LIKE** — save the current combination (the 16-channel genre layout) to the bank |
 | K2 | **DISLIKE** — forget the closest liked combination |
 
@@ -801,6 +802,7 @@ MGEN learns the **genre combinations** you like — the full layout of genres ac
 
 | Encodeur / Touche | Fonction |
 |---|---|
+| E2 | Parcourt la banque — charge en direct la combinaison sélectionnée (0 = laisse le live) |
 | K3 | **LIKE** — mémorise la combinaison courante (la répartition genre des 16 channels) |
 | K2 | **DISLIKE** — oublie la combinaison aimée la plus proche |
 

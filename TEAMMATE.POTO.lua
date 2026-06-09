@@ -2026,6 +2026,20 @@ meta_note_inf   = 0      -- 0..1 : METABO impose ses notes a MGEN (page 25 E3)
 -- DISLIKE oublie la plus proche. Les new themes rappellent/varient tes combos aimees.
 mgen_liked      = {}     -- liste de combos ; chaque combo = { style_idx x16 }
 mgen_taste_last = "--"
+mgen_browse     = 0       -- 0 = live ; 1..N = combo selectionnee (chargee)
+
+-- charge une combinaison : applique le genre de chaque channel + regenere les sequences
+function mgen_load_combo(c)
+  if type(c) ~= "table" then return end
+  for i = 1, 16 do
+    local si = c[i] or mgen_ch[i].style_idx
+    if si < 1 or si > #MGEN_STYLE_NAMES then si = 1 end
+    local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[si]]
+    mgen_ch[i].style_idx = si
+    mgen_ch[i].octave = def.oct_lo + math.random(0, def.oct_hi - def.oct_lo)
+    mgen_gen_seq(i)
+  end
+end
 
 local function mgen_capture_combo()
   local c = {} ; for i = 1, 16 do c[i] = mgen_ch[i].style_idx end ; return c
@@ -2343,6 +2357,9 @@ function enc(n, d)
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
     elseif page == 26 then
       live_cursor = ((live_cursor - 1 + d) % #LIVE_NAMES) + 1
+    elseif page == 27 then
+      mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
+      if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
     end
   elseif n == 3 then
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
@@ -2534,7 +2551,8 @@ function redraw()
   if page == 27 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
-    screen.level(8)  ; screen.move(126, 8) ; screen.text_right("K3+ K2- (" .. #mgen_liked .. ")")
+    screen.level(8)  ; screen.move(126, 8)
+    screen.text_right(mgen_browse >= 1 and ("combo " .. mgen_browse .. "/" .. #mgen_liked) or (#mgen_liked .. " combos"))
     -- frequence des genres dans tes COMBINAISONS aimees (vision globale de ce que tu aimes)
     local freq = {}
     for i = 1, #MGEN_STYLE_NAMES do freq[i] = 0 end
@@ -2546,11 +2564,11 @@ function redraw()
     table.sort(t, function(a, b) return a.w > b.w end)
     local maxw = math.max(1, t[1] and t[1].w or 1)
     if #mgen_liked == 0 then
-      screen.level(4) ; screen.move(2, 30) ; screen.text("aucune combo aimee")
-      screen.move(2, 40) ; screen.text("K3 = aimer le theme courant")
+      screen.level(4) ; screen.move(2, 32) ; screen.text("aucune combo aimee")
+      screen.move(2, 44) ; screen.text("K3 = aimer le theme courant")
     else
-      local ys = { 18, 25, 32, 39, 46, 53, 60 }
-      for k = 1, 7 do
+      local ys = { 18, 25, 32, 39, 46, 53 }
+      for k = 1, 6 do
         local row = t[k]
         if row and row.w > 0 then
           screen.level(8) ; screen.move(2, ys[k]) ; screen.text(row.n)
@@ -2559,6 +2577,8 @@ function redraw()
         end
       end
     end
+    screen.level(4) ; screen.move(2, 63)
+    screen.text(mgen_browse >= 1 and "E2 parcourt (charge)  K3+ K2-" or "E2 parcourt  K3 like  K2 -")
     screen.update() ; return
   end
   if page == 26 then
