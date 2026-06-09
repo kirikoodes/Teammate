@@ -2142,9 +2142,8 @@ function live_toggle(i)
   if i == 1 then
     poto_set(not p_poto_on)
   elseif i == 2 then
-    local seq = { "OFF", "REC", "TRANS" } ; local nxt = 1
-    for k, m in ipairs(seq) do if m == os8_mode then nxt = (k % #seq) + 1 end end
-    os8_set(seq[nxt])
+    -- en LIVE : OFF <-> TRANS uniquement (joue le bank existant, ne relance PAS le REC)
+    os8_set(os8_mode == "OFF" and "TRANS" or "OFF")
   elseif i == 3 then
     if mgen_running then mgen_stop() else mgen_gen_all() ; mgen_start() end
   elseif i == 4 then

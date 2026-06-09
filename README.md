@@ -765,7 +765,7 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 | Encoder / Key | Function |
 |---|---|
 | E2 | Move cursor through the modes |
-| K3 | Toggle the highlighted mode (8OS cycles OFF → REC → TRANS) |
+| K3 | Toggle the highlighted mode (8OS toggles OFF ↔ TRANS only — never re-records) |
 | K2 | **ALL OFF** — panic: stops every mode + all-notes-off on every stream |
 
 - Modes listed: **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (the companion). Each shows its live state (`ON` / `off`, or `OFF/REC/TRANS` for 8OS). Active modes are brighter. (MIDI modes still need their stream routed once — pages 9–12 / 16 / 19 / 23.)
@@ -776,7 +776,7 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 | Encodeur / Touche | Fonction |
 |---|---|
 | E2 | Déplacer le curseur dans la liste |
-| K3 | Activer / couper le mode surligné (8OS cycle OFF → REC → TRANS) |
+| K3 | Activer / couper le mode surligné (8OS bascule OFF ↔ TRANS seulement — ne ré-enregistre jamais) |
 | K2 | **ALL OFF** — panic : coupe tous les modes + all-notes-off sur tous les streams |
 
 - Modes listés : **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (le compagnon). Chacun affiche son état live. Les modes actifs sont plus lumineux. (Les modes MIDI doivent rester routés une fois — pages 9–12 / 16 / 19 / 23.)
