@@ -34,6 +34,32 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
 .doc-col p{font-size:13px;color:#3a3a3a;line-height:1.85;margin-bottom:10px}
 .doc-col b{color:#555!important}
 .doc-col .note{font-size:11px;color:#303030;margin-top:12px;line-height:1.7}
+/* ─── LIVE MATRIX ─── */
+#matrix{max-width:896px;width:100%;display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.mtx-sec h4{font-size:11px;color:#4a4a4a;letter-spacing:3px;text-transform:uppercase;
+  margin-bottom:9px;border-bottom:1px solid #1a1a1a;padding-bottom:6px}
+#mtx-main{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+#mtx-ch{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.pad{background:#101010;border:1px solid #262626;border-radius:6px;padding:9px 6px;cursor:pointer;
+  user-select:none;text-align:center;min-height:50px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;transition:transform .06s,box-shadow .1s,border-color .1s}
+.pad:hover{border-color:#555}
+.pad:active{transform:scale(.95)}
+.pad .pl{font-size:11px;color:#888;letter-spacing:1px;font-weight:bold}
+.pad .pv{font-size:11px;color:#555;min-height:13px}
+.pad.on{background:#08240f;border-color:#39ff14;box-shadow:0 0 9px rgba(57,255,20,.22)}
+.pad.on .pl{color:#7dff5a}.pad.on .pv{color:#39ff14}
+.pad.cyc{background:#191307;border-color:#332708}
+.pad.cyc .pl{color:#b89030}.pad.cyc .pv{color:#ffcf4d}
+.pad.cyc.on{box-shadow:0 0 9px rgba(255,207,77,.18)}
+.pad.rec{background:#2a0808;border-color:#ff3b3b;box-shadow:0 0 9px rgba(255,59,59,.3)}
+.pad.rec .pl{color:#ff8a8a}.pad.rec .pv{color:#ff3b3b}
+.pad.warn{background:#160606;border-color:#4a1414}
+.pad.warn .pl{color:#cc5555}.pad.warn .pv{color:#7a3030}
+.pad.warn:hover{border-color:#ff3b3b}
+.pad.flash{background:#2e2e08!important;border-color:#ffff4d!important;box-shadow:0 0 12px rgba(255,255,77,.4)!important}
+.pad-ch{min-height:40px;padding:6px 3px;gap:2px}
+.pad-ch .pl{font-size:11px}.pad-ch .pv{font-size:9px;letter-spacing:0;min-height:11px}
 </style>
 </head>
 <body>
@@ -48,6 +74,18 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
   <button class="btn" id="k3">K3</button>
 </div>
 <div id="status"></div>
+
+<div id="matrix">
+  <div class="mtx-sec">
+    <h4>Live matrix — modes (1 clic = 1 mode · molette sur les pads ambre)</h4>
+    <div id="mtx-main"></div>
+  </div>
+  <div class="mtx-sec">
+    <h4>MGEN channels — mute / unmute (clic = on/off)</h4>
+    <div id="mtx-ch"></div>
+  </div>
+</div>
+
 <div id="hint">
   <span>← →</span> pages (E1) &nbsp;·&nbsp; <span>Q / W</span> E2 &nbsp;·&nbsp; <span>A / S</span> E3 &nbsp;·&nbsp; <span>1 / 2 / 3</span> K1 K2 K3<br>
   scroll wheel on encoders &nbsp;·&nbsp; click screen or <span>K3</span> to start audio
@@ -1254,6 +1292,75 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='2') key(2,1);
   else if(e.key==='3'){if(!audioCtx)initAudio();key(3,1);}
 });
+
+// ─── LIVE MATRIX (web only) ───────────────────────────────────────────────────
+// chaque pad rejoue exactement la logique d'une touche K2/K3 du norns,
+// en basculant `page` le temps de l'appel — donc aucune divergence de comportement.
+function actVia(p,k){const sv=page;page=p;key(k,1);page=sv;}
+function ensureAudio(){if(!audioCtx)initAudio();}
+function flashPad(id){const el=document.getElementById('mp-'+id);if(el){el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),150);}}
+function panicAll(){
+  p_poto_on=false; os8_mode='OFF';
+  if(mgen_running) mgenStop();
+  if(spat.on){spat.on=false;spatStop();}
+  p_deaf=false; p_voice=false;
+  audioMidiFlush();
+  for(let d=0;d<4;d++) if(midi_outs[d]) for(let ch=0;ch<16;ch++) midi_outs[d].send([0xB0|ch,123,0]);
+  flashPad('panic');
+}
+const MGEN_AB=['TECH','DnB','JGL','AMPR','2STP','BRKN','DUMB','TRAP','DRIL','CLUB','KPOP','ORNT','RAVE','TRNC'];
+const MTX=[
+  {id:'poto', label:'POtO',  audio:1, act:()=>actVia(5,3),  st:()=>({on:p_poto_on, val:p_poto_on?'ON':'off'})},
+  {id:'poly', label:'POLY',  cyc:1,   act:()=>actVia(5,2),  st:()=>({on:p_poto_poly>0, val:POTO_POLY_NAMES[p_poto_poly]})},
+  {id:'8os',  label:'8OS',   audio:1, act:()=>actVia(6,3),  st:()=>({on:os8_mode==='TRANS', rec:os8_mode==='REC', val:os8_mode})},
+  {id:'mgen', label:'MGEN',  audio:1, act:()=>actVia(13,3), st:()=>({on:mgen_running, val:mgen_running?'RUN':'off'})},
+  {id:'brk',  label:'BREAK', cyc:1,   act:()=>{mgen_break_idx=(mgen_break_idx+1)%MGEN_BREAK_NAMES.length;}, st:()=>({val:MGEN_BREAK_NAMES[mgen_break_idx]})},
+  {id:'fire', label:'FIRE',  audio:1, act:()=>{actVia(15,3);flashPad('fire');}, st:()=>({val:'▶ go'})},
+  {id:'spat', label:'SPAT',  act:()=>actVia(17,3), st:()=>({on:spat.on, val:spat.on?'ON':'off'})},
+  {id:'spatf',label:'FIELD', cyc:1,   act:()=>actVia(17,2), st:()=>({on:spat.on, val:SPAT_MODES[spat.mode]})},
+  {id:'voice',label:'VOICE', act:()=>actVia(4,3), st:()=>({on:p_voice, val:p_voice?'ON':'off'})},
+  {id:'deaf', label:'DEAF',  act:()=>actVia(3,3), st:()=>({on:p_deaf, val:p_deaf?'ON':'off'})},
+  {id:'rhy',  label:'RHY',   cyc:1,   act:()=>actVia(4,2), st:()=>({on:p_rhythm>0, val:Math.round(p_rhythm*100)+'%'})},
+  {id:'panic',label:'PANIC', warn:1,  act:panicAll, st:()=>({val:'stop all'})},
+];
+function buildMatrix(){
+  const main=document.getElementById('mtx-main');
+  MTX.forEach(d=>{
+    const el=document.createElement('div');
+    el.className='pad'+(d.cyc?' cyc':'')+(d.warn?' warn':'');
+    el.id='mp-'+d.id;
+    el.innerHTML=`<div class="pl">${d.label}</div><div class="pv" id="mv-${d.id}"></div>`;
+    el.addEventListener('click',()=>{if(d.audio)ensureAudio();d.act();updateMatrix();});
+    if(d.cyc) el.addEventListener('wheel',e=>{e.preventDefault();d.act();updateMatrix();},{passive:false});
+    main.appendChild(el);
+  });
+  const chg=document.getElementById('mtx-ch');
+  for(let i=0;i<16;i++){
+    const el=document.createElement('div');
+    el.className='pad pad-ch'; el.id='mc-'+i;
+    el.innerHTML=`<div class="pl">${String(i+1).padStart(2,'0')}</div><div class="pv" id="mcs-${i}"></div>`;
+    el.addEventListener('click',()=>{mgen_ch[i].on=!mgen_ch[i].on;updateMatrix();});
+    chg.appendChild(el);
+  }
+}
+function updateMatrix(){
+  MTX.forEach(d=>{
+    const el=document.getElementById('mp-'+d.id); if(!el) return;
+    const s=d.st();
+    el.classList.toggle('on',!!s.on);
+    el.classList.toggle('rec',!!s.rec);
+    const v=document.getElementById('mv-'+d.id); if(v) v.textContent=s.val;
+  });
+  for(let i=0;i<16;i++){
+    const el=document.getElementById('mc-'+i); if(!el) continue;
+    const ch=mgen_ch[i];
+    el.classList.toggle('on',!!ch.on);
+    const v=document.getElementById('mcs-'+i); if(v) v.textContent=MGEN_AB[ch.style_idx]||'?';
+  }
+}
+buildMatrix();
+setInterval(updateMatrix,1000/15);
+updateMatrix();
 
 // ─── MAIN LOOP ────────────────────────────────────────────────────────────────
 mgenGenAll();
