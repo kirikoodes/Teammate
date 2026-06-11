@@ -102,13 +102,23 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.5</td><td>POtO granular — vol (E2) · monitor/sens (E3) · K2 poly MONO/5th/CHRD/CLST/<b>SMRT</b> · K3 on/off</td></tr>
       <tr><td>p.6</td><td>8OS looper — vol (E2) · grain size (E3) · K3 OFF→REC→TRANS</td></tr>
       <tr><td>p.7</td><td>Grain size (E2) · spread (E3) · K3 rate</td></tr>
-      <tr><td>p.8</td><td>8OS bank info · K3 clear bank</td></tr>
+      <tr><td>p.8</td><td>8OS TRANS source — INPUT/METABO/COMP/MGEN + PITCH · E2 sel · K3 toggle · K2 all</td></tr>
       <tr><td>p.9–12</td><td>MIDI routing — E2 stream (IMPRO/POtO/8OS/MGEN) · E3 ch (streams 1–3) · K3 toggle</td></tr>
       <tr><td>p.13</td><td>MGEN — BPM (E2) · scale (E3) · K2 tap/new theme · K3 start/stop</td></tr>
       <tr><td>p.14</td><td>MGEN channels — E2 select · E3 style · K2 evo rate · K3 on/off</td></tr>
       <tr><td>p.15</td><td>MGEN breaks — E2 type · E3 octave · K3 fire</td></tr>
       <tr><td>p.16</td><td>Audio→MIDI — pitch polyphonique live · E2 device · E3 channel · K3 toggle</td></tr>
       <tr><td>p.17</td><td>SPAT — spatialisation 6 modes · E2 masse · E3 tempo · K2 mode · K3 ON/OFF</td></tr>
+      <tr><td>p.18</td><td>METABO — cellule métabolique → notes MIDI (str6) · E2 gamme · E3 octave · K2 densité · K3 ON/OFF</td></tr>
+      <tr><td>p.19</td><td>METABO MIDI — routage stream 6 · E2 device · E3 ch · K3 route</td></tr>
+      <tr><td>p.20</td><td>METABO PLAY — E2 persona (CELL/PIANO/POLY/BASS) · E3 follow pitch · K2 densité · K3 ON/OFF</td></tr>
+      <tr><td>p.21</td><td>METABO FEED — E2 source (INPUT/COMP/MIX) · E3 réaction · K2 influence → compagnon · K3 ON/OFF</td></tr>
+      <tr><td>p.22</td><td>NIAKABY — harmoniseur pitch → accords MIDI (str7) · E2 gamme · E3 octave · K2 accord · K3 ON/OFF</td></tr>
+      <tr><td>p.23</td><td>NIAKABY MIDI — routage stream 7 · E2 device · E3 ch · K3 route</td></tr>
+      <tr><td>p.24</td><td>NIAKABY SRC — sources INPUT/METABO/COMP/MGEN · E2 sel · K3 toggle · K2 all</td></tr>
+      <tr><td>p.25</td><td>METABO→MGEN — E2 drive · E3 note inf · K2 scope LIGHT/FULL · K3 new theme now</td></tr>
+      <tr><td>p.26</td><td>MGEN TASTE — combos aimées · K3 like · K2 dislike · E2 parcourt · E3 recall%</td></tr>
+      <tr><td>p.27</td><td>LIVE — armer/couper tous les modes · E2 curseur · K3 toggle · K2 panic (all off)</td></tr>
     </table>
   </div>
   <div class="doc-col">
@@ -193,8 +203,10 @@ setTimeout(()=>{splash_active=false;},3000);
 let midi_outs=[], midi_out_names=['---','---','---','---'];
 let midi_in_names=[];
 let audio_in_name='---', audio_out_name='---';
-let midi_route=[[true,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false]];
-let midi_ch_map=[[1,1,1,1],[2,2,2,2],[3,3,3,3]],midi_cur_stream=1;
+// 7 streams : 1 IMPRO · 2 POtO · 3 8OS · 4 MGEN · 5 AUDIO · 6 METABO · 7 NIAKABY
+let midi_route=[[true,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false],[false,false,false,false],[true,false,false,false],[true,false,false,false]];
+let midi_ch_map=[[1,1,1,1],[2,2,2,2],[3,3,3,3],[4,4,4,4],[5,5,5,5],[16,16,16,16],[8,8,8,8]],midi_cur_stream=1;
+let metabo_cur_dev=1, niaka_cur_dev=1;
 let midi_ch_audio=[5,5,5,5],midi_audio_cur_dev=1;
 let audio_midi_notes=[];  // notes MIDI audio actives (polyphonique)
 
@@ -460,7 +472,8 @@ function os8Grain(){
   const maxStart=Math.max(0,os8_recorded_samples-grainSamp);
   const startPos=rnd(0,maxStart);
   const dur=playGrain(os8Buffer,os8_vol,1.0,startPos,grainLen);
-  const note=freqToMidi(cur_freq);
+  // note MIDI 8OS : pilotée par la source TRANS sélectionnée (page 8), sinon l'entrée live
+  const note=freqToMidi(os8_cur_freq||cur_freq);
   if(note){
     midiNoteOn(3,note,Math.floor(os8_vol*100)+27);
     setTimeout(()=>midiNoteOff(3,note),(dur||grainLen)*900);
@@ -527,6 +540,8 @@ function processGate(ng){
 function playEvent(ev,rm){
   if(!audioCtx||!corpusBufs[ev.slot-1]) return 0;
   rm=rm||1;
+  // énergie du compagnon (nourrit METABO feed COMP/MIX et NIAKABY source COMP)
+  if(ev.rms>comp_rms){comp_rms=ev.rms;comp_freq=(ev.freq||cur_freq)*Math.abs(rm);comp_centroid=ev.centroid||cur_centroid;comp_flatness=ev.flatness||cur_flatness;}
   const samps=corpusBufs[ev.slot-1];
   const sr=audioCtx.sampleRate;
   const dur=Math.min(ev.duration,MAX_DUR);
@@ -676,6 +691,7 @@ async function playPhrase(phrase,strat){
   }
 }
 function respond(rn){
+  if(!comp_on) return;   // LIVE : compagnon coupé = écoute mais se tait
   const s=pickStrat(); strat_name=s; last_strat=s;
   if(s==='SILENCE'){consec_sil++;return;}
   consec_sil=0; if(count<MIN_CORPUS) return;
@@ -754,6 +770,9 @@ function midiNoteOff(stream,note){
     midi_outs[d].send([0x80|(midi_ch_map[stream-1][d]-1),note,0]);
 }
 function mgenMidiNoteOn(mc,note,vel){
+  // énergie MGEN (nourrit NIAKABY source MGEN) — note la plus aiguë = pitch ref
+  const f=440*Math.pow(2,(note-69)/12);
+  if(vel/127>mgen_nenergy){mgen_nenergy=vel/127;mgen_nfreq=f;}
   for(let d=0;d<4;d++) if(midi_route[3]&&midi_route[3][d]&&midi_outs[d])
     midi_outs[d].send([0x90|(mc-1),clamp(note,0,127),clamp(vel,1,127)]);
 }
@@ -777,7 +796,7 @@ function audioMidiFlush(){
 // ─── AUDIO→MIDI suivi continu (50ms) ─────────────────────────────────────────
 setInterval(()=>{
   if(!audioCtx) return;
-  const anyRouted=midi_route[4]&&midi_route[4].some((r,i)=>r&&midi_outs[i]);
+  const anyRouted=audio_midi_on&&midi_route[4]&&midi_route[4].some((r,i)=>r&&midi_outs[i]);
   if(!anyRouted){if(audio_midi_notes.length) audioMidiFlush(); return;}
   if(cur_gate>0.5){
     const notes=detectAudioPitches();
@@ -895,6 +914,10 @@ function mgenStart(){
         else if(bt===17){if(s%2===0) active=false;}
       }
       if(active){
+        // METABO impose sa note (recalée gamme MGEN, registre gardé) selon meta_note_inf
+        if(metabolik.on&&meta_note_inf>0&&meta_freq>30&&Math.random()<meta_note_inf){
+          note=clamp(mgenSnap(Math.round(69+12*Math.log2(meta_freq/440))),0,127);
+        }
         mgenMidiNoteOn(ch.midi_ch,note,vel);
         const gd=sd*gate,nn=note,mc=ch.midi_ch;
         setTimeout(()=>mgenMidiNoteOff(mc,nn),gd);
@@ -1012,10 +1035,11 @@ function redraw(){
     S.level(3);S.move(0,30);S.line(128,30);S.stroke();
     return;
   }
+  if(drawExtraPage()) return;   // pages 8,18-27 : plein écran (parité Norns)
   S.font_size(8);
   S.level(15);S.move(0,8);S.text(state);
   S.level(5);S.move(42,8);S.text(`c:${count}/${CORPUS_SLOTS}`);
-  S.level(5);S.move(100,8);S.text(`${page}/17`);
+  S.level(5);S.move(100,8);S.text(`${page}/27`);
   if(rec_on){S.level(15);S.circle(124,5,3);S.fill();}
   S.level(state==='THINK'?15:5);S.move(0,18);S.text(strat_name);
   if(phrase_buf.length>0){S.level(10);S.move(76,18);S.text('+'+phrase_buf.length);}
@@ -1179,7 +1203,19 @@ function drawP17(){
 
 // ─── INPUT ────────────────────────────────────────────────────────────────────
 function enc(n,d){
-  if(n===1){page=((page-1+d+17)%17)+1;return;}
+  if(n===1){page=((page-1+d+27)%27)+1;return;}
+  // ── pages parité Norns 8,18-27 ──
+  if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,5);else if(n===3)os8_spread=clamp(os8_spread+d*0.05,0,1);return;}
+  if(page===18){const M=metabolik;if(n===2)M.scale_idx=((M.scale_idx+d)%M.scale_names.length+M.scale_names.length)%M.scale_names.length;else if(n===3)M.octave=clamp(M.octave+d,-2,2);return;}
+  if(page===19){if(n===2)metabo_cur_dev=clamp(metabo_cur_dev+d,1,4);else if(n===3)midi_ch_map[5][metabo_cur_dev-1]=clamp(midi_ch_map[5][metabo_cur_dev-1]+d,1,16);return;}
+  if(page===20){const M=metabolik;if(n===2)M.persona_idx=((M.persona_idx+d)%M.persona_names.length+M.persona_names.length)%M.persona_names.length;else if(n===3)M.follow_amt=clamp(M.follow_amt+d*0.05,0,1);return;}
+  if(page===21){const M=metabolik;if(n===2)M.feed_idx=((M.feed_idx+d)%M.feed_names.length+M.feed_names.length)%M.feed_names.length;else if(n===3)M.react=clamp(M.react+d*0.05,0,1);return;}
+  if(page===22){const M=niakaby;if(n===2)M.scale_idx=((M.scale_idx+d)%M.scale_names.length+M.scale_names.length)%M.scale_names.length;else if(n===3)M.octave=clamp(M.octave+d,-2,2);return;}
+  if(page===23){if(n===2)niaka_cur_dev=clamp(niaka_cur_dev+d,1,4);else if(n===3)midi_ch_map[6][niaka_cur_dev-1]=clamp(midi_ch_map[6][niaka_cur_dev-1]+d,1,16);return;}
+  if(page===24){const M=niakaby;M.src_cursor=((M.src_cursor+d)%M.src_keys.length+M.src_keys.length)%M.src_keys.length;return;}
+  if(page===25){if(n===2)meta_mgen_drive=clamp(meta_mgen_drive+d*0.05,0,1);else if(n===3)meta_note_inf=clamp(meta_note_inf+d*0.05,0,1);return;}
+  if(page===26){if(n===2){mgen_browse=clamp(mgen_browse+d,0,mgen_liked.length);if(mgen_browse>=1&&mgen_liked[mgen_browse-1])mgenLoadCombo(mgen_liked[mgen_browse-1]);}else if(n===3)mgen_recall=clamp(mgen_recall+d*0.05,0,1);return;}
+  if(page===27){if(n===2)live_cursor=((live_cursor-1+d)%LIVE_NAMES.length+LIVE_NAMES.length)%LIVE_NAMES.length+1;return;}
   if(n===2){
     if(page===1)  p_rec_prob=clamp(p_rec_prob+d*0.05,0,1);
     else if(page===2)  p_density=clamp(p_density+d*0.05,0,1);
@@ -1216,6 +1252,18 @@ function enc(n,d){
 
 function key(n,z){
   if(!z) return;
+  // ── pages parité Norns 8,18-27 ──
+  if(page===8){if(n===3){if(os8_src_cursor<=4){const k=os8_src_keys[os8_src_cursor-1];os8_src[k]=!os8_src[k];}else os8_pitch=!os8_pitch;}else if(n===2){const all=os8_src.input&&os8_src.metabo&&os8_src.comp&&os8_src.mgen;for(const k of os8_src_keys)os8_src[k]=!all;}return;}
+  if(page===18){if(n===3)metabolik.on=!metabolik.on;else if(n===2)metabolik.density_idx=(metabolik.density_idx+1)%metabolik.density_names.length;return;}
+  if(page===19){if(n===3)midi_route[5][metabo_cur_dev-1]=!midi_route[5][metabo_cur_dev-1];return;}
+  if(page===20){if(n===3)metabolik.on=!metabolik.on;else if(n===2)metabolik.density_idx=(metabolik.density_idx+1)%metabolik.density_names.length;return;}
+  if(page===21){if(n===3)metabolik.on=!metabolik.on;else if(n===2)metabolik.influence_idx=(metabolik.influence_idx+1)%metabolik.influence_names.length;return;}
+  if(page===22){if(n===3){niakaby.on=!niakaby.on;if(!niakaby.on)niakaby.release();}else if(n===2)niakaby.chord_idx=(niakaby.chord_idx+1)%niakaby.chord_names.length;return;}
+  if(page===23){if(n===3)midi_route[6][niaka_cur_dev-1]=!midi_route[6][niaka_cur_dev-1];return;}
+  if(page===24){if(n===3){const k=niakaby.src_keys[niakaby.src_cursor];niakaby.src[k]=!niakaby.src[k];}else if(n===2){let all=true;for(const k of niakaby.src_keys)if(!niakaby.src[k])all=false;for(const k of niakaby.src_keys)niakaby.src[k]=!all;}return;}
+  if(page===25){if(n===2)meta_mgen_scope=(meta_mgen_scope===1)?2:1;else if(n===3)metaShakeMgen();return;}
+  if(page===26){if(n===3)mgenTaste(true);else if(n===2)mgenTaste(false);return;}
+  if(page===27){if(n===3)liveToggle(live_cursor);else if(n===2)liveAllOff();return;}
   if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
   if(n===2&&page===5){p_poto_poly=(p_poto_poly+1)%POTO_POLY_NAMES.length;return;}
   if(n===2&&page===6){os8_sync=!os8_sync;return;}
@@ -1293,6 +1341,402 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='3'){if(!audioCtx)initAudio();key(3,1);}
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PARITÉ NORNS — pages 18-27 : METABOLIK, NIAKABY, META>MGEN, TASTE, LIVE, 8OS src
+// ═══════════════════════════════════════════════════════════════════════════════
+// énergies des sources (nourrissent METABO / NIAKABY)
+let comp_rms=0,comp_freq=0,comp_centroid=0,comp_flatness=0;
+let meta_freq=0,meta_energy=0,mgen_nenergy=0,mgen_nfreq=0;
+const NOTE_NM=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteName(n){return NOTE_NM[((n%12)+12)%12]+(Math.floor(n/12)-1);}
+function txtR(x,y,s){ctx.font=`${S._fs}px monospace`;const w=ctx.measureText(s).width;S.move(x-w,y);S.text(s);}
+
+// ───────────────────────────────────────── METABOLIK (cellule -> notes MIDI)
+const metabolik=(()=>{
+  const M={};
+  M.scale_names=['PENMIN','PENMAJ','MINOR','HIRA','INSEN','HIJAZ','PHRYG','DORIC','MAJOR'];
+  M.scales={PENMIN:[0,3,5,7,10],PENMAJ:[0,2,4,7,9],MINOR:[0,2,3,5,7,8,10],HIRA:[0,2,3,7,8],INSEN:[0,1,5,7,10],HIJAZ:[0,1,4,5,7,8,11],PHRYG:[0,1,3,5,7,8,10],DORIC:[0,2,3,5,7,9,10],MAJOR:[0,2,4,5,7,9,11]};
+  M.scale_idx=0;M.root=48;M.octave=0;M.midi_ch=16;
+  M.BIO=[{ch:'growth',deg:1,oct:0},{ch:'glycolysis',deg:2,oct:0},{ch:'respiration',deg:3,oct:0},{ch:'fermentation',deg:4,oct:0},{ch:'byproduct',deg:5,oct:0},{ch:'co2',deg:1,oct:1},{ch:'lactate',deg:2,oct:1}];
+  const BIO_INDEX={};M.BIO.forEach((b,i)=>BIO_INDEX[b.ch]=i);
+  M.on=false;M.ch={growth:0,glycolysis:0,respiration:0,fermentation:0,byproduct:0,co2:0,lactate:0};
+  M.stress=0;M.stressFx=0;M.stress_min=0;M.stress_max=1;M.flash=0;M.state='—';
+  M.density_names=['SPARSE','FLOW','DENSE'];M.density_idx=1;M.motif=null;M.rhythm=null;M.motif_age=0;
+  M.persona_names=['CELL','PIANO','POLY','BASS'];M.persona_idx=0;
+  M.spat=false;M.cc=null;
+  M.feed_names=['INPUT','COMP','MIX'];M.feed_idx=0;M.react=0.5;
+  M.influence_names=['OFF','LOW','MID','HIGH'];M.INFLU_AMT=[0,0.33,0.66,1.0];M.influence_idx=0;
+  M.follow_amt=0.6;M.in_note=null;M.center=60;M.note_on=null;M.note_off=null;
+  let feat={level:0,bright:0,texture:0,pitchN:0},prevV=null,novAcc=0;
+  const cu=x=>x<0?0:(x>1?1:x);
+  const scale=()=>M.scales[M.scale_names[M.scale_idx]];
+  function snap(note){const sc=scale(),L=sc.length;let best=note,bd=999;for(let o=-4;o<=5;o++)for(let i=0;i<L;i++){const c=M.root+o*12+sc[i],d=Math.abs(c-note);if(d<bd){bd=d;best=c;}}return best;}
+  M.bio_note=function(b){const sc=scale(),L=sc.length;const deg=(b.deg-1)%L;let n=M.root+(M.octave+b.oct)*12+sc[deg];if(n<24)n=24;else if(n>96)n=96;return n;};
+  M.update=function(rms,freq,centroid,flatness,dt){
+    dt=dt||1/30;
+    const level=Math.min(1,(rms||0)*8),bright=Math.min(1,(centroid||0)/4000),texture=Math.min(1,flatness||0);
+    let pitchN=0;if((freq||0)>30){pitchN=Math.log(freq/55)/Math.log(3000/55);if(pitchN<0)pitchN=0;else if(pitchN>1)pitchN=1;}
+    const k=0.3;feat.level+=(level-feat.level)*k;feat.bright+=(bright-feat.bright)*k;feat.texture+=(texture-feat.texture)*k;feat.pitchN+=(pitchN-feat.pitchN)*k;
+    const glc=feat.level,o2=feat.bright,am=feat.pitchN,lip=feat.texture,c=M.ch;
+    c.glycolysis=cu(glc);c.respiration=cu(Math.min(glc,o2)*(0.4+0.6*o2));c.fermentation=cu(glc*(1-o2));
+    c.co2=c.respiration;c.lactate=c.fermentation;c.byproduct=cu(am*0.7+lip*0.3);
+    c.growth=cu(c.respiration*0.55+am*0.4+lip*0.3+glc*0.15);
+    const v=[feat.level,feat.bright,feat.texture,feat.pitchN];
+    if(prevV){let d=0;for(let i=0;i<4;i++)d+=Math.abs(v[i]-prevV[i]);novAcc=novAcc*Math.exp(-dt/0.7)+d/4;}
+    prevV=v;
+    const novelty=Math.min(1,novAcc*5.5),active=feat.level>0.04,monotony=active?(1-cu(novelty)):0;
+    const imbalance=Math.abs(c.fermentation-c.respiration);
+    const perturb=cu(monotony*0.6+imbalance*0.3+(1-c.growth)*0.2);
+    const rate=(perturb>M.stress)?2.4:0.45;
+    M.stress=M.stress+(perturb-M.stress)*Math.min(1,dt*rate);
+    M.stressFx=M.stress_min+M.stress*(M.stress_max-M.stress_min);
+    if((freq||0)>30&&feat.level>0.03){const n=Math.floor(69+12*Math.log(freq/440)/Math.log(2)+0.5);if(n>=12&&n<=108){M.in_note=n;M.center=M.center+(n-M.center)*Math.min(1,dt*4);}}else M.in_note=null;
+    if(M.flash>0)M.flash=Math.max(0,M.flash-dt*3);
+    M.state=(M.stressFx>0.66?'MONOTONE':(M.stressFx>0.33?'PERTURBE':'STABLE'));
+  };
+  M.bpm=()=>60+M.stressFx*120;
+  function ranked(){const t=M.BIO.map(b=>({b,v:M.ch[b.ch]||0}));t.sort((a,c)=>c.v-a.v);return t;}
+  M._ranked=ranked;
+  function newMotif(){const n=3+rnd(0,4),m=[0];let dir=Math.random()<0.5?1:-1;for(let i=1;i<n;i++){const r=Math.random();let step;if(r<0.55)step=dir;else if(r<0.80)step=dir*2;else if(r<0.92)step=-dir;else step=dir*3;m[i]=m[i-1]+step;if(Math.random()<0.28)dir=-dir;}return m;}
+  const RC=[[1,1,1,1],[0.5,0.5,1,1],[0.75,0.25,1],[0.5,0.5,0.5,0.5],[1,0.5,0.5,1],[0.25,0.25,0.5,1],[1.5,0.5,1],[0.5,0,0.5,1],[0.33,0.33,0.34,1],[0.25,0.25,0.25,0.25,1]];
+  const newRhythm=()=>RC[rnd(0,RC.length-1)];
+  M.play_phrase=async function(){
+    const rk=ranked();let pool=[];
+    for(let i=0;i<Math.min(6,rk.length);i++) if((rk[i].v||0)>0.02) pool.push(rk[i].b);
+    if(pool.length===0) pool=[(rk[0]&&rk[0].b)||M.BIO[0]];
+    M.motif_age++;
+    if(!M.motif||!M.rhythm||M.motif_age>(3+rnd(0,3))||Math.random()<0.15){M.motif=newMotif();M.rhythm=newRhythm();M.motif_age=0;}
+    const sc=scale(),L=sc.length,beat=60/M.bpm(),dens=M.density_idx+1;
+    const densMul=(dens===1)?0.6:(dens===3?1.7:1.0);
+    let nbase=2+Math.floor((M.stressFx*3+(M.ch.growth||0)*2)*densMul+0.5);
+    nbase=Math.max(1,Math.min(12,nbase));M.flash=1;
+    let follow_oct=0;
+    if(M.follow_amt>0&&M.center) follow_oct=Math.max(-2,Math.min(3,Math.floor((M.center-M.root)/12*M.follow_amt+0.5)));
+    const in_n=(M.follow_amt>0&&M.in_note!=null)?snap(M.in_note):null;
+    function deg_note(b,off,octshift){let d=((b.deg-1)%L)+(off||0);const oct=Math.floor(d/L);const di=((d%L)+L)%L;let n=M.root+(M.octave+b.oct+oct+follow_oct+(octshift||0))*12+sc[di];while(n<24)n+=12;while(n>96)n-=12;return n;}
+    function vel_at(i){let v=Math.floor(40+((M.ch.growth||0)*0.35+M.stressFx*0.5)*60)+((i===1)?18:0)+rnd(-6,6);return Math.max(1,Math.min(127,v));}
+    function hit(notes,vel,dur){for(const nn of notes){M.note_on(nn,vel);setTimeout(()=>{if(M.note_off)M.note_off(nn);},Math.max(50,dur*1000));}}
+    const persona=M.persona_names[M.persona_idx];
+    if(persona==='POLY'){
+      const PERIOD={growth:4,glycolysis:3,respiration:6,fermentation:5,byproduct:7,co2:8,lactate:2};
+      const OFFS={growth:0,glycolysis:1,respiration:0,fermentation:2,byproduct:3,co2:0,lactate:0};
+      const base=beat/4,nticks=(dens===1)?16:(dens===3?48:32);
+      for(let t=0;t<nticks;t++){
+        for(const b of M.BIO){const act=M.ch[b.ch]||0,per=PERIOD[b.ch]||4,ph=(t-(OFFS[b.ch]||0));
+          if(act>0.07&&ph>=0&&(ph%per===0)&&Math.random()<(0.40+act*0.55)){
+            const n=(in_n!=null&&Math.random()<0.25)?in_n:deg_note(b,0);
+            const vv=Math.max(1,Math.min(127,Math.floor(38+act*70+((t===0)?14:0)+rnd(-6,6))));
+            M.note_on(n,vv);const dur=base*(1.0+Math.random()*0.8);
+            setTimeout(()=>{if(M.note_off)M.note_off(n);},Math.max(50,dur*1000));}}
+        if(t%8===0)M.flash=1;await sleep(base*1000);}
+      return;
+    }
+    if(persona==='BASS'){
+      const b=pool[0],rh=M.rhythm,steps=Math.max(3,Math.min(nbase+2,10));
+      for(let i=1;i<=steps;i++){const cell=rh[(i-1)%rh.length];
+        if(cell>0){const off=(Math.random()<0.6)?0:(Math.random()<0.5?4:7);let n=deg_note(b,off,-1);while(n>55)n-=12;hit([n],Math.min(127,vel_at(i)+12),Math.max(0.10,beat*cell*0.9));}
+        await sleep(Math.max(0.06,beat*(cell>0?cell:0.5))*1000);}
+      return;
+    }
+    const piano=(persona==='PIANO');let r=Math.random(),kind;
+    if(piano){if(r<0.44)kind='chord';else if(r<0.76)kind='arp';else kind='melody';}
+    else{if(r<0.28)kind='chord';else if(r<0.60)kind='arp';else if(r<0.85)kind='melody';else kind='ostinato';}
+    if(kind==='chord'){
+      const size=Math.min(pool.length,2+rnd(0,(dens===3)?3:2));let notes=[];
+      if(piano)notes.push(deg_note(pool[0],0,-1));
+      for(let k=0;k<size;k++)notes.push(M.bio_note(pool[k]));
+      if(in_n!=null&&Math.random()<0.6)notes.push(in_n);
+      if(Math.random()<0.5)notes.push(deg_note(pool[0],M.motif[M.motif.length-1]||2));
+      const reps=1+((dens===3)?rnd(0,2):0);
+      for(let _=0;_<reps;_++){
+        if(piano){for(const nn of notes){M.note_on(nn,vel_at(1));setTimeout(()=>{if(M.note_off)M.note_off(nn);},beat*(1.0+Math.random()*0.6)*1000);await sleep((0.02+Math.random()*0.03)*1000);}await sleep(Math.max(0.14,beat*(0.9+Math.random()*0.7))*1000);}
+        else{hit(notes,vel_at(1),Math.max(0.18,beat*(0.6+Math.random()*0.6)));await sleep(Math.max(0.12,beat*(0.8+Math.random()*0.8))*1000);}}
+    }else if(kind==='arp'){
+      let order=[];for(let k=0;k<pool.length;k++)order[k]=k;
+      const mode=rnd(1,3);
+      if(mode===2){for(let k=0;k<Math.floor(order.length/2);k++){const tmp=order[k];order[k]=order[order.length-1-k];order[order.length-1-k]=tmp;}}
+      else if(mode===3&&pool.length>1){for(let k=pool.length-2;k>=1;k--)order.push(k);}
+      const steps=Math.max(2,Math.min(nbase,order.length*2)),gaps=[0.25,0.33,0.5,0.5,1],gap=beat*gaps[rnd(0,gaps.length-1)];
+      for(let i=1;i<=steps;i++){const b=pool[order[(i-1)%order.length]];
+        const off=(Math.random()<0.30)?(M.motif[(i-1)%M.motif.length]):0;
+        const nn=(in_n!=null&&i===1&&Math.random()<0.5)?in_n:deg_note(b,off);
+        hit([nn],vel_at(i),Math.max(0.06,gap*0.9));await sleep(Math.max(0.05,gap)*1000);}
+    }else if(kind==='melody'){
+      const rh=M.rhythm,steps=Math.max(3,Math.min(nbase+M.motif.length,12));
+      for(let i=1;i<=steps;i++){const cell=rh[(i-1)%rh.length];
+        if(cell>0){const off=M.motif[(i-1)%M.motif.length],b=pool[(i-1)%pool.length];
+          const nn=(in_n!=null&&Math.random()<0.3)?in_n:deg_note(b,off);hit([nn],vel_at(i),Math.max(0.06,beat*cell*0.85));}
+        await sleep(Math.max(0.05,beat*(cell>0?cell:0.5))*1000);}
+    }else{
+      const rh=M.rhythm,reps=2+((dens===3)?rnd(1,2):rnd(0,1));
+      for(let rep=1;rep<=reps;rep++){for(let i=1;i<=rh.length;i++){const cell=rh[i-1];
+        if(cell>0){let off=M.motif[(i-1)%M.motif.length];if(rep>1&&Math.random()<0.2)off+=(Math.random()<0.5?1:-1);
+          const b=pool[(i-1)%pool.length];hit([deg_note(b,off)],vel_at(i),Math.max(0.06,beat*cell*0.8));}
+        await sleep(Math.max(0.05,beat*(cell>0?cell:0.4))*1000);}}
+    }
+  };
+  M.player=async function(){
+    while(true){const beat=60/M.bpm();
+      if(M.on&&M.note_on&&(M.ch.growth||0)>0.05){
+        const dmul=(M.density_idx+1===1)?0.7:(M.density_idx+1===3?1.3:1.0);
+        const p_play=Math.min(0.93,(0.22+M.stressFx*0.5+(M.ch.growth||0)*0.15)*dmul);
+        if(Math.random()<p_play){await M.play_phrase();const rest=beat*(0.4+Math.random()*1.2)*(M.density_idx+1===3?0.7:1.0);await sleep(Math.max(0.08,rest)*1000);}
+        else{const sil=beat*(1.3+Math.random()*3.0)*(1.4-M.stressFx)*(M.density_idx+1===1?1.3:1.0);await sleep(Math.max(0.4,sil)*1000);}
+      }else await sleep(300);}
+  };
+  M.note_nm=noteName;
+  return M;
+})();
+
+// ───────────────────────────────────────── NIAKABY (pitch -> accords MIDI)
+const niakaby=(()=>{
+  const M={};
+  M.scale_names=['MAJOR','MINOR','DORIC','PHRYG','HIJAZ','PENMIN','PENMAJ','HIRA','INSEN'];
+  M.scales={MAJOR:[0,2,4,5,7,9,11],MINOR:[0,2,3,5,7,8,10],DORIC:[0,2,3,5,7,9,10],PHRYG:[0,1,3,5,7,8,10],HIJAZ:[0,1,4,5,7,8,11],PENMIN:[0,3,5,7,10],PENMAJ:[0,2,4,7,9],HIRA:[0,2,3,7,8],INSEN:[0,1,5,7,10]};
+  M.scale_idx=0;M.root=48;M.octave=0;
+  M.chord_names=['TRIAD','7TH','9TH','SUS'];
+  M.CHORD_STEPS={TRIAD:[0,2,4],'7TH':[0,2,4,6],'9TH':[0,2,4,6,8],SUS:[0,3,4]};
+  M.chord_idx=0;M.on=false;M.thr=0.01;
+  M.src={input:true,metabo:false,comp:false,mgen:false};
+  M.src_keys=['input','metabo','comp','mgen'];M.src_labels=['INPUT','METABO','COMP','MGEN'];M.src_cursor=0;
+  M.note_on=null;M.note_off=null;M.metabo=null;M.last_root=null;
+  let cur_notes=[],cur_deg=null,sounding=false,sil_t=0,since=0;
+  const scale=()=>M.scales[M.scale_names[M.scale_idx]];
+  const f2m=f=>(!f||f<30)?null:Math.floor(69+12*Math.log(f/440)/Math.log(2)+0.5);
+  function nearest(note){const sc=scale(),L=sc.length;let best=0,bd=999,boct=0;for(let o=-3;o<=4;o++)for(let i=0;i<L;i++){const c=M.root+o*12+sc[i],dd=Math.abs(c-note);if(dd<bd){bd=dd;best=i;boct=o;}}return[best,boct];}
+  function build(deg,oct){const sc=scale(),L=sc.length,shape=M.CHORD_STEPS[M.chord_names[M.chord_idx]];let notes=[];
+    function add(st){let d=deg+st;const o=Math.floor(d/L),idx=((d%L)+L)%L;let n=M.root+(M.octave+oct+o)*12+sc[idx];while(n<24)n+=12;while(n>100)n-=12;notes.push(n);}
+    for(const st of shape)add(st);
+    let bass=M.root+(M.octave+oct-1)*12+sc[((deg%L)+L)%L];while(bass<24)bass+=12;notes.push(bass);
+    if(M.metabo&&M.metabo.on){const st=M.metabo.stressFx||0,gr=(M.metabo.ch&&M.metabo.ch.growth)||0;
+      if(st>0.5&&shape.length<4)add(6);if(st>0.75)add(8);if(gr>0.5)add(7);}
+    return notes;}
+  function release(){if(sounding&&M.note_off)for(const n of cur_notes)M.note_off(n);cur_notes=[];sounding=false;cur_deg=null;}
+  M.release=release;
+  function play_chord(deg,oct,vel){if(sounding&&M.note_off)for(const n of cur_notes)M.note_off(n);cur_notes=build(deg,oct);if(M.note_on)for(const n of cur_notes)M.note_on(n,vel);sounding=true;cur_deg=deg;}
+  M.update=function(rms,freq,centroid,flatness,dt){
+    dt=dt||1/30;since+=dt;
+    if(!M.on){if(sounding)release();return;}
+    const active=(rms||0)>M.thr&&(freq||0)>30;
+    if(active){sil_t=0;const m=f2m(freq);if(m!=null){const[deg,oct]=nearest(m);M.last_root=M.root+oct*12+scale()[deg];
+      if((deg!==cur_deg||!sounding)&&since>0.08){const vel=Math.max(20,Math.min(127,Math.floor((rms||0)*600+25)));play_chord(deg,oct,vel);since=0;}}}
+    else{sil_t+=dt;if(sounding&&sil_t>0.18)release();}
+  };
+  M._state=()=>({sounding,cur_notes});
+  return M;
+})();
+
+// câblage MIDI (streams 6/7) + lien
+metabolik.note_on=(note,vel)=>{midiNoteOn(6,note,vel);meta_freq=440*Math.pow(2,(note-69)/12);if(vel/127>meta_energy)meta_energy=vel/127;};
+metabolik.note_off=(note)=>midiNoteOff(6,note);
+niakaby.note_on=(note,vel)=>midiNoteOn(7,note,vel);
+niakaby.note_off=(note)=>midiNoteOff(7,note);
+niakaby.metabo=metabolik;
+
+// ───────────────────────────────────────── META >>> MGEN
+let meta_mgen_drive=0,meta_mgen_scope=1,meta_mgen_last='--',meta_note_inf=0;
+function mgenSnap(note){const sc=MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]],L=sc.length;let best=note,bd=999;for(let o=-2;o<=8;o++)for(let i=0;i<L;i++){const c=mgen_root+o*12+sc[i],dd=Math.abs(c-note);if(dd<bd){bd=dd;best=c;}}return best;}
+function metaShakeMgen(){
+  if(meta_mgen_scope===1){mgenGenAll(true);meta_mgen_last='new theme';}
+  else{const r=Math.random();
+    if(r<0.72){mgenGenAll(true);meta_mgen_last='new theme';}
+    else if(r<0.88){const bt=rnd(0,MGEN_BREAK_NAMES.length-1);for(let i=0;i<16;i++)if(mgen_ch[i].on){mgen_ch[i].brk=true;mgen_ch[i].brk_type=bt;}meta_mgen_last='break '+MGEN_BREAK_NAMES[bt];}
+    else{mgen_scale_idx=rnd(0,MGEN_SCALE_NAMES.length-1);meta_mgen_last='gamme '+MGEN_SCALE_NAMES[mgen_scale_idx];}}
+}
+
+// ───────────────────────────────────────── MGEN TASTE (combos aimées)
+let mgen_liked=[],mgen_browse=0,mgen_recall=0,mgen_taste_last='--';
+try{const t=JSON.parse(localStorage.getItem('teammate_mgen_combos')||'[]');if(Array.isArray(t))mgen_liked=t;}catch(e){}
+function mgenTasteSave(){try{localStorage.setItem('teammate_mgen_combos',JSON.stringify(mgen_liked));}catch(e){}}
+function mgenCaptureCombo(){const c=[];for(let i=0;i<16;i++)c[i]=mgen_ch[i].style_idx;return c;}
+function mgenComboDist(a,b){let d=0;for(let i=0;i<16;i++)if(a[i]!==b[i])d++;return d;}
+function mgenLoadCombo(c){if(!Array.isArray(c))return;for(let i=0;i<16;i++){let si=c[i]!=null?c[i]:mgen_ch[i].style_idx;if(si<0||si>=MGEN_STYLE_NAMES.length)si=0;const def=SD[MGEN_STYLE_NAMES[si]];mgen_ch[i].style_idx=si;mgen_ch[i].octave=def.olo+rnd(0,def.ohi-def.olo);mgenGenSeq(i);}}
+function mgenTaste(like){
+  if(like){const c=mgenCaptureCombo();for(const e of mgen_liked)if(mgenComboDist(e,c)<=1){mgen_taste_last='deja aimee';return;}mgen_liked.push(c);while(mgen_liked.length>24)mgen_liked.shift();mgen_taste_last='LIKE ('+mgen_liked.length+')';}
+  else{const cur=mgenCaptureCombo();let bi=-1,bd=99;for(let i=0;i<mgen_liked.length;i++){const dd=mgenComboDist(mgen_liked[i],cur);if(dd<bd){bd=dd;bi=i;}}if(bi>=0){mgen_liked.splice(bi,1);mgen_taste_last='forget ('+mgen_liked.length+')';}else mgen_taste_last='rien';}
+  mgenTasteSave();
+}
+
+// ───────────────────────────────────────── 8OS sources (page 8)
+const os8_src_keys=['input','metabo','comp','mgen'],os8_src_labels=['INPUT','METABO','COMP','MGEN'];
+let os8_src={input:true,metabo:false,comp:false,mgen:false},os8_src_cursor=1,os8_pitch=false,os8_spread=0,os8_cur_freq=0;
+function os8Route(){let br=0,bf=0;const s=os8_src;
+  if(s.input&&cur_rms>br&&(cur_freq||0)>30){br=cur_rms;bf=cur_freq;}
+  if(s.metabo&&meta_energy>br&&(meta_freq||0)>30){br=meta_energy;bf=meta_freq;}
+  if(s.comp&&comp_rms>br&&(comp_freq||0)>30){br=comp_rms;bf=comp_freq;}
+  if(s.mgen&&mgen_nenergy>br&&(mgen_nfreq||0)>30){br=mgen_nenergy;bf=mgen_nfreq;}
+  if(bf>0)os8_cur_freq=bf;
+}
+
+// ───────────────────────────────────────── PAGE LIVE
+let live_cursor=1,comp_on=true,audio_midi_on=true;
+const LIVE_NAMES=['POtO','8OS','MGEN','SPAT','METABO','NIAKABY','AUDIO','IMPRO'];
+function liveToggle(i){
+  if(i===1){ensureAudio();actVia(5,3);}
+  else if(i===2){ensureAudio();os8_mode=(os8_mode==='OFF')?'TRANS':'OFF';if(os8_mode==='TRANS'&&!os8GrainActive&&os8_recorded_samples>1000){os8GrainActive=true;os8Grain();}}
+  else if(i===3){ensureAudio();if(mgen_running)mgenStop();else{mgenGenAll();mgenStart();}}
+  else if(i===4){spat.on=!spat.on;if(spat.on)spatStart();else spatStop();}
+  else if(i===5)metabolik.on=!metabolik.on;
+  else if(i===6){niakaby.on=!niakaby.on;if(!niakaby.on)niakaby.release();}
+  else if(i===7)audio_midi_on=!audio_midi_on;
+  else if(i===8)comp_on=!comp_on;
+}
+function liveAllOff(){
+  if(p_poto_on)p_poto_on=false;os8_mode='OFF';
+  if(mgen_running)mgenStop();
+  if(spat.on){spat.on=false;spatStop();}
+  metabolik.on=false;if(niakaby.on){niakaby.on=false;niakaby.release();}
+  audio_midi_on=false;comp_on=false;
+  for(let d=0;d<4;d++)if(midi_outs[d])for(let ch=0;ch<16;ch++)midi_outs[d].send([0xB0|ch,123,0]);
+}
+
+// ───────────────────────────────────────── boucles 30 Hz (parité Norns)
+metabolik.player();
+setInterval(()=>{
+  // décroissances + sources NIAKABY (la plus forte mène)
+  meta_energy*=0.90;mgen_nenergy*=0.88;
+  const react=metabolik.react||0.5;comp_rms*=(0.965-react*0.165);
+  const s=niakaby.src||{input:true};let br=0,bf=0,bc=0,bfl=0;
+  if(s.input&&cur_rms>br&&(cur_freq||0)>30){br=cur_rms;bf=cur_freq;bc=cur_centroid;bfl=cur_flatness;}
+  if(s.metabo&&meta_energy>br&&(meta_freq||0)>30){br=meta_energy;bf=meta_freq;bc=meta_freq*3;bfl=0.05;}
+  if(s.comp&&comp_rms>br&&(comp_freq||0)>30){br=comp_rms;bf=comp_freq;bc=comp_centroid;bfl=comp_flatness;}
+  if(s.mgen&&mgen_nenergy>br&&(mgen_nfreq||0)>30){br=mgen_nenergy;bf=mgen_nfreq;bc=mgen_nfreq*3;bfl=0.05;}
+  niakaby.update(br,bf,bc,bfl,1/30);
+  os8Route();
+  // feed METABO selon la source choisie (INPUT/COMP/MIX)
+  const ce=comp_rms*(0.6+react*1.2),fi=metabolik.feed_idx;
+  if(fi===1)metabolik.update(ce,comp_freq,comp_centroid,comp_flatness,1/30);
+  else if(fi===2)metabolik.update(Math.max(cur_rms,ce),(comp_freq>0&&ce>cur_rms)?comp_freq:cur_freq,Math.max(cur_centroid,comp_centroid),Math.max(cur_flatness,comp_flatness),1/30);
+  else metabolik.update(cur_rms,cur_freq,cur_centroid,cur_flatness,1/30);
+},1000/30);
+// METABO >>> MGEN : secousses
+setInterval(()=>{
+  if(meta_mgen_drive>0&&mgen_running){const st=metabolik.stressFx||0;if(Math.random()<meta_mgen_drive*(0.10+st*0.5))metaShakeMgen();}
+},Math.max(150,60000/Math.max(40,mgen_bpm)));
+
+// ───────────────────────────────────────── dessins pages 8,18-27
+function drawP8src(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('8OS');
+  S.level(os8_rec_n>0?12:4);txtR(126,8,os8_rec_n+' gr');
+  S.level(4);S.move(2,18);S.text('TRANS source');
+  const pos=[[2,28],[66,28],[2,38],[66,38],[2,48]];
+  const labels=[os8_src_labels[0],os8_src_labels[1],os8_src_labels[2],os8_src_labels[3],'PITCH'];
+  for(let i=0;i<5;i++){const on=(i<4)?os8_src[os8_src_keys[i]]:os8_pitch;const sel=(i+1===os8_src_cursor);
+    const x=pos[i][0],y=pos[i][1];
+    S.level(sel?15:(on?10:4));S.move(x,y);S.text((sel?'>':' ')+labels[i]);
+    S.level(on?15:3);S.move(x+44,y);S.text(on?'[X]':'[ ]');}
+  S.level(os8_spread>0?10:4);S.move(66,48);S.text('spr '+Math.floor(os8_spread*100)+'%');
+  S.level(4);S.move(2,62);S.text('E2 sel  K3 tgl  K2 all');
+}
+function drawMetabo(){const M=metabolik;
+  S.font_size(8);S.level(15);S.move(2,8);S.text('METABO');txtR(126,8,M.on?'ON':'off');
+  if(M.follow_amt>0&&M.in_note!=null){S.level(6);S.move(56,8);S.text('in '+noteName(M.in_note));}
+  const cx=98,cy=36,r=5+M.ch.growth*13+M.flash*3;
+  S.level(M.flash>0.2?15:(3+Math.floor(M.ch.growth*9)));S.circle(cx,cy,r);S.stroke();
+  let ang=0;for(const b of M.BIO){const vv=M.ch[b.ch]||0;const px=cx+Math.cos(ang)*(r+4),py=cy+Math.sin(ang)*(r+4);S.level(2+Math.floor(vv*13));S.rect(px-1,py-1,2,2);S.fill();ang+=Math.PI*2/M.BIO.length;}
+  S.level(8);S.move(2,22);S.text('STRESS');
+  S.level(4);S.rect(2,25,52,4);S.stroke();S.level(M.stressFx>0.5?15:10);S.rect(2,25,52*M.stressFx,4);S.fill();
+  S.level(12);S.move(2,40);S.text('BPM '+Math.floor(M.bpm()));
+  S.move(2,49);S.text(M.state);
+  S.level(8);S.move(46,49);S.text('K2 '+M.density_names[M.density_idx]);
+  S.level(10);S.move(2,57);S.text('E2 '+M.scale_names[M.scale_idx]+'  o'+(M.octave>=0?'+':'')+M.octave);
+  const rk=M._ranked();if(rk[0]){S.level(15);S.move(2,64);S.text(rk[0].b.ch.substring(0,5).toUpperCase()+' '+noteName(M.bio_note(rk[0].b)));}
+}
+function drawDevRouting(title,str,curdev){
+  S.font_size(8);S.level(15);S.move(2,8);S.text(title);txtR(126,8,'str'+(str+1));
+  const ys=[22,33,44,55];
+  for(let d=0;d<4;d++){const sel=(d===curdev-1),routed=midi_route[str][d];
+    let dn=midi_out_names[d]||('DEV '+(d+1));if(dn.length>8)dn=dn.slice(0,7)+'~';
+    S.level(sel?15:(routed?9:4));S.move(2,ys[d]);S.text((sel?'>':' ')+'d'+(d+1)+' '+dn);
+    S.level(routed?15:3);S.move(86,ys[d]);S.text(routed?'[X]':'[ ]');
+    S.level(sel?12:5);S.move(108,ys[d]);S.text('c'+midi_ch_map[str][d]);}
+  S.level(4);S.move(2,63);S.text('E2 dev  E3 ch  K3 route');
+}
+function drawMetaboPlay(){const M=metabolik;
+  S.font_size(8);S.level(15);S.move(2,8);S.text('METABO PLAY');txtR(126,8,M.on?'ON':'off');
+  const p=M.persona_names[M.persona_idx],PD={CELL:'organique / voies',PIANO:'accords + mains',POLY:'polyrythmie melod',BASS:'ligne grave'};
+  S.level(4);S.move(2,22);S.text('E2 MUSICIEN');S.level(15);S.move(74,22);S.text(p);
+  S.level(3);S.move(2,31);S.text(PD[p]||'');
+  S.level(4);S.move(2,44);S.text('E3 FOLLOW');S.level(15);S.move(74,44);S.text(Math.floor(M.follow_amt*100)+'%');
+  if(M.in_note!=null){S.level(6);S.move(100,44);S.text(noteName(M.in_note));}
+  S.level(4);S.rect(2,47,120,2);S.stroke();S.level(12);S.rect(2,47,120*M.follow_amt,2);S.fill();
+  S.level(4);S.move(2,62);S.text('K2 DENS');S.level(15);S.move(74,62);S.text(M.density_names[M.density_idx]);
+}
+function drawMetaboFeed(){const M=metabolik;
+  S.font_size(8);S.level(15);S.move(2,8);S.text('METABO FEED');txtR(126,8,M.on?'ON':'off');
+  const f=M.feed_names[M.feed_idx],FD={INPUT:'micro / ligne',COMP:'le compagnon',MIX:'entree + compagnon'};
+  S.level(4);S.move(2,22);S.text('E2 SOURCE');S.level(15);S.move(74,22);S.text(f);
+  S.level(3);S.move(2,31);S.text(FD[f]||'');
+  S.level(4);S.move(2,44);S.text('E3 REACT');S.level(15);S.move(74,44);S.text(Math.floor(M.react*100)+'%');
+  S.level(3);S.move(100,44);S.text(M.react<0.34?'lent':(M.react>0.66?'vif':'moy'));
+  S.level(4);S.rect(2,47,120,2);S.stroke();S.level(12);S.rect(2,47,120*M.react,2);S.fill();
+  const inf=M.influence_names[M.influence_idx];
+  S.level(4);S.move(2,62);S.text('K2 INFLU');S.level(inf==='OFF'?6:15);S.move(74,62);S.text(inf);
+}
+function drawNiaka(){const M=niakaby,st=M._state();
+  S.font_size(8);S.level(15);S.move(2,8);S.text('NIAKABY');txtR(126,8,M.on?'ON':'off');
+  S.level(4);S.move(2,22);S.text('E2 GAMME');S.level(15);S.move(74,22);S.text(M.scale_names[M.scale_idx]);
+  S.level(4);S.move(2,32);S.text('E3 OCT');S.level(15);S.move(74,32);S.text((M.octave>=0?'+':'')+M.octave);
+  S.level(4);S.move(2,42);S.text('K2 ACCORD');S.level(15);S.move(74,42);S.text(M.chord_names[M.chord_idx]);
+  S.level(4);S.move(2,54);S.text('in:');S.level(8);S.move(22,54);S.text(M.last_root!=null?noteName(M.last_root):'--');
+  if(st.sounding&&st.cur_notes[0]!=null){let s='';for(const n of st.cur_notes)s+=noteName(n)+' ';if(s.length>22)s=s.slice(0,21);S.level(15);S.move(58,54);S.text(s);}
+  const on=[];for(let i=0;i<M.src_keys.length;i++)if(M.src[M.src_keys[i]])on.push(M.src_labels[i]);
+  S.level(8);S.move(2,63);S.text('SRC '+(on.length>0?on.join('+'):'--'));
+}
+function drawNiakaSrc(){const M=niakaby;
+  S.font_size(8);S.level(15);S.move(2,8);S.text('NIAKABY SRC');txtR(126,8,M.on?'ON':'off');
+  const ys=[22,32,42,52];
+  for(let i=0;i<M.src_keys.length;i++){const k=M.src_keys[i],sel=(i===M.src_cursor);
+    S.level(sel?15:(M.src[k]?10:4));S.move(sel?2:10,ys[i]);S.text((sel?'> ':'')+M.src_labels[i]);
+    S.level(M.src[k]?15:3);S.move(86,ys[i]);S.text(M.src[k]?'[X]':'[ ]');}
+  S.level(4);S.move(2,63);S.text('E2 sel  K3 on/off  K2 all');
+}
+function drawMeta(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('METABO>MGEN');txtR(126,8,mgen_running?'RUN':'off');
+  S.level(4);S.move(2,20);S.text('E2 DRIVE');S.level(15);S.move(74,20);S.text(Math.floor(meta_mgen_drive*100)+'%');
+  S.level(4);S.rect(2,23,120,2);S.stroke();S.level(12);S.rect(2,23,120*meta_mgen_drive,2);S.fill();
+  S.level(4);S.move(2,34);S.text('E3 NOTE');S.level(15);S.move(74,34);S.text(Math.floor(meta_note_inf*100)+'%');
+  S.level(4);S.rect(2,37,120,2);S.stroke();S.level(12);S.rect(2,37,120*meta_note_inf,2);S.fill();
+  S.level(4);S.move(2,48);S.text('K2 SCOPE');S.level(15);S.move(74,48);S.text(meta_mgen_scope===2?'FULL':'LIGHT');
+  S.level(4);S.move(2,58);S.text('last:');S.level(10);S.move(32,58);S.text(meta_mgen_last||'--');
+  S.level(4);S.move(2,64);S.text('K3 new theme now');
+}
+function drawTaste(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('MGEN TASTE');
+  S.level(8);txtR(126,8,mgen_browse>=1?('combo '+mgen_browse+'/'+mgen_liked.length):(mgen_liked.length+' combos'));
+  const freq=new Array(MGEN_STYLE_NAMES.length).fill(0);
+  for(const c of mgen_liked)for(let i=0;i<16;i++)if(c[i]!=null)freq[c[i]]++;
+  const t=MGEN_STYLE_NAMES.map((n,i)=>({n,w:freq[i]}));t.sort((a,b)=>b.w-a.w);
+  const maxw=Math.max(1,t[0]?t[0].w:1);
+  if(mgen_liked.length===0){S.level(4);S.move(2,32);S.text('aucune combo aimee');S.move(2,44);S.text('K3 = aimer le theme courant');}
+  else{const ys=[18,25,32,39,46,53];for(let k=0;k<6;k++){const row=t[k];if(row&&row.w>0){S.level(8);S.move(2,ys[k]);S.text(row.n);S.level(4);S.rect(62,ys[k]-4,56,3);S.stroke();S.level(13);S.rect(62,ys[k]-4,56*(row.w/maxw),3);S.fill();}}}
+  S.level(mgen_recall>0?12:4);S.move(2,63);S.text('E3 recall '+Math.floor(mgen_recall*100)+'%   E2 parcourt');
+}
+function drawLive(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('LIVE');S.level(4);txtR(126,8,'K3 tgl  K2 panic');
+  const states=[p_poto_on?'ON':'off',os8_mode,mgen_running?'ON':'off',spat.on?'ON':'off',metabolik.on?'ON':'off',niakaby.on?'ON':'off',audio_midi_on?'ON':'off',comp_on?'ON':'off'];
+  const ons=[p_poto_on,os8_mode!=='OFF',mgen_running,spat.on,metabolik.on,niakaby.on,audio_midi_on,comp_on];
+  const ys=[14,21,28,35,42,49,56,63];
+  for(let i=0;i<LIVE_NAMES.length;i++){const sel=(i+1===live_cursor);
+    S.level(sel?15:(ons[i]?11:4));S.move(2,ys[i]);S.text((sel?'>':' ')+LIVE_NAMES[i]);
+    S.level(ons[i]?15:3);S.move(78,ys[i]);S.text(states[i]);}
+}
+// dispatch plein écran des pages parité (renvoie true si dessinée)
+function drawExtraPage(){
+  if(page===8){drawP8src();return true;}
+  if(page===18){drawMetabo();return true;}
+  if(page===19){drawDevRouting('METABO MIDI',5,metabo_cur_dev);return true;}
+  if(page===20){drawMetaboPlay();return true;}
+  if(page===21){drawMetaboFeed();return true;}
+  if(page===22){drawNiaka();return true;}
+  if(page===23){drawDevRouting('NIAKABY MIDI',6,niaka_cur_dev);return true;}
+  if(page===24){drawNiakaSrc();return true;}
+  if(page===25){drawMeta();return true;}
+  if(page===26){drawTaste();return true;}
+  if(page===27){drawLive();return true;}
+  return false;
+}
+
 // ─── LIVE MATRIX (web only) ───────────────────────────────────────────────────
 // chaque pad rejoue exactement la logique d'une touche K2/K3 du norns,
 // en basculant `page` le temps de l'appel — donc aucune divergence de comportement.
@@ -1321,7 +1765,9 @@ const MTX=[
   {id:'voice',label:'VOICE', act:()=>actVia(4,3), st:()=>({on:p_voice, val:p_voice?'ON':'off'})},
   {id:'deaf', label:'DEAF',  act:()=>actVia(3,3), st:()=>({on:p_deaf, val:p_deaf?'ON':'off'})},
   {id:'rhy',  label:'RHY',   cyc:1,   act:()=>actVia(4,2), st:()=>({on:p_rhythm>0, val:Math.round(p_rhythm*100)+'%'})},
-  {id:'panic',label:'PANIC', warn:1,  act:panicAll, st:()=>({val:'stop all'})},
+  {id:'metabo',label:'METABO',act:()=>{metabolik.on=!metabolik.on;}, st:()=>({on:metabolik.on, val:metabolik.on?'ON':'off'})},
+  {id:'niaka',label:'NIAKA', act:()=>{niakaby.on=!niakaby.on;if(!niakaby.on)niakaby.release();}, st:()=>({on:niakaby.on, val:niakaby.on?'ON':'off'})},
+  {id:'panic',label:'PANIC', warn:1,  act:()=>{panicAll();liveAllOff();}, st:()=>({val:'stop all'})},
 ];
 function buildMatrix(){
   const main=document.getElementById('mtx-main');
