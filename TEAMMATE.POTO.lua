@@ -1977,10 +1977,11 @@ end
 -- silence tracker + reponse spontanee
 ---------------------------------------------------------------------
 -- ===== MEMOIRE DE MOTIFS : TEAMMATE se souvient de tes phrases et les ramene, transformees =====
-local motifs = {}          -- banque des phrases marquantes du joueur (max 4)
-local motif_last_t = 0
+-- (globals : la limite Lua de 200 locals dans le chunk principal est atteinte)
+motifs = {}                -- banque des phrases marquantes du joueur (max 4)
+motif_last_t = 0
 
-local function capture_motif(buf)
+function capture_motif(buf)
   if #buf < 2 then return end
   local e = 0 ; for _, ev in ipairs(buf) do e = e + (ev.rms or 0) end ; e = e / #buf
   if e < 0.02 then return end                       -- ignore les phrases trop faibles
@@ -1989,8 +1990,8 @@ local function capture_motif(buf)
   while #motifs > 4 do table.remove(motifs, 1) end
 end
 
-local MOTIF_SEMIS = { 0, 0, 7, 12, -12, 5, -5 }
-local function play_motif(m)
+MOTIF_SEMIS = { 0, 0, 7, 12, -12, 5, -5 }
+function play_motif(m)
   local semis = MOTIF_SEMIS[math.random(#MOTIF_SEMIS)]   -- transpose
   local rate  = 2 ^ (semis / 12)
   local beat  = 60.0 / mgen_bpm
@@ -2011,7 +2012,7 @@ local function play_motif(m)
 end
 
 -- rappel d'un motif pendant un creux, plus probable en phase de montee. Opt-in (mind.on).
-local function maybe_recall_motif()
+function maybe_recall_motif()
   if not comp_on then return false end
   if not (mind and mind.on) then return false end
   if #motifs == 0 then return false end
