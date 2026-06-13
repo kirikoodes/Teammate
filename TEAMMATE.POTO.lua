@@ -1059,11 +1059,11 @@ local function poto_set(on)
           softcut.loop_start(lv, bp)
           softcut.loop_end(lv, bp + gs)
           softcut.level(lv, p_poto_vol * (spat.on and spat_depth_mult("lead") or 1.0))
+          softcut.rate(lv, poto_rate())                    -- live : le rate suit le reglage en continu
           if spat.on then softcut.pan(lv, spat_eff_pan("lead")) end
           if not active then
             softcut.loop(lv, 1)
             softcut.position(lv, bp)
-            softcut.rate(lv, poto_rate())
             softcut.play(lv, 1)
             active = true
           end
