@@ -12,6 +12,7 @@
 
 local M = {}
 
+M.on        = false -- influence DYNAMIQUE sur le compagnon (opt-in, K3) ; observation toujours active
 M.energy    = 0     -- enveloppe rapide (0..1)
 M.energy_sl = 0     -- enveloppe lente (contexte, 0..1)
 M.build     = 0     -- -1 (chute) .. +1 (montee)
@@ -100,8 +101,10 @@ function M.redraw()
   bar(29, "montee",  (M.build + 1) / 2)
   bar(38, "densite", M.density)
   bar(47, "tension", M.tension)
-  screen.level(4)  ; screen.move(2, 60)  ; screen.text("phrase")
-  screen.level(10) ; screen.move(46, 60) ; screen.text(M.phrase .. string.format("  %.1fs", M.phrase_len))
+  screen.level(4)  ; screen.move(2, 56)  ; screen.text("phrase")
+  screen.level(10) ; screen.move(46, 56) ; screen.text(M.phrase .. string.format("  %.1fs", M.phrase_len))
+  screen.level(M.on and 12 or 3) ; screen.move(2, 64)
+  screen.text(M.on and "K3 SUIT TON JEU" or "K3 suit ton jeu")
   screen.update()
 end
 

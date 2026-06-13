@@ -1775,6 +1775,17 @@ local function pick_strat()
     w.IMITATION     = w.IMITATION     + inf * gr * 0.2
   end
 
+  -- influence MIND -> compagnon (DYNAMIQUE : il suit ton volume/densite de jeu).
+  -- tu charges (fort/dense) -> reponses plus actives/denses ; doux/clairseme ->
+  -- plus d'espace. Opt-in (K3 page MIND), non destructif : off => compagnon inchange.
+  if mind and mind.on then
+    local act = math.max(mind.energy or 0, mind.density or 0)
+    w.DENSIFICATION = w.DENSIFICATION + act * 0.5
+    w.IMITATION     = w.IMITATION     + act * 0.2
+    w.SPARSE        = w.SPARSE        + (1 - act) * 0.4
+    w.SILENCE       = w.SILENCE       + (1 - act) * 0.3
+  end
+
   local total = 0
   for _, wv in pairs(w) do total = total + math.max(0, wv) end
   if total == 0 then return "SILENCE" end
@@ -2388,6 +2399,7 @@ function state_save()
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
+      mind_on=mind.on,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2423,6 +2435,7 @@ function state_load()
     os8_mod_on=g(st.os8_mod_on,os8_mod_on) ; os8_mod=g(st.os8_mod,os8_mod) ; os8_mod_src=g(st.os8_mod_src,os8_mod_src)
     poto_mod_on=g(st.poto_mod_on,poto_mod_on) ; poto_mod=g(st.poto_mod,poto_mod) ; poto_mod_src=g(st.poto_mod_src,poto_mod_src)
     if type(st.poto_src)=="table" then for k,v in pairs(st.poto_src) do poto_src[k]=v end end
+    if st.mind_on ~= nil then mind.on = st.mind_on end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2765,6 +2778,10 @@ function key(n, z)
       for _, k in ipairs(poto_src_keys) do poto_src[k] = not all end
     end
     poto_rec_route()
+    redraw() ; return
+  end
+  if page == 31 then
+    if n == 3 then mind.on = not mind.on end
     redraw() ; return
   end
   if page == 27 then
