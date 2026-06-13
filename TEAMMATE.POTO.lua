@@ -2202,6 +2202,27 @@ else
 end
 _niaka_ok = nil ; _niaka_mod = nil
 
+-- MIND : couche d'ecoute partagee (observation). Chargement defensif aussi.
+mind = nil
+_mind_ok, _mind_mod = pcall(include, 'lib/mind')
+if _mind_ok and type(_mind_mod) == "table" then
+  mind = _mind_mod
+else
+  print("MIND indisponible (lib/mind.lua manquant) : " .. tostring(_mind_mod))
+  mind = {
+    energy=0, build=0, density=0, tension=0, phrase="--", phrase_len=0, mood="--",
+    update = function() end,
+    answer_window = function() return false end,
+    redraw = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("MIND")
+      screen.level(4) ; screen.move(2, 36) ; screen.text("lib/mind.lua absent")
+      screen.update()
+    end,
+  }
+end
+_mind_ok = nil ; _mind_mod = nil
+
 -- ===== METABO >>> MGEN : la cellule secoue le sequenceur au hasard (opt-in) =====
 meta_mgen_drive = 0      -- 0..1 intensite (0 = off)
 meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks, styles)
@@ -2513,6 +2534,7 @@ function init()
       os8_route()                                      -- met a jour la voix live du routeur 8OS TRANS
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
+      mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
@@ -2575,7 +2597,7 @@ end
 ---------------------------------------------------------------------
 -- ordre d'affichage des pages (les IDs logiques ne changent pas) :
 -- POtO : "POtO SRC" (id 30) puis "POtO MOD" (id 29) apres la page 5 ; "8OS MOD" (id 28) apres la page 6.
-PAGE_ORDER = {1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27}
+PAGE_ORDER = {1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3035,6 +3057,8 @@ function redraw()
     screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
     screen.update() ; return
   end
+
+  if page == 31 then mind.redraw() ; return end
 
   if page == 30 then
     screen.clear() ; screen.font_size(8)
