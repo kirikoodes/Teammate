@@ -544,6 +544,7 @@ os8_src_keys   = { "input", "metabo", "comp", "mgen" }
 os8_src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
 os8_src_cursor = 1
 os8_pitch      = false  -- ameliore : transpose le grain pour coller a la note cible (suit la melodie)
+os8_trans      = 0      -- transposition manuelle en demi-tons (-24..+24), appliquee toujours
 os8_spread     = 0      -- 0..1 : spread stereo des 3 voix (V5 gauche, V6 droite, V3 centre)
 os8_in_gate   = false   -- voix live routee : gate
 os8_in_midi   = -1      -- note MIDI cible (-1 = pas de pitch)
@@ -577,14 +578,26 @@ function os8_pan(v)
   if v == 5 then return -s elseif v == 6 then return s else return 0 end
 end
 
--- rate de lecture du grain : 1.0, ou transpose pour coller a la note cible (PITCH on)
+-- rate de lecture du grain : transpo manuelle (os8_trans) TOUJOURS appliquee,
+-- + suivi de la note cible quand PITCH est actif. Clamp +-2 octaves.
 function os8_grain_rate(g)
+  local semi = os8_trans or 0
   if os8_pitch and os8_in_midi >= 0 and g.note and g.note >= 0 then
-    local r = 2 ^ ((os8_in_midi - g.note) / 12)
-    if r < 0.25 then r = 0.25 elseif r > 4 then r = 4 end
-    return r
+    semi = semi + (os8_in_midi - g.note)
   end
-  return 1.0
+  local r = 2 ^ (semi / 12)
+  if r < 0.25 then r = 0.25 elseif r > 4 then r = 4 end
+  return r
+end
+
+-- longueur de lecture du grain : pilotee en LIVE par os8_size, INDEPENDANTE de la
+-- duree enregistree (bornee au buffer) -> grains plus courts ET plus longs.
+function os8_play_len(g)
+  local gs     = os8_size
+  local maxlen = (OS8_OFFSET + OS8_DUR) - g.pos
+  if gs > maxlen then gs = maxlen end
+  if gs < 0.02 then gs = 0.02 end
+  return gs
 end
 
 -- cherche le grain le plus proche (attract=true) ou le plus eloigne (false)
@@ -744,7 +757,7 @@ local function os8_set(mode)
           local g = os8_find_grain(true, nil, nil)
           if g then
             os8_pos_v5 = g.pos
-            local gs = math.min(os8_size, g.dur)
+            local gs = os8_play_len(g)
             softcut.fade_time(5, math.min(0.02, gs * 0.5))
             softcut.loop(5, 1)                              -- boucle le grain (crossfade aux bornes)
             softcut.loop_start(5, g.pos)
@@ -779,7 +792,7 @@ local function os8_set(mode)
           if not g then g = os8_find_grain(true, nil, nil) end
           if g then
             os8_pos_v6 = g.pos
-            local gs = math.min(os8_size, g.dur)
+            local gs = os8_play_len(g)
             softcut.fade_time(6, math.min(0.02, gs * 0.5))
             softcut.loop(6, 1)
             softcut.loop_start(6, g.pos)
@@ -814,7 +827,7 @@ local function os8_set(mode)
           if not g then g = os8_find_grain(true, nil, nil) end
           if g then
             os8_pos_v3 = g.pos
-            local gs = math.min(os8_size, g.dur)
+            local gs = os8_play_len(g)
             softcut.fade_time(3, math.min(0.02, gs * 0.5))
             softcut.loop(3, 1)
             softcut.loop_start(3, g.pos)
@@ -2239,7 +2252,7 @@ function state_save()
       p_gate_thr=p_gate_thr, p_sil_min=p_sil_min, p_sil_max=p_sil_max, comp_on=comp_on,
       p_poto_vol=p_poto_vol, p_poto_spread=p_poto_spread, p_poto_size=p_poto_size,
       p_poto_poly=p_poto_poly, p_monitor=p_monitor, p_poto_smrt_sens=p_poto_smrt_sens, rate_pidx=rate_pidx,
-      os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread,
+      os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2271,7 +2284,7 @@ function state_load()
     p_monitor=g(st.p_monitor,p_monitor) ; p_poto_smrt_sens=g(st.p_poto_smrt_sens,p_poto_smrt_sens)
     if st.rate_pidx then rate_pidx=st.rate_pidx ; p_poto_rate=RATE_PRESETS[rate_pidx] or p_poto_rate end
     os8_vol=g(st.os8_vol,os8_vol) ; os8_size=g(st.os8_size,os8_size) ; os8_sync=g(st.os8_sync,os8_sync)
-    os8_pitch=g(st.os8_pitch,os8_pitch) ; os8_spread=g(st.os8_spread,os8_spread)
+    os8_pitch=g(st.os8_pitch,os8_pitch) ; os8_spread=g(st.os8_spread,os8_spread) ; os8_trans=g(st.os8_trans,os8_trans)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2519,7 +2532,11 @@ function enc(n, d)
     elseif page == 7 then
       p_poto_spread = util.clamp(p_poto_spread + d * 0.01, 0.0, 0.30)
     elseif page == 8 then
-      os8_spread = util.clamp(os8_spread + d * 0.05, 0.0, 1.0)
+      if os8_src_cursor > #os8_src_keys then
+        os8_trans = util.clamp(os8_trans + d, -24, 24)   -- curseur sur PITCH : E3 = transpo
+      else
+        os8_spread = util.clamp(os8_spread + d * 0.05, 0.0, 1.0)
+      end
     elseif page >= 9 and page <= 12 then
       if midi_cur_stream <= 3 then
         local dev = page - 8
@@ -2770,6 +2787,8 @@ function redraw()
     end
     screen.level(os8_spread > 0 and 10 or 4) ; screen.move(66, 48)
     screen.text(string.format("spr %d%%", math.floor(os8_spread * 100)))
+    screen.level(os8_trans ~= 0 and 10 or 4) ; screen.move(66, 56)
+    screen.text(string.format("tr %+d", os8_trans))
     screen.level(4) ; screen.move(2, 62) ; screen.text("E2 sel  K3 tgl  K2 all")
     screen.update() ; return
   end

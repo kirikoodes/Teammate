@@ -471,7 +471,7 @@ function os8Grain(){
   const grainSamp=Math.floor(grainLen*sr);
   const maxStart=Math.max(0,os8_recorded_samples-grainSamp);
   const startPos=rnd(0,maxStart);
-  const dur=playGrain(os8Buffer,os8_vol,1.0,startPos,grainLen);
+  const dur=playGrain(os8Buffer,os8_vol,os8GrainRate(),startPos,grainLen);
   // note MIDI 8OS : pilotée par la source TRANS sélectionnée (page 8), sinon l'entrée live
   const note=freqToMidi(os8_cur_freq||cur_freq);
   if(note){
@@ -1205,7 +1205,7 @@ function drawP17(){
 function enc(n,d){
   if(n===1){page=((page-1+d+27)%27)+1;return;}
   // ── pages parité Norns 8,18-27 ──
-  if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,5);else if(n===3)os8_spread=clamp(os8_spread+d*0.05,0,1);return;}
+  if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,5);else if(n===3){if(os8_src_cursor>4)os8_trans=clamp(os8_trans+d,-24,24);else os8_spread=clamp(os8_spread+d*0.05,0,1);}return;}
   if(page===18){const M=metabolik;if(n===2)M.scale_idx=((M.scale_idx+d)%M.scale_names.length+M.scale_names.length)%M.scale_names.length;else if(n===3)M.octave=clamp(M.octave+d,-2,2);return;}
   if(page===19){if(n===2)metabo_cur_dev=clamp(metabo_cur_dev+d,1,4);else if(n===3)midi_ch_map[5][metabo_cur_dev-1]=clamp(midi_ch_map[5][metabo_cur_dev-1]+d,1,16);return;}
   if(page===20){const M=metabolik;if(n===2)M.persona_idx=((M.persona_idx+d)%M.persona_names.length+M.persona_names.length)%M.persona_names.length;else if(n===3)M.follow_amt=clamp(M.follow_amt+d*0.05,0,1);return;}
@@ -1559,13 +1559,20 @@ function mgenTaste(like){
 
 // ───────────────────────────────────────── 8OS sources (page 8)
 const os8_src_keys=['input','metabo','comp','mgen'],os8_src_labels=['INPUT','METABO','COMP','MGEN'];
-let os8_src={input:true,metabo:false,comp:false,mgen:false},os8_src_cursor=1,os8_pitch=false,os8_spread=0,os8_cur_freq=0;
+let os8_src={input:true,metabo:false,comp:false,mgen:false},os8_src_cursor=1,os8_pitch=false,os8_trans=0,os8_spread=0,os8_cur_freq=0;
 function os8Route(){let br=0,bf=0;const s=os8_src;
   if(s.input&&cur_rms>br&&(cur_freq||0)>30){br=cur_rms;bf=cur_freq;}
   if(s.metabo&&meta_energy>br&&(meta_freq||0)>30){br=meta_energy;bf=meta_freq;}
   if(s.comp&&comp_rms>br&&(comp_freq||0)>30){br=comp_rms;bf=comp_freq;}
   if(s.mgen&&mgen_nenergy>br&&(mgen_nfreq||0)>30){br=mgen_nenergy;bf=mgen_nfreq;}
   if(bf>0)os8_cur_freq=bf;
+}
+// transpo de lecture du grain : os8_trans (manuel, ±24 demi-tons) TOUJOURS appliquée
+// + suivi de la note cible quand PITCH actif (centré sur C4). Clamp ±2 octaves.
+function os8GrainRate(){
+  let semi=os8_trans||0;
+  if(os8_pitch){const n=freqToMidi(os8_cur_freq);if(n)semi+=(n-60);}
+  return Math.min(4,Math.max(0.25,Math.pow(2,semi/12)));
 }
 
 // ───────────────────────────────────────── PAGE LIVE
@@ -1626,6 +1633,7 @@ function drawP8src(){
     S.level(sel?15:(on?10:4));S.move(x,y);S.text((sel?'>':' ')+labels[i]);
     S.level(on?15:3);S.move(x+44,y);S.text(on?'[X]':'[ ]');}
   S.level(os8_spread>0?10:4);S.move(66,48);S.text('spr '+Math.floor(os8_spread*100)+'%');
+  S.level(os8_trans!==0?10:4);S.move(66,56);S.text('tr '+(os8_trans>=0?'+':'')+os8_trans);
   S.level(4);S.move(2,62);S.text('E2 sel  K3 tgl  K2 all');
 }
 function drawMetabo(){const M=metabolik;
