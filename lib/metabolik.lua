@@ -41,6 +41,7 @@ M.stress   = 0
 M.stressFx = 0
 M.stress_min = 0
 M.stress_max = 1
+M.ext_press = 0   -- pression externe (0..1) fournie par MIND : l'intensite du joueur agite la cellule
 M.flash    = 0
 M.state    = "—"
 
@@ -149,6 +150,7 @@ function M.update(rms, freq, centroid, flatness, dt)
   local monotony  = active and (1 - clampU(novelty)) or 0
   local imbalance = math.abs(c.fermentation - c.respiration)
   local perturb   = clampU(monotony * 0.6 + imbalance * 0.3 + (1 - c.growth) * 0.2)
+  perturb = clampU(perturb + (M.ext_press or 0) * 0.6)   -- MIND : l'intensite du joueur pousse le stress
   local rate = (perturb > M.stress) and 2.4 or 0.45
   M.stress   = M.stress + (perturb - M.stress) * math.min(1, dt * rate)
   M.stressFx = M.stress_min + M.stress * (M.stress_max - M.stress_min)
