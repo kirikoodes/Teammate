@@ -1572,12 +1572,13 @@ function mgenTaste(like){
 const os8_src_keys=['input','metabo','comp','mgen'],os8_src_labels=['INPUT','METABO','COMP','MGEN'];
 let os8_src={input:true,metabo:false,comp:false,mgen:false},os8_src_cursor=1,os8_pitch=false,os8_trans=0,os8_spread=0,os8_cur_freq=0;
 // modulation interne : une source pilote en continu les params d'un mode (comme METABO->NIAKABY/MGEN)
-const MOD_SRC_NAMES=['METABO','AUDIO','MGEN'];
+const MOD_SRC_NAMES=['METABO','AUDIO','MGEN','COMP'];
 // renvoie [act,tone] : act=energie/mouvement, tone=brillance/tension (0..1)
 function modSignals(src){
   if(src===1){ if(!metabolik.on) return [0,0]; return [metabolik.stressFx||0,(metabolik.ch&&metabolik.ch.growth)||0]; }
   if(src===2){ return [Math.min(1,(cur_rms||0)*8),Math.min(1,(cur_centroid||0)/4000)]; }
-  return [Math.min(1,mgen_nenergy||0),Math.min(1,(mgen_nfreq||0)/1000)];
+  if(src===3){ return [Math.min(1,mgen_nenergy||0),Math.min(1,(mgen_nfreq||0)/1000)]; }
+  return [Math.min(1,(comp_rms||0)*8),Math.min(1,(comp_centroid||0)/4000)];
 }
 // --- modulation 8OS ---
 let os8_mod_on=false,os8_mod=0.5,os8_mod_src=1;const os8_mod_src_names=MOD_SRC_NAMES;

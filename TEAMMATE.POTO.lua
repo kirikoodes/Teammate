@@ -553,7 +553,7 @@ os8_in_centroid = 0     -- timbre
 
 -- ===== MODULATION INTERNE : une source pilote en continu les parametres d'un mode =====
 -- comme METABO colore NIAKABY / pilote MGEN. Source au choix, profondeur reglable.
-MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN" }
+MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN", "COMP" }
 
 -- signaux normalises d'une source (act = energie/mouvement, tone = brillance/tension)
 function mod_signals(src)
@@ -562,8 +562,10 @@ function mod_signals(src)
     return (metabolik.stressFx or 0), ((metabolik.ch and metabolik.ch.growth) or 0)
   elseif src == 2 then
     return math.min(1, (rms_smooth or 0) * 8), math.min(1, (cur_centroid or 0) / 4000)
-  else
+  elseif src == 3 then
     return math.min(1, mgen_nenergy or 0), math.min(1, (mgen_nfreq or 0) / 1000)
+  else
+    return math.min(1, (comp_rms or 0) * 8), math.min(1, (comp_centroid or 0) / 4000)
   end
 end
 
