@@ -483,6 +483,8 @@ local function play_event(ev, rate_mult)
     len  = sl
   end
 
+  if style.on then len = style.artic_len(len) end          -- STYLE : articulation (staccato/legato)
+
   softcut.level(v, spat.on and spat_depth_mult("impro") or 1.0)
   if spat.on then softcut.pan(v, spat_eff_pan("impro")) end
   softcut.loop(v, 0)
@@ -503,6 +505,7 @@ local function play_event(ev, rate_mult)
   local f = ev.freq > 0 and ev.freq or cur_freq
   local imp_note = freq_to_midi(f) or 60
   local imp_vel  = math.max(1, math.min(127, math.floor(ev.rms * 800)))
+  if style.on then imp_vel = style.vel_scale(imp_vel) end   -- STYLE : ta dynamique
   midi_note_on(1, imp_note, imp_vel)
   companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
 
@@ -1807,6 +1810,7 @@ local function build_phrase(strategy, ref_n)
   local n_min = math.max(PHRASE_MIN, math.floor(ref_n * 0.5))
   local n_max = math.min(PHRASE_MAX, ref_n + 2)
   local n = math.random(n_min, n_max)
+  if style.on then n = style.n(n) end                       -- STYLE : longueur de phrase a ta maniere
   if strategy == "SPARSE"        then n = math.min(n, 2) end
   if strategy == "DENSIFICATION" then n = math.max(n, 4) end
 
@@ -1833,6 +1837,7 @@ local function improv_rate(strategy, i, n)
     -- voix : pas de transposition, micro-variations seulement
     return 0.97 + math.random() * 0.06
   end
+  if style.on and math.random() < 0.7 then return style.rate() end  -- STYLE : intervalles a ta maniere
   if strategy == "CONTRASTE" then
     local intervals = {0.84, 0.89, 1.0, 1.12, 1.33}
     return intervals[math.random(#intervals)]
@@ -1857,6 +1862,7 @@ local function play_phrase(phrase, strategy)
   else
     gap = math.max(0.02, (1.0 - p_density) * 0.18)
   end
+  if style.on then gap = style.gap(beat) end                -- STYLE : ton timing (IOI / grille-rubato)
   for i, ev in ipairs(phrase) do
     local rm = improv_rate(strategy, i, #phrase)
     play_event(ev, rm)
@@ -1925,6 +1931,7 @@ local function process_gate(new_gate)
       head  = (head % CORPUS_SLOTS) + 1
       count = math.min(count + 1, CORPUS_SLOTS)
       table.insert(phrase_buf, corpus[rec_slot])
+      style.observe(rec_t0, dur, avg, cur_freq)   -- apprend ta maniere de jouer
     end
 
   end
@@ -2291,6 +2298,32 @@ else
 end
 _mind_ok = nil ; _mind_mod = nil
 
+-- STYLE : profil de jeu du joueur (apprend ta maniere). Chargement defensif.
+style = nil
+_style_ok, _style_mod = pcall(include, 'lib/style')
+if _style_ok and type(_style_mod) == "table" then
+  style = _style_mod
+else
+  print("STYLE indisponible (lib/style.lua manquant) : " .. tostring(_style_mod))
+  style = {
+    on = false, ioi = 0.4, density = 0, grid = 0, artic = 0.6, phrase_n = 3,
+    interval = 0.3, dir = 0, reg = 0.5, vel = 0.5, vel_rng = 0.3,
+    observe = function() end,
+    gap = function(b) return math.max(0.03, b or 0.1) end,
+    n = function(d) return d or 2 end,
+    rate = function() return 1.0 end,
+    vel_scale = function(b) return b or 100 end,
+    artic_len = function(l) return l end,
+    redraw = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("STYLE")
+      screen.level(4) ; screen.move(2, 36) ; screen.text("lib/style.lua absent")
+      screen.update()
+    end,
+  }
+end
+_style_ok = nil ; _style_mod = nil
+
 -- ===== METABO >>> MGEN : la cellule secoue le sequenceur au hasard (opt-in) =====
 meta_mgen_drive = 0      -- 0..1 intensite (0 = off)
 meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks, styles)
@@ -2456,7 +2489,7 @@ function state_save()
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
-      mind_on=mind.on,
+      mind_on=mind.on, style_on=style.on,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2493,6 +2526,7 @@ function state_load()
     poto_mod_on=g(st.poto_mod_on,poto_mod_on) ; poto_mod=g(st.poto_mod,poto_mod) ; poto_mod_src=g(st.poto_mod_src,poto_mod_src)
     if type(st.poto_src)=="table" then for k,v in pairs(st.poto_src) do poto_src[k]=v end end
     if st.mind_on ~= nil then mind.on = st.mind_on end
+    if st.style_on ~= nil then style.on = st.style_on end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2670,7 +2704,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 31}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -2842,6 +2876,10 @@ function key(n, z)
   end
   if page == 31 then
     if n == 3 then mind.on = not mind.on end
+    redraw() ; return
+  end
+  if page == 32 then
+    if n == 3 then style.on = not style.on end
     redraw() ; return
   end
   if page == 27 then
@@ -3136,6 +3174,7 @@ function redraw()
   end
 
   if page == 31 then mind.redraw() ; return end
+  if page == 32 then style.redraw() ; return end
 
   if page == 30 then
     screen.clear() ; screen.font_size(8)
