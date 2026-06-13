@@ -100,12 +100,12 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.3</td><td>Contrast (E2) · reply prob (E3) · K3 deaf on/off</td></tr>
       <tr><td>p.4</td><td>React time (E2) · init silence (E3) · K2 rhy prob · K3 voice mode</td></tr>
       <tr><td>p.5</td><td>POtO granular — vol (E2) · monitor/sens (E3) · K2 poly MONO/5th/CHRD/CLST/<b>SMRT</b> · K3 on/off</td></tr>
-      <tr><td>p.6</td><td>POtO SRC — sources INPUT/METABO/COMP/MGEN · audio (INPUT/COMP) enregistrées, toutes pilotent le pitch · E2 sel · K3 toggle · K2 all</td></tr>
-      <tr><td>p.7</td><td>POtO MOD — modulation interne du POtO · E3 source METABO/AUDIO/MGEN/COMP · E2 depth · K3 on/off (act→taille grain, ton→pitch)</td></tr>
-      <tr><td>p.8</td><td>8OS looper — vol (E2) · grain size (E3) · K3 OFF→REC→TRANS</td></tr>
-      <tr><td>p.9</td><td>8OS MOD — modulation interne du 8OS · E3 source METABO/AUDIO/MGEN/COMP · E2 depth · K3 on/off (act→taille grain, ton→pitch)</td></tr>
-      <tr><td>p.10</td><td>POtO grain — grain size (E2) · spread (E3) · K3 rate</td></tr>
-      <tr><td>p.11</td><td>8OS TRANS source — INPUT/METABO/COMP/MGEN + PITCH · E2 sel · K3 toggle · K2 all</td></tr>
+      <tr><td>p.6</td><td>POtO grain — grain size (E2) · spread (E3) · K3 rate</td></tr>
+      <tr><td>p.7</td><td>POtO SRC — sources INPUT/METABO/COMP/MGEN · audio (INPUT/COMP) enregistrées, toutes pilotent le pitch · E2 sel · K3 toggle · K2 all</td></tr>
+      <tr><td>p.8</td><td>POtO MOD — modulation interne du POtO · E3 source METABO/AUDIO/MGEN/COMP · E2 depth · K3 on/off (act→taille grain, ton→pitch)</td></tr>
+      <tr><td>p.9</td><td>8OS looper — vol (E2) · grain size (E3) · K3 OFF→REC→TRANS</td></tr>
+      <tr><td>p.10</td><td>8OS TRANS source — INPUT/METABO/COMP/MGEN + PITCH · E2 sel · K3 toggle · K2 all</td></tr>
+      <tr><td>p.11</td><td>8OS MOD — modulation interne du 8OS · E3 source METABO/AUDIO/MGEN/COMP · E2 depth · K3 on/off (act→taille grain, ton→pitch)</td></tr>
       <tr><td>p.12–15</td><td>MIDI routing — E2 stream (IMPRO/POtO/8OS/MGEN) · E3 ch (streams 1–3) · K3 toggle</td></tr>
       <tr><td>p.16</td><td>MGEN — BPM (E2) · scale (E3) · K2 tap/new theme · K3 start/stop</td></tr>
       <tr><td>p.17</td><td>MGEN channels — E2 select · E3 style · K2 evo rate · K3 on/off</td></tr>
@@ -181,8 +181,8 @@ const INTERRUPT_PROB=0.12,POTO_DUR=4.0,OS8_DUR=20.0;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let page=1,state='LISTEN',corpus={},head=1,count=0,last_slot=0;
-// ordre : POtO "SRC"(30) puis "MOD"(29) apres p.5 ; "8OS MOD"(28) apres p.6
-const PAGE_ORDER=[1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31];
+// regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD), puis le reste
+const PAGE_ORDER=[1,2,3,4,5,7,30,29,6,8,28,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31];
 let phrase_buf=[],phrase_analysis=null,recent_slots=[];
 let last_strat='---',strat_name='---',consec_sil=0,sil_sec=0;
 let last_sound_t=now();

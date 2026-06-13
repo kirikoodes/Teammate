@@ -2667,8 +2667,10 @@ end
 -- E1 : navigation pages (1->17->1)
 ---------------------------------------------------------------------
 -- ordre d'affichage des pages (les IDs logiques ne changent pas) :
--- POtO : "POtO SRC" (id 30) puis "POtO MOD" (id 29) apres la page 5 ; "8OS MOD" (id 28) apres la page 6.
-PAGE_ORDER = {1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31}
+-- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
+-- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
+-- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 31}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
