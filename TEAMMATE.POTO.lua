@@ -623,6 +623,38 @@ function os8_route()
   end
 end
 
+-- ===== SOURCE POtO : sources combinables (comme le 8OS) =====
+-- audio (INPUT, COMP) -> enregistrees dans le buffer ; toutes -> suivi de hauteur (note MIDI)
+poto_src        = { input = true, metabo = false, comp = false, mgen = false }
+poto_src_keys   = { "input", "metabo", "comp", "mgen" }
+poto_src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
+poto_src_cursor = 1
+poto_in_midi    = -1   -- hauteur suivie (la source active la PLUS FORTE mene)
+
+-- met a jour la hauteur suivie par le POtO (~30 Hz)
+function poto_route()
+  poto_in_midi = -1
+  local best, bf = -1, 0
+  local s = poto_src
+  if s.input and (cur_freq or 0) > 30 and rms_smooth > best then best = rms_smooth ; bf = cur_freq end
+  if s.metabo then local e = meta_energy or 0 ; if e > 0.05 and e > best then best = e ; bf = meta_freq end end
+  if s.comp   then local e = comp_rms or 0    ; if e > 0.02 and e > best then best = e ; bf = comp_freq end end
+  if s.mgen   then local e = mgen_nenergy or 0; if e > 0.05 and e > best then best = e ; bf = mgen_nfreq end end
+  poto_in_midi = (bf and bf > 30) and freq_to_midi(bf) or -1
+end
+
+-- routage d'enregistrement du buffer POtO selon les sources audio actives
+-- INPUT -> entree hardware ; COMP -> sortie du compagnon (voix 2). Ne touche pas
+-- la voix 4 quand le 8OS l'utilise (modes mutuellement exclusifs).
+function poto_rec_route()
+  if os8_mode ~= "OFF" then return end
+  local lin = poto_src.input and 1.0 or 0.0
+  softcut.level_input_cut(1, POTO_REC_V, lin)
+  softcut.level_input_cut(2, POTO_REC_V, lin)
+  softcut.level_cut_cut(2, POTO_REC_V, poto_src.comp and 1.0 or 0.0)
+  softcut.rec(POTO_REC_V, (poto_src.input or poto_src.comp) and 1 or 0)   -- gel si aucune source audio
+end
+
 -- pan stereo d'une voix TRANS selon le spread (V5 gauche / V6 droite / V3 centre)
 -- MOD : l'energie de la source elargit le spread.
 function os8_pan(v)
@@ -1035,7 +1067,7 @@ local function poto_set(on)
             softcut.play(lv, 1)
             active = true
           end
-          local pn_lv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
+          local pn_lv = poto_in_midi >= 0 and poto_in_midi or nil
           if pn_lv then midi_note_on(2, pn_lv, math.floor(p_poto_vol * 127)) end
           clock.sleep(gs)
           if pn_lv then midi_note_off(2, pn_lv) end
@@ -1084,7 +1116,7 @@ local function poto_set(on)
           else
             softcut.rate(av, r_av)
           end
-          local pn_av = cur_freq > 0 and freq_to_midi(cur_freq) or nil
+          local pn_av = poto_in_midi >= 0 and poto_in_midi or nil
           if pn_av then midi_note_on(2, pn_av, math.floor(p_poto_vol * 83)) end
           clock.sleep(gs)
           if pn_av then midi_note_off(2, pn_av) end
@@ -1133,7 +1165,7 @@ local function poto_set(on)
           else
             softcut.rate(rv, r_rv)
           end
-          local pn_rv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
+          local pn_rv = poto_in_midi >= 0 and poto_in_midi or nil
           if pn_rv then midi_note_on(2, pn_rv, math.floor(p_poto_vol * 51)) end
           clock.sleep(gs)
           if pn_rv then midi_note_off(2, pn_rv) end
@@ -2313,7 +2345,7 @@ function state_save()
       p_poto_poly=p_poto_poly, p_monitor=p_monitor, p_poto_smrt_sens=p_poto_smrt_sens, rate_pidx=rate_pidx,
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
-      poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src,
+      poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2348,6 +2380,7 @@ function state_load()
     os8_pitch=g(st.os8_pitch,os8_pitch) ; os8_spread=g(st.os8_spread,os8_spread) ; os8_trans=g(st.os8_trans,os8_trans)
     os8_mod_on=g(st.os8_mod_on,os8_mod_on) ; os8_mod=g(st.os8_mod,os8_mod) ; os8_mod_src=g(st.os8_mod_src,os8_mod_src)
     poto_mod_on=g(st.poto_mod_on,poto_mod_on) ; poto_mod=g(st.poto_mod,poto_mod) ; poto_mod_src=g(st.poto_mod_src,poto_mod_src)
+    if type(st.poto_src)=="table" then for k,v in pairs(st.poto_src) do poto_src[k]=v end end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2457,6 +2490,7 @@ function init()
     while true do
       clock.sleep(1/30)
       os8_route()                                      -- met a jour la voix live du routeur 8OS TRANS
+      poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
@@ -2518,8 +2552,8 @@ end
 -- E1 : navigation pages (1->17->1)
 ---------------------------------------------------------------------
 -- ordre d'affichage des pages (les IDs logiques ne changent pas) :
--- "POtO MOD" (id 29) juste apres la page 5 (POtO) ; "8OS MOD" (id 28) juste apres la page 6 (8OS).
-PAGE_ORDER = {1,2,3,4,5,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27}
+-- POtO : "POtO SRC" (id 30) puis "POtO MOD" (id 29) apres la page 5 ; "8OS MOD" (id 28) apres la page 6.
+PAGE_ORDER = {1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -2584,6 +2618,8 @@ function enc(n, d)
       os8_mod = util.clamp(os8_mod + d * 0.05, 0, 1)
     elseif page == 29 then
       poto_mod = util.clamp(poto_mod + d * 0.05, 0, 1)
+    elseif page == 30 then
+      poto_src_cursor = ((poto_src_cursor - 1 + d) % #poto_src_keys) + 1
     end
   elseif n == 3 then
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
@@ -2675,6 +2711,16 @@ function key(n, z)
   end
   if page == 29 then
     if n == 3 then poto_mod_on = not poto_mod_on end
+    redraw() ; return
+  end
+  if page == 30 then
+    if n == 3 then
+      local k = poto_src_keys[poto_src_cursor] ; poto_src[k] = not poto_src[k]
+    elseif n == 2 then
+      local all = poto_src.input and poto_src.metabo and poto_src.comp and poto_src.mgen
+      for _, k in ipairs(poto_src_keys) do poto_src[k] = not all end
+    end
+    poto_rec_route()
     redraw() ; return
   end
   if page == 27 then
@@ -2965,6 +3011,26 @@ function redraw()
     screen.level(poto_mod_on and 12 or 3) ; screen.rect(92, 44, 30 * tone, 4) ; screen.fill()
     screen.level(4) ; screen.move(2, 58) ; screen.text("act>taille  ton>pitch")
     screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
+    screen.update() ; return
+  end
+
+  if page == 30 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("POtO SRC")
+    screen.level(4)  ; screen.move(2, 18) ; screen.text("REC: INPUT/COMP  pitch: tous")
+    local ys = { 28, 36, 44, 52 }
+    for i = 1, #poto_src_keys do
+      local k   = poto_src_keys[i]
+      local sel = (i == poto_src_cursor)
+      local aud = (k == "input" or k == "comp")   -- sources audio = enregistrees
+      screen.level(sel and 15 or (poto_src[k] and 10 or 4))
+      screen.move(sel and 2 or 10, ys[i])
+      screen.text((sel and "> " or "") .. poto_src_labels[i])
+      if aud and poto_src[k] then screen.level(8) ; screen.move(64, ys[i]) ; screen.text("rec") end
+      screen.level(poto_src[k] and 15 or 3)
+      screen.move(92, ys[i]) ; screen.text(poto_src[k] and "[X]" or "[ ]")
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel  K3 on/off  K2 all")
     screen.update() ; return
   end
 
