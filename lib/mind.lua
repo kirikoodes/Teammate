@@ -25,8 +25,15 @@ M.phrase_len= 0     -- duree de la phrase en cours (s)
 M.gap_len   = 0     -- duree du silence en cours (s)
 M.mood      = "--"  -- humeur lisible
 
+M.energy_long = 0   -- enveloppe tres lente (~30 s) de ton energie : "as-tu chargé récemment"
+M.arc       = 0     -- ARC MACRO 0..1 : dramaturgie autonome sur des minutes
+M.arc_phase = "CALM"-- CALM / BUILD / PEAK / RELEASE
+M.drive     = 0     -- intensite globale pour le comportement (tension immediate + arc)
+
 local spk     = false
 local onset_t = {}  -- horodatages recents (pour la densite)
+local arc_target = 0
+local arc_next_t = 0  -- prochaine decision de l'arc (horloge)
 
 local function clampU(x) return x < 0 and 0 or (x > 1 and 1 or x) end
 
@@ -79,6 +86,40 @@ function M.update(rms, freq, centroid, flatness, gate, dt, now)
   elseif M.density > 0.6 then    M.mood = "DENSE"
   else                           M.mood = "AVEC TOI"
   end
+
+  -- ===== ARC MACRO : dramaturgie sur des minutes =====
+  -- enveloppe tres lente de ton energie (cadre l'amplitude des montees)
+  M.energy_long = M.energy_long + (M.energy - M.energy_long) * 0.0015
+  -- decisions espacees (20-70 s) : monter, relacher, ou se poser. Autonome mais
+  -- borne par ton energie longue : tu te tais longtemps -> l'arc retombe.
+  if now >= arc_next_t then
+    local el = M.energy_long
+    if M.arc < 0.30 then
+      arc_target  = 0.55 + el * 0.4 + math.random() * 0.1   -- construire
+      M.arc_phase = "BUILD"
+      arc_next_t  = now + 25 + math.random() * 45
+    elseif M.arc > 0.70 then
+      arc_target  = 0.05 + el * 0.15                          -- relacher
+      M.arc_phase = "RELEASE"
+      arc_next_t  = now + 15 + math.random() * 30
+    else
+      if math.random() < 0.5 then
+        arc_target = 0.05 + el * 0.15 ; M.arc_phase = "RELEASE"
+      else
+        arc_target = 0.60 + el * 0.4  ; M.arc_phase = "BUILD"
+      end
+      arc_next_t = now + 20 + math.random() * 40
+    end
+  end
+  -- glisse lentement vers la cible (~25 s) ; bornee par l'energie longue + marge
+  local ceil = clampU(0.35 + M.energy_long * 0.8)
+  arc_target = math.min(arc_target, ceil)
+  M.arc = M.arc + (arc_target - M.arc) * 0.004
+  if     M.arc > 0.72 then M.arc_phase = "PEAK"
+  elseif M.arc < 0.15 then M.arc_phase = "CALM" end
+
+  -- intensite globale pour le comportement : geste immediat + souffle de l'arc
+  M.drive = clampU(M.tension * 0.55 + M.arc * 0.6)
 end
 
 -- une fenetre d'opportunite pour repondre : juste apres ta phrase, dans le trou
@@ -97,14 +138,15 @@ function M.redraw()
   screen.clear() ; screen.font_size(8)
   screen.level(15) ; screen.move(2, 8) ; screen.text("MIND")
   screen.level(12) ; screen.move(126, 8) ; screen.text_right(M.mood)
-  bar(20, "energie", M.energy)
-  bar(29, "montee",  (M.build + 1) / 2)
-  bar(38, "densite", M.density)
-  bar(47, "tension", M.tension)
-  screen.level(4)  ; screen.move(2, 56)  ; screen.text("phrase")
-  screen.level(10) ; screen.move(46, 56) ; screen.text(M.phrase .. string.format("  %.1fs", M.phrase_len))
-  screen.level(M.on and 12 or 3) ; screen.move(2, 64)
-  screen.text(M.on and "K3 SUIT TON JEU" or "K3 suit ton jeu")
+  bar(19, "energie", M.energy)
+  bar(27, "densite", M.density)
+  bar(35, "tension", M.tension)
+  bar(43, "arc",     M.arc)
+  screen.level(4)  ; screen.move(2, 54)  ; screen.text("phrase")
+  screen.level(10) ; screen.move(46, 54) ; screen.text(M.phrase .. string.format("  %.1fs", M.phrase_len))
+  screen.level(M.on and 12 or 3) ; screen.move(2, 63)
+  screen.text(M.on and "K3 SUIT" or "K3 suit")
+  screen.level(M.on and 12 or 6) ; screen.move(126, 63) ; screen.text_right(M.arc_phase)
   screen.update()
 end
 

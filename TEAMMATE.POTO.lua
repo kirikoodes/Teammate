@@ -1779,7 +1779,7 @@ local function pick_strat()
   -- tu charges (fort/dense) -> reponses plus actives/denses ; doux/clairseme ->
   -- plus d'espace. Opt-in (K3 page MIND), non destructif : off => compagnon inchange.
   if mind and mind.on then
-    local act = math.max(mind.energy or 0, mind.density or 0)
+    local act = math.max(mind.energy or 0, mind.density or 0, (mind.drive or 0) * 0.85)
     w.DENSIFICATION = w.DENSIFICATION + act * 0.5
     w.IMITATION     = w.IMITATION     + act * 0.2
     w.SPARSE        = w.SPARSE        + (1 - act) * 0.4
@@ -2548,7 +2548,7 @@ function init()
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
-      metabolik.ext_press = (mind.on and mind.tension) or 0   -- coherence : ton intensite agite METABO (-> compagnon/NIAKABY/MGEN)
+      metabolik.ext_press = (mind.on and mind.drive) or 0   -- coherence : intensite (geste + arc macro) agite METABO (-> compagnon/NIAKABY/MGEN)
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
