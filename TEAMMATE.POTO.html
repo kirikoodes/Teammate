@@ -122,6 +122,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.28</td><td>METABO→MGEN — E2 drive · E3 note inf · K2 scope LIGHT/FULL · K3 new theme now</td></tr>
       <tr><td>p.29</td><td>MGEN TASTE — combos aimées · K3 like · K2 dislike · E2 parcourt · E3 recall%</td></tr>
       <tr><td>p.30</td><td>LIVE — armer/couper tous les modes · E2 curseur · K3 toggle · K2 panic (all off)</td></tr>
+      <tr><td>p.31</td><td>MIND — écoute partagée (énergie/densité/tension/arc/phrase/humeur) · K3 = le compagnon suit ton jeu (dynamique + cohérence + arc + motifs)</td></tr>
     </table>
   </div>
   <div class="doc-col">
@@ -181,7 +182,7 @@ const INTERRUPT_PROB=0.12,POTO_DUR=4.0,OS8_DUR=20.0;
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let page=1,state='LISTEN',corpus={},head=1,count=0,last_slot=0;
 // ordre : POtO "SRC"(30) puis "MOD"(29) apres p.5 ; "8OS MOD"(28) apres p.6
-const PAGE_ORDER=[1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27];
+const PAGE_ORDER=[1,2,3,4,5,30,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31];
 let phrase_buf=[],phrase_analysis=null,recent_slots=[];
 let last_strat='---',strat_name='---',consec_sil=0,sil_sec=0;
 let last_sound_t=now();
@@ -666,6 +667,8 @@ function pickStrat(){
   else if(sil_sec>1.5) w.SILENCE+=0.1;
   if(last_strat==='DENSIFICATION'){w.SPARSE+=0.25;w.SILENCE+=0.18;w.DENSIFICATION*=0.2;}
   if(count<8){w.IMITATION+=0.15;w.DENSIFICATION=Math.max(0,w.DENSIFICATION-0.06);}
+  if(mind.on){const act=Math.max(mind.energy,mind.density,(mind.drive||0)*0.85);
+    w.DENSIFICATION+=act*0.5;w.IMITATION+=act*0.2;w.SPARSE+=(1-act)*0.4;w.SILENCE+=(1-act)*0.3;}
   let total=Object.values(w).reduce((a,b)=>a+Math.max(0,b),0);
   if(!total) return 'SILENCE';
   let r=Math.random()*total,acc=0;
@@ -733,13 +736,14 @@ setInterval(()=>{
   else{sil_sec=0;last_sound_t=now();}
   if(state!=='LISTEN') return;
   if(phrase_buf.length>0&&sil_sec<0.1&&count>=MIN_CORPUS&&Math.random()<INTERRUPT_PROB){
-    const n=phrase_buf.length; phrase_analysis=analyzePhrase(phrase_buf); phrase_buf=[];
+    const n=phrase_buf.length; phrase_analysis=analyzePhrase(phrase_buf); captureMotif(phrase_buf); phrase_buf=[];
     doRespond(n,0.1); return;
   }
   if(phrase_buf.length>0&&sil_sec>=p_sil_min){
-    const n=phrase_buf.length; phrase_analysis=analyzePhrase(phrase_buf); phrase_buf=[];
+    const n=phrase_buf.length; phrase_analysis=analyzePhrase(phrase_buf); captureMotif(phrase_buf); phrase_buf=[];
     if(count>=MIN_CORPUS&&Math.random()<p_reply) doRespond(n,0.3);
   }else if(!phrase_buf.length&&sil_sec>p_sil_max&&count>=MIN_CORPUS){
+    if(maybeRecallMotif())return;   // il ramene une de tes phrases (transformee)
     const prob=sil_sec>8?0.50:sil_sec>4?0.30:0.15;
     if(Math.random()<prob){
       const seed=pickInit();
@@ -1289,6 +1293,7 @@ function key(n,z){
   if(page===28){if(n===3)os8_mod_on=!os8_mod_on;return;}
   if(page===29){if(n===3)poto_mod_on=!poto_mod_on;return;}
   if(page===30){if(n===3){const k=poto_src_keys[poto_src_cursor-1];poto_src[k]=!poto_src[k];}else if(n===2){const all=poto_src.input&&poto_src.metabo&&poto_src.comp&&poto_src.mgen;for(const k of poto_src_keys)poto_src[k]=!all;}return;}
+  if(page===31){if(n===3)mind.on=!mind.on;return;}
   if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
   if(n===2&&page===5){p_poto_poly=(p_poto_poly+1)%POTO_POLY_NAMES.length;return;}
   if(n===2&&page===6){os8_sync=!os8_sync;return;}
@@ -1385,7 +1390,7 @@ const metabolik=(()=>{
   M.BIO=[{ch:'growth',deg:1,oct:0},{ch:'glycolysis',deg:2,oct:0},{ch:'respiration',deg:3,oct:0},{ch:'fermentation',deg:4,oct:0},{ch:'byproduct',deg:5,oct:0},{ch:'co2',deg:1,oct:1},{ch:'lactate',deg:2,oct:1}];
   const BIO_INDEX={};M.BIO.forEach((b,i)=>BIO_INDEX[b.ch]=i);
   M.on=false;M.ch={growth:0,glycolysis:0,respiration:0,fermentation:0,byproduct:0,co2:0,lactate:0};
-  M.stress=0;M.stressFx=0;M.stress_min=0;M.stress_max=1;M.flash=0;M.state='—';
+  M.stress=0;M.stressFx=0;M.stress_min=0;M.stress_max=1;M.ext_press=0;M.flash=0;M.state='—';
   M.density_names=['SPARSE','FLOW','DENSE'];M.density_idx=1;M.motif=null;M.rhythm=null;M.motif_age=0;
   M.persona_names=['CELL','PIANO','POLY','BASS'];M.persona_idx=0;
   M.spat=false;M.cc=null;
@@ -1411,7 +1416,8 @@ const metabolik=(()=>{
     prevV=v;
     const novelty=Math.min(1,novAcc*5.5),active=feat.level>0.04,monotony=active?(1-cu(novelty)):0;
     const imbalance=Math.abs(c.fermentation-c.respiration);
-    const perturb=cu(monotony*0.6+imbalance*0.3+(1-c.growth)*0.2);
+    let perturb=cu(monotony*0.6+imbalance*0.3+(1-c.growth)*0.2);
+    perturb=cu(perturb+(M.ext_press||0)*0.6);   // MIND : l'intensite du joueur pousse le stress
     const rate=(perturb>M.stress)?2.4:0.45;
     M.stress=M.stress+(perturb-M.stress)*Math.min(1,dt*rate);
     M.stressFx=M.stress_min+M.stress*(M.stress_max-M.stress_min);
@@ -1651,6 +1657,73 @@ function liveAllOff(){
   for(let d=0;d<4;d++)if(midi_outs[d])for(let ch=0;ch<16;ch++)midi_outs[d].send([0xB0|ch,123,0]);
 }
 
+// ───────────────────────────────────────── MIND : ecoute partagee (parite lib/mind.lua)
+const mind={on:false,energy:0,energy_sl:0,build:0,density:0,tension:0,bright:0,register:0,
+  phrase:'--',phrase_len:0,gap_len:0,mood:'--',energy_long:0,arc:0,arc_phase:'CALM',drive:0,
+  _spk:false,_onset:[],_arcTarget:0,_arcNext:0};
+function mindUpdate(rms,freq,centroid,flatness,gate,dt,t){
+  dt=dt||1/30;t=t||0;const cu=x=>x<0?0:(x>1?1:x);
+  const lvl=cu((rms||0)*6);
+  mind.energy+=(lvl-mind.energy)*0.25;
+  mind.energy_sl+=(mind.energy-mind.energy_sl)*0.02;
+  mind.build=Math.max(-1,Math.min(1,(mind.energy-mind.energy_sl)*4));
+  mind.bright=cu((centroid||0)/5000);
+  if(freq&&freq>30){const m=69+12*Math.log2(freq/440);mind.register=cu((m-36)/60);}
+  const speaking=(gate||0)>0.5||mind.energy>0.08;
+  if(speaking&&!mind._spk)mind._onset.push(t);
+  mind._spk=speaking;
+  while(mind._onset[0]&&t-mind._onset[0]>2)mind._onset.shift();
+  mind.density=cu(mind._onset.length/8);
+  if(speaking){mind.phrase='SPEAKING';mind.phrase_len+=dt;mind.gap_len=0;}
+  else{mind.gap_len+=dt;if(mind.phrase_len>0.15&&mind.gap_len<0.6)mind.phrase='GAP';else{mind.phrase='QUIET';mind.phrase_len=0;}}
+  const push=cu(mind.density*0.5+Math.max(0,mind.build)*0.3+mind.bright*0.2);
+  mind.tension+=(push-mind.tension)*(push>mind.tension?0.05:0.012);
+  if(mind.energy<0.05)mind.mood='ECOUTE';
+  else if(mind.phrase==='GAP')mind.mood='REPONDRE';
+  else if(mind.build>0.4)mind.mood='MONTE AVEC TOI';
+  else if(mind.build<-0.4)mind.mood='REDESCEND';
+  else if(mind.density>0.6)mind.mood='DENSE';
+  else mind.mood='AVEC TOI';
+  // arc macro (dramaturgie sur des minutes)
+  mind.energy_long+=(mind.energy-mind.energy_long)*0.0015;
+  if(t>=mind._arcNext){
+    const el=mind.energy_long;
+    if(mind.arc<0.30){mind._arcTarget=0.55+el*0.4+Math.random()*0.1;mind.arc_phase='BUILD';mind._arcNext=t+25+Math.random()*45;}
+    else if(mind.arc>0.70){mind._arcTarget=0.05+el*0.15;mind.arc_phase='RELEASE';mind._arcNext=t+15+Math.random()*30;}
+    else{if(Math.random()<0.5){mind._arcTarget=0.05+el*0.15;mind.arc_phase='RELEASE';}else{mind._arcTarget=0.60+el*0.4;mind.arc_phase='BUILD';}mind._arcNext=t+20+Math.random()*40;}
+  }
+  mind._arcTarget=Math.min(mind._arcTarget,cu(0.35+mind.energy_long*0.8));
+  mind.arc+=(mind._arcTarget-mind.arc)*0.004;
+  if(mind.arc>0.72)mind.arc_phase='PEAK';else if(mind.arc<0.15)mind.arc_phase='CALM';
+  mind.drive=cu(mind.tension*0.55+mind.arc*0.6);
+}
+// memoire de motifs : capture tes phrases marquantes, les ramene transformees
+let motifs=[],motif_last_t=0;const MOTIF_SEMIS=[0,0,7,12,-12,5,-5];
+function captureMotif(buf){
+  if(buf.length<2)return;
+  let e=0;for(const ev of buf)e+=ev.rms||0;e/=buf.length;
+  if(e<0.02)return;
+  motifs.push({evs:buf.slice(),energy:e});
+  while(motifs.length>4)motifs.shift();
+}
+async function playMotif(m){
+  const semis=MOTIF_SEMIS[rnd(0,MOTIF_SEMIS.length-1)],rate=Math.pow(2,semis/12);
+  const beat=60/mgen_bpm,gap=Math.max(0.05,beat/(Math.random()<0.5?2:4));
+  let order=m.evs.map((_,i)=>i);
+  if(Math.random()<0.3)order=order.reverse();
+  strat_name='MOTIF';
+  for(let k=0;k<order.length;k++){const ev=m.evs[order[k]];playEvent(ev,rate);markPlayed(ev.slot);last_slot=ev.slot;if(k<order.length-1)await sleep(gap*1000);}
+}
+function maybeRecallMotif(){
+  if(!comp_on||!mind.on||motifs.length===0)return false;
+  const t=now();if(t-motif_last_t<6)return false;
+  if(Math.random()>(0.15+(mind.arc||0)*0.5))return false;
+  motif_last_t=t;state='THINK';
+  playMotif(motifs[rnd(0,motifs.length-1)]);
+  sleep((0.4+Math.random())*1000).then(()=>{state='LISTEN';});
+  return true;
+}
+
 // ───────────────────────────────────────── boucles 30 Hz (parité Norns)
 metabolik.player();
 setInterval(()=>{
@@ -1665,6 +1738,8 @@ setInterval(()=>{
   niakaby.update(br,bf,bc,bfl,1/30);
   os8Route();
   potoRoute();
+  mindUpdate(rms_smooth,cur_freq,cur_centroid,cur_flatness,cur_gate,1/30,now());  // ecoute partagee
+  metabolik.ext_press=mind.on?mind.drive:0;                                       // coherence : ton intensite agite METABO
   // feed METABO selon la source choisie (INPUT/COMP/MIX)
   const ce=comp_rms*(0.6+react*1.2),fi=metabolik.feed_idx;
   if(fi===1)metabolik.update(ce,comp_freq,comp_centroid,comp_flatness,1/30);
@@ -1802,6 +1877,17 @@ function drawPotoSrc(){
   }
   S.level(4);S.move(2,63);S.text('E2 sel  K3 on/off  K2 all');
 }
+function drawMind(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('MIND');S.level(12);txtR(126,8,mind.mood);
+  function bar(y,label,v){v=Math.max(0,Math.min(1,v));
+    S.level(4);S.move(2,y);S.text(label);
+    S.level(2);S.rect(46,y-5,78,4);S.stroke();S.level(13);S.rect(46,y-5,78*v,4);S.fill();}
+  bar(19,'energie',mind.energy);bar(27,'densite',mind.density);bar(35,'tension',mind.tension);bar(43,'arc',mind.arc);
+  S.level(4);S.move(2,54);S.text('phrase');
+  S.level(10);S.move(46,54);S.text(mind.phrase+'  '+mind.phrase_len.toFixed(1)+'s');
+  S.level(mind.on?12:3);S.move(2,63);S.text(mind.on?'K3 SUIT':'K3 suit');
+  S.level(mind.on?12:6);txtR(126,63,mind.arc_phase);
+}
 function drawTaste(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('MGEN TASTE');
   S.level(8);txtR(126,8,mgen_browse>=1?('combo '+mgen_browse+'/'+mgen_liked.length):(mgen_liked.length+' combos'));
@@ -1838,6 +1924,7 @@ function drawExtraPage(){
   if(page===28){drawMod();return true;}
   if(page===29){drawPotoMod();return true;}
   if(page===30){drawPotoSrc();return true;}
+  if(page===31){drawMind();return true;}
   return false;
 }
 
