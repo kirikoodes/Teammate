@@ -2482,9 +2482,18 @@ end
 -- Page 17  SPAT      : E2 masse    | E3 tempo      | K2 mode | K3 ON/OFF
 -- E1 : navigation pages (1->17->1)
 ---------------------------------------------------------------------
+-- ordre d'affichage des pages (les IDs logiques ne changent pas) :
+-- "8OS MOD" (id 28) est inseree juste apres la page 6 (8OS).
+PAGE_ORDER = {1,2,3,4,5,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27}
+function page_pos(p)
+  for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
+  return 1
+end
+
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 28) + 1
+    local idx = ((page_pos(page) - 1 + d) % #PAGE_ORDER) + 1
+    page = PAGE_ORDER[idx]
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2929,7 +2938,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/28")
+  screen.text(page_pos(page) .. "/28")
 
   if rec_on then
     screen.level(15)
