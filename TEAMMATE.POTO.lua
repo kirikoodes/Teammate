@@ -655,6 +655,27 @@ function poto_rec_route()
   softcut.rec(POTO_REC_V, (poto_src.input or poto_src.comp) and 1 or 0)   -- gel si aucune source audio
 end
 
+-- application IMMEDIATE (mid-grain) du rate + detune spread sur les voix POtO en cours.
+-- Appele ~30 Hz : pitch/spread reagissent sans attendre le prochain grain. (la taille
+-- de grain, elle, ne peut changer qu'au prochain grain : elle definit la boucle.)
+function poto_live_update()
+  if not p_poto_on then return end
+  local lv, av, rv = POTO_PLY_V[1], POTO_PLY_V[2], 3
+  local base = poto_rate()
+  softcut.rate(lv, base)
+  local r_av, r_rv
+  if p_poto_poly == 5 then
+    local sp = poto_smart_params()
+    r_av = base * sp.r2 ; r_rv = base * sp.r3
+  else
+    local t2 = POTO_POLY_RATES[p_poto_poly][2]
+    local t3 = POTO_POLY_RATES[p_poto_poly][3]
+    r_av = t2 and (base * t2) or (base * (1 + p_poto_spread))
+    r_rv = t3 and (base * t3) or math.max(0.5, base * (1 - p_poto_spread * 2))
+  end
+  softcut.rate(av, r_av) ; softcut.rate(rv, r_rv)
+end
+
 -- pan stereo d'une voix TRANS selon le spread (V5 gauche / V6 droite / V3 centre)
 -- MOD : l'energie de la source elargit le spread.
 function os8_pan(v)
@@ -2491,6 +2512,7 @@ function init()
       clock.sleep(1/30)
       os8_route()                                      -- met a jour la voix live du routeur 8OS TRANS
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
+      poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
