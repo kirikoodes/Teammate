@@ -551,25 +551,53 @@ os8_in_midi   = -1      -- note MIDI cible (-1 = pas de pitch)
 os8_in_rms    = 0       -- energie
 os8_in_centroid = 0     -- timbre
 
--- ===== MODULATION INTERNE : une source pilote en continu les parametres 8OS =====
+-- ===== MODULATION INTERNE : une source pilote en continu les parametres d'un mode =====
 -- comme METABO colore NIAKABY / pilote MGEN. Source au choix, profondeur reglable.
-os8_mod_on       = false           -- modulation active
-os8_mod          = 0.5             -- profondeur 0..1
-os8_mod_src      = 1               -- 1=METABO 2=AUDIO 3=MGEN
-os8_mod_src_names = { "METABO", "AUDIO", "MGEN" }
+MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN" }
 
--- renvoie deux signaux normalises (act = energie/mouvement, tone = brillance/tension)
-function os8_mod_sig()
-  if not os8_mod_on then return 0, 0 end
-  local s = os8_mod_src
-  if s == 1 then
+-- signaux normalises d'une source (act = energie/mouvement, tone = brillance/tension)
+function mod_signals(src)
+  if src == 1 then
     if not (metabolik and metabolik.on) then return 0, 0 end
     return (metabolik.stressFx or 0), ((metabolik.ch and metabolik.ch.growth) or 0)
-  elseif s == 2 then
+  elseif src == 2 then
     return math.min(1, (rms_smooth or 0) * 8), math.min(1, (cur_centroid or 0) / 4000)
   else
     return math.min(1, mgen_nenergy or 0), math.min(1, (mgen_nfreq or 0) / 1000)
   end
+end
+
+-- --- modulation 8OS ---
+os8_mod_on        = false          -- modulation active
+os8_mod           = 0.5            -- profondeur 0..1
+os8_mod_src       = 1              -- 1=METABO 2=AUDIO 3=MGEN
+os8_mod_src_names = MOD_SRC_NAMES  -- compat
+function os8_mod_sig()
+  if not os8_mod_on then return 0, 0 end
+  return mod_signals(os8_mod_src)
+end
+
+-- --- modulation POtO ---
+poto_mod_on  = false
+poto_mod     = 0.5
+poto_mod_src = 1
+function poto_mod_sig()
+  if not poto_mod_on then return 0, 0 end
+  return mod_signals(poto_mod_src)
+end
+-- act -> grains plus courts (jeu plus nerveux)
+function poto_size_mod(base)
+  if not poto_mod_on then return base end
+  local act = poto_mod_sig()
+  local s = base * (1 - poto_mod * act * 0.7)
+  return s < 0.03 and 0.03 or s
+end
+-- tone -> pitch monte (jusqu'a +1 octave a fond), clamp 0.25..4
+function poto_rate()
+  local r = p_poto_rate
+  if poto_mod_on then local _, tone = poto_mod_sig() ; r = r * (2 ^ (poto_mod * tone)) end
+  if r < 0.25 then r = 0.25 elseif r > 4 then r = 4 end
+  return r
 end
 
 local function os8_f2midi(f) return (f and f > 30) and math.floor(69 + 12*math.log(f/440)/math.log(2) + 0.5) or -1 end
@@ -983,6 +1011,7 @@ local function poto_set(on)
       while p_poto_on do
         if p_poto_poly == 5 then poto_smrt_update() end
         local gs  = (p_poto_poly == 5) and poto_smart_params().size or p_poto_size
+        gs = poto_size_mod(gs)
         local wp  = poto_write_pos_rel()
         local tgt = (wp - 0.10 + POTO_DUR) % POTO_DUR
         zone = (zone * 0.85 + tgt * 0.15) % POTO_DUR
@@ -1000,7 +1029,7 @@ local function poto_set(on)
           if not active then
             softcut.loop(lv, 1)
             softcut.position(lv, bp)
-            softcut.rate(lv, p_poto_rate)
+            softcut.rate(lv, poto_rate())
             softcut.play(lv, 1)
             active = true
           end
@@ -1022,25 +1051,26 @@ local function poto_set(on)
       local active = false
       while p_poto_on do
         local wp  = poto_write_pos_rel()
+        local gs  = poto_size_mod(p_poto_size)
         local tgt = (poto_lead_zone - 0.05 + POTO_DUR) % POTO_DUR
         zone = (zone * 0.92 + tgt * 0.08) % POTO_DUR
-        if zone + p_poto_size > POTO_DUR then zone = POTO_DUR - p_poto_size - 0.01 end
+        if zone + gs > POTO_DUR then zone = POTO_DUR - gs - 0.01 end
         local dist = (wp - zone + POTO_DUR) % POTO_DUR
-        if dist > p_poto_size + 0.05 then
+        if dist > gs + 0.05 then
           local bp = POTO_OFFSET + zone
           local r_av, av_vol_mult
           if p_poto_poly == 5 then
             local sp = poto_smart_params()
-            r_av = p_poto_rate * sp.r2 ; av_vol_mult = sp.av_lv
+            r_av = poto_rate() * sp.r2 ; av_vol_mult = sp.av_lv
           else
             local tbl = POTO_POLY_RATES[p_poto_poly][2]
-            r_av = tbl and (p_poto_rate * tbl) or (p_poto_rate * (1 + p_poto_spread))
+            r_av = tbl and (poto_rate() * tbl) or (poto_rate() * (1 + p_poto_spread))
             av_vol_mult = 0.65
           end
-          local ft = math.min(0.020, p_poto_size * 0.15)
+          local ft = math.min(0.020, gs * 0.15)
           softcut.fade_time(av, ft)
           softcut.loop_start(av, bp)
-          softcut.loop_end(av, bp + p_poto_size)
+          softcut.loop_end(av, bp + gs)
           softcut.level(av, p_poto_vol * av_vol_mult * (spat.on and spat_depth_mult("av") or 1.0))
           if spat.on then softcut.pan(av, spat_eff_pan("av")) end
           if not active then
@@ -1054,11 +1084,11 @@ local function poto_set(on)
           end
           local pn_av = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_av then midi_note_on(2, pn_av, math.floor(p_poto_vol * 83)) end
-          clock.sleep(p_poto_size)
+          clock.sleep(gs)
           if pn_av then midi_note_off(2, pn_av) end
         else
           if active then softcut.play(av, 0) ; active = false end
-          clock.sleep(p_poto_size + 0.03)
+          clock.sleep(gs + 0.03)
         end
       end
       if active then softcut.play(av, 0) end
@@ -1070,25 +1100,26 @@ local function poto_set(on)
       local active = false
       while p_poto_on do
         local wp  = poto_write_pos_rel()
+        local gs  = poto_size_mod(p_poto_size)
         local tgt = (poto_lead_zone + POTO_DUR * 0.5) % POTO_DUR
         zone = (zone * 0.95 + tgt * 0.05) % POTO_DUR
-        if zone + p_poto_size > POTO_DUR then zone = POTO_DUR - p_poto_size - 0.01 end
+        if zone + gs > POTO_DUR then zone = POTO_DUR - gs - 0.01 end
         local dist = (wp - zone + POTO_DUR) % POTO_DUR
-        if dist > p_poto_size + 0.05 then
+        if dist > gs + 0.05 then
           local bp = POTO_OFFSET + zone
           local r_rv, rv_vol_mult
           if p_poto_poly == 5 then
             local sp = poto_smart_params()
-            r_rv = p_poto_rate * sp.r3 ; rv_vol_mult = sp.rv_lv
+            r_rv = poto_rate() * sp.r3 ; rv_vol_mult = sp.rv_lv
           else
             local tbl = POTO_POLY_RATES[p_poto_poly][3]
-            r_rv = tbl and (p_poto_rate * tbl) or math.max(0.5, p_poto_rate * (1 - p_poto_spread * 2))
+            r_rv = tbl and (poto_rate() * tbl) or math.max(0.5, poto_rate() * (1 - p_poto_spread * 2))
             rv_vol_mult = 0.40
           end
-          local ft = math.min(0.020, p_poto_size * 0.15)
+          local ft = math.min(0.020, gs * 0.15)
           softcut.fade_time(rv, ft)
           softcut.loop_start(rv, bp)
-          softcut.loop_end(rv, bp + p_poto_size)
+          softcut.loop_end(rv, bp + gs)
           softcut.level(rv, p_poto_vol * rv_vol_mult * (spat.on and spat_depth_mult("rv") or 1.0))
           if spat.on then softcut.pan(rv, spat_eff_pan("rv")) end
           if not active then
@@ -1102,11 +1133,11 @@ local function poto_set(on)
           end
           local pn_rv = cur_freq > 0 and freq_to_midi(cur_freq) or nil
           if pn_rv then midi_note_on(2, pn_rv, math.floor(p_poto_vol * 51)) end
-          clock.sleep(p_poto_size)
+          clock.sleep(gs)
           if pn_rv then midi_note_off(2, pn_rv) end
         else
           if active then softcut.play(rv, 0) ; active = false end
-          clock.sleep(p_poto_size + 0.05)
+          clock.sleep(gs + 0.05)
         end
       end
       if active then softcut.play(rv, 0) end
@@ -2280,6 +2311,7 @@ function state_save()
       p_poto_poly=p_poto_poly, p_monitor=p_monitor, p_poto_smrt_sens=p_poto_smrt_sens, rate_pidx=rate_pidx,
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
+      poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2313,6 +2345,7 @@ function state_load()
     os8_vol=g(st.os8_vol,os8_vol) ; os8_size=g(st.os8_size,os8_size) ; os8_sync=g(st.os8_sync,os8_sync)
     os8_pitch=g(st.os8_pitch,os8_pitch) ; os8_spread=g(st.os8_spread,os8_spread) ; os8_trans=g(st.os8_trans,os8_trans)
     os8_mod_on=g(st.os8_mod_on,os8_mod_on) ; os8_mod=g(st.os8_mod,os8_mod) ; os8_mod_src=g(st.os8_mod_src,os8_mod_src)
+    poto_mod_on=g(st.poto_mod_on,poto_mod_on) ; poto_mod=g(st.poto_mod,poto_mod) ; poto_mod_src=g(st.poto_mod_src,poto_mod_src)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2483,8 +2516,8 @@ end
 -- E1 : navigation pages (1->17->1)
 ---------------------------------------------------------------------
 -- ordre d'affichage des pages (les IDs logiques ne changent pas) :
--- "8OS MOD" (id 28) est inseree juste apres la page 6 (8OS).
-PAGE_ORDER = {1,2,3,4,5,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27}
+-- "POtO MOD" (id 29) juste apres la page 5 (POtO) ; "8OS MOD" (id 28) juste apres la page 6 (8OS).
+PAGE_ORDER = {1,2,3,4,5,29,6,28,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -2547,9 +2580,12 @@ function enc(n, d)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
     elseif page == 28 then
       os8_mod = util.clamp(os8_mod + d * 0.05, 0, 1)
+    elseif page == 29 then
+      poto_mod = util.clamp(poto_mod + d * 0.05, 0, 1)
     end
   elseif n == 3 then
-    if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #os8_mod_src_names) end
+    if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
+    if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
     if page == 26 then mgen_recall = util.clamp(mgen_recall + d * 0.05, 0, 1) end
     if page == 1 then
@@ -2633,6 +2669,10 @@ function key(n, z)
   end
   if page == 28 then
     if n == 3 then os8_mod_on = not os8_mod_on end
+    redraw() ; return
+  end
+  if page == 29 then
+    if n == 3 then poto_mod_on = not poto_mod_on end
     redraw() ; return
   end
   if page == 27 then
@@ -2904,6 +2944,28 @@ function redraw()
     screen.update() ; return
   end
 
+  if page == 29 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("POtO MOD")
+    screen.move(126, 8) ; screen.text_right(poto_mod_on and "ON" or "off")
+    screen.level(4)  ; screen.move(2, 20) ; screen.text("E3 SRC")
+    screen.level(15) ; screen.move(74, 20) ; screen.text(MOD_SRC_NAMES[poto_mod_src])
+    screen.level(4)  ; screen.move(2, 32) ; screen.text("E2 DEPTH")
+    screen.level(15) ; screen.move(74, 32) ; screen.text(string.format("%d%%", math.floor(poto_mod * 100)))
+    screen.level(4)  ; screen.rect(2, 35, 120, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 35, 120 * poto_mod, 2) ; screen.fill()
+    local act, tone = poto_mod_sig()
+    screen.level(poto_mod_on and 8 or 3) ; screen.move(2, 48) ; screen.text("act")
+    screen.level(4) ; screen.rect(24, 44, 38, 4) ; screen.stroke()
+    screen.level(poto_mod_on and 12 or 3) ; screen.rect(24, 44, 38 * act, 4) ; screen.fill()
+    screen.level(poto_mod_on and 8 or 3) ; screen.move(70, 48) ; screen.text("ton")
+    screen.level(4) ; screen.rect(92, 44, 30, 4) ; screen.stroke()
+    screen.level(poto_mod_on and 12 or 3) ; screen.rect(92, 44, 30 * tone, 4) ; screen.fill()
+    screen.level(4) ; screen.move(2, 58) ; screen.text("act>taille  ton>pitch")
+    screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
+    screen.update() ; return
+  end
+
   if splash_active then
     screen.font_size(16)
     screen.level(15)
@@ -2938,7 +3000,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page_pos(page) .. "/28")
+  screen.text(page_pos(page) .. "/" .. #PAGE_ORDER)
 
   if rec_on then
     screen.level(15)
