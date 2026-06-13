@@ -119,6 +119,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.25</td><td>METABO→MGEN — E2 drive · E3 note inf · K2 scope LIGHT/FULL · K3 new theme now</td></tr>
       <tr><td>p.26</td><td>MGEN TASTE — combos aimées · K3 like · K2 dislike · E2 parcourt · E3 recall%</td></tr>
       <tr><td>p.27</td><td>LIVE — armer/couper tous les modes · E2 curseur · K3 toggle · K2 panic (all off)</td></tr>
+      <tr><td>p.28</td><td>8OS MOD — modulation interne du 8OS · E3 source METABO/AUDIO/MGEN · E2 depth · K3 on/off (act→taille grain, ton→pitch)</td></tr>
     </table>
   </div>
   <div class="doc-col">
@@ -467,7 +468,8 @@ function potoGrain(){
 function os8Grain(){
   if(!audioCtx||os8_mode!=='TRANS'||!os8Buffer||os8_recorded_samples<1000){os8GrainActive=false;return;}
   const sr=audioCtx.sampleRate;
-  const grainLen=os8_size;
+  let grainLen=os8_size;
+  if(os8_mod_on){const act=os8ModSig()[0];grainLen=Math.max(0.02,grainLen*(1-os8_mod*act*0.7));} // MOD: energie -> grains plus courts
   const grainSamp=Math.floor(grainLen*sr);
   const maxStart=Math.max(0,os8_recorded_samples-grainSamp);
   const startPos=rnd(0,maxStart);
@@ -1039,7 +1041,7 @@ function redraw(){
   S.font_size(8);
   S.level(15);S.move(0,8);S.text(state);
   S.level(5);S.move(42,8);S.text(`c:${count}/${CORPUS_SLOTS}`);
-  S.level(5);S.move(100,8);S.text(`${page}/27`);
+  S.level(5);S.move(100,8);S.text(`${page}/28`);
   if(rec_on){S.level(15);S.circle(124,5,3);S.fill();}
   S.level(state==='THINK'?15:5);S.move(0,18);S.text(strat_name);
   if(phrase_buf.length>0){S.level(10);S.move(76,18);S.text('+'+phrase_buf.length);}
@@ -1203,7 +1205,7 @@ function drawP17(){
 
 // ─── INPUT ────────────────────────────────────────────────────────────────────
 function enc(n,d){
-  if(n===1){page=((page-1+d+27)%27)+1;return;}
+  if(n===1){page=((page-1+d+28)%28)+1;return;}
   // ── pages parité Norns 8,18-27 ──
   if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,5);else if(n===3){if(os8_src_cursor>4)os8_trans=clamp(os8_trans+d,-24,24);else os8_spread=clamp(os8_spread+d*0.05,0,1);}return;}
   if(page===18){const M=metabolik;if(n===2)M.scale_idx=((M.scale_idx+d)%M.scale_names.length+M.scale_names.length)%M.scale_names.length;else if(n===3)M.octave=clamp(M.octave+d,-2,2);return;}
@@ -1216,6 +1218,7 @@ function enc(n,d){
   if(page===25){if(n===2)meta_mgen_drive=clamp(meta_mgen_drive+d*0.05,0,1);else if(n===3)meta_note_inf=clamp(meta_note_inf+d*0.05,0,1);return;}
   if(page===26){if(n===2){mgen_browse=clamp(mgen_browse+d,0,mgen_liked.length);if(mgen_browse>=1&&mgen_liked[mgen_browse-1])mgenLoadCombo(mgen_liked[mgen_browse-1]);}else if(n===3)mgen_recall=clamp(mgen_recall+d*0.05,0,1);return;}
   if(page===27){if(n===2)live_cursor=((live_cursor-1+d)%LIVE_NAMES.length+LIVE_NAMES.length)%LIVE_NAMES.length+1;return;}
+  if(page===28){if(n===2)os8_mod=clamp(os8_mod+d*0.05,0,1);else if(n===3)os8_mod_src=clamp(os8_mod_src+d,1,os8_mod_src_names.length);return;}
   if(n===2){
     if(page===1)  p_rec_prob=clamp(p_rec_prob+d*0.05,0,1);
     else if(page===2)  p_density=clamp(p_density+d*0.05,0,1);
@@ -1264,6 +1267,7 @@ function key(n,z){
   if(page===25){if(n===2)meta_mgen_scope=(meta_mgen_scope===1)?2:1;else if(n===3)metaShakeMgen();return;}
   if(page===26){if(n===3)mgenTaste(true);else if(n===2)mgenTaste(false);return;}
   if(page===27){if(n===3)liveToggle(live_cursor);else if(n===2)liveAllOff();return;}
+  if(page===28){if(n===3)os8_mod_on=!os8_mod_on;return;}
   if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
   if(n===2&&page===5){p_poto_poly=(p_poto_poly+1)%POTO_POLY_NAMES.length;return;}
   if(n===2&&page===6){os8_sync=!os8_sync;return;}
@@ -1560,6 +1564,15 @@ function mgenTaste(like){
 // ───────────────────────────────────────── 8OS sources (page 8)
 const os8_src_keys=['input','metabo','comp','mgen'],os8_src_labels=['INPUT','METABO','COMP','MGEN'];
 let os8_src={input:true,metabo:false,comp:false,mgen:false},os8_src_cursor=1,os8_pitch=false,os8_trans=0,os8_spread=0,os8_cur_freq=0;
+// modulation interne : une source pilote en continu les params 8OS (comme METABO->NIAKABY/MGEN)
+let os8_mod_on=false,os8_mod=0.5,os8_mod_src=1;const os8_mod_src_names=['METABO','AUDIO','MGEN'];
+// renvoie [act,tone] : act=energie/mouvement, tone=brillance/tension (0..1)
+function os8ModSig(){
+  if(!os8_mod_on) return [0,0];
+  if(os8_mod_src===1){ if(!metabolik.on) return [0,0]; return [metabolik.stressFx||0,(metabolik.ch&&metabolik.ch.growth)||0]; }
+  if(os8_mod_src===2){ return [Math.min(1,(cur_rms||0)*8),Math.min(1,(cur_centroid||0)/4000)]; }
+  return [Math.min(1,mgen_nenergy||0),Math.min(1,(mgen_nfreq||0)/1000)];
+}
 function os8Route(){let br=0,bf=0;const s=os8_src;
   if(s.input&&cur_rms>br&&(cur_freq||0)>30){br=cur_rms;bf=cur_freq;}
   if(s.metabo&&meta_energy>br&&(meta_freq||0)>30){br=meta_energy;bf=meta_freq;}
@@ -1572,6 +1585,7 @@ function os8Route(){let br=0,bf=0;const s=os8_src;
 function os8GrainRate(){
   let semi=os8_trans||0;
   if(os8_pitch){const n=freqToMidi(os8_cur_freq);if(n)semi+=(n-60);}
+  if(os8_mod_on){const t=os8ModSig()[1];semi+=os8_mod*t*12;}
   return Math.min(4,Math.max(0.25,Math.pow(2,semi/12)));
 }
 
@@ -1709,6 +1723,19 @@ function drawMeta(){
   S.level(4);S.move(2,58);S.text('last:');S.level(10);S.move(32,58);S.text(meta_mgen_last||'--');
   S.level(4);S.move(2,64);S.text('K3 new theme now');
 }
+function drawMod(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('8OS MOD');txtR(126,8,os8_mod_on?'ON':'off');
+  S.level(4);S.move(2,20);S.text('E3 SRC');S.level(15);S.move(74,20);S.text(os8_mod_src_names[os8_mod_src-1]);
+  S.level(4);S.move(2,32);S.text('E2 DEPTH');S.level(15);S.move(74,32);S.text(Math.floor(os8_mod*100)+'%');
+  S.level(4);S.rect(2,35,120,2);S.stroke();S.level(12);S.rect(2,35,120*os8_mod,2);S.fill();
+  const sg=os8ModSig(),act=sg[0],tone=sg[1];
+  S.level(os8_mod_on?8:3);S.move(2,48);S.text('act');S.level(4);S.rect(24,44,38,4);S.stroke();
+  S.level(os8_mod_on?12:3);S.rect(24,44,38*act,4);S.fill();
+  S.level(os8_mod_on?8:3);S.move(70,48);S.text('ton');S.level(4);S.rect(92,44,30,4);S.stroke();
+  S.level(os8_mod_on?12:3);S.rect(92,44,30*tone,4);S.fill();
+  S.level(4);S.move(2,58);S.text('act>sz  ton>pitch');
+  S.level(4);S.move(2,64);S.text('K3 on/off');
+}
 function drawTaste(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('MGEN TASTE');
   S.level(8);txtR(126,8,mgen_browse>=1?('combo '+mgen_browse+'/'+mgen_liked.length):(mgen_liked.length+' combos'));
@@ -1742,6 +1769,7 @@ function drawExtraPage(){
   if(page===25){drawMeta();return true;}
   if(page===26){drawTaste();return true;}
   if(page===27){drawLive();return true;}
+  if(page===28){drawMod();return true;}
   return false;
 }
 

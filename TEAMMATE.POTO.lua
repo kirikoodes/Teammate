@@ -551,6 +551,27 @@ os8_in_midi   = -1      -- note MIDI cible (-1 = pas de pitch)
 os8_in_rms    = 0       -- energie
 os8_in_centroid = 0     -- timbre
 
+-- ===== MODULATION INTERNE : une source pilote en continu les parametres 8OS =====
+-- comme METABO colore NIAKABY / pilote MGEN. Source au choix, profondeur reglable.
+os8_mod_on       = false           -- modulation active
+os8_mod          = 0.5             -- profondeur 0..1
+os8_mod_src      = 1               -- 1=METABO 2=AUDIO 3=MGEN
+os8_mod_src_names = { "METABO", "AUDIO", "MGEN" }
+
+-- renvoie deux signaux normalises (act = energie/mouvement, tone = brillance/tension)
+function os8_mod_sig()
+  if not os8_mod_on then return 0, 0 end
+  local s = os8_mod_src
+  if s == 1 then
+    if not (metabolik and metabolik.on) then return 0, 0 end
+    return (metabolik.stressFx or 0), ((metabolik.ch and metabolik.ch.growth) or 0)
+  elseif s == 2 then
+    return math.min(1, (rms_smooth or 0) * 8), math.min(1, (cur_centroid or 0) / 4000)
+  else
+    return math.min(1, mgen_nenergy or 0), math.min(1, (mgen_nfreq or 0) / 1000)
+  end
+end
+
 local function os8_f2midi(f) return (f and f > 30) and math.floor(69 + 12*math.log(f/440)/math.log(2) + 0.5) or -1 end
 
 -- met a jour la voix live : parmi les sources actives, la PLUS FORTE mene (appelee ~30 Hz)
@@ -573,18 +594,21 @@ function os8_route()
 end
 
 -- pan stereo d'une voix TRANS selon le spread (V5 gauche / V6 droite / V3 centre)
+-- MOD : l'energie de la source elargit le spread.
 function os8_pan(v)
   local s = os8_spread or 0
+  if os8_mod_on then local act = os8_mod_sig() ; s = math.min(1, s + os8_mod * act * 0.8) end
   if v == 5 then return -s elseif v == 6 then return s else return 0 end
 end
 
 -- rate de lecture du grain : transpo manuelle (os8_trans) TOUJOURS appliquee,
--- + suivi de la note cible quand PITCH est actif. Clamp +-2 octaves.
+-- + suivi de la note cible quand PITCH est actif, + MOD (brillance/tension monte le pitch).
 function os8_grain_rate(g)
   local semi = os8_trans or 0
   if os8_pitch and os8_in_midi >= 0 and g.note and g.note >= 0 then
     semi = semi + (os8_in_midi - g.note)
   end
+  if os8_mod_on then local _, tone = os8_mod_sig() ; semi = semi + os8_mod * tone * 12 end
   local r = 2 ^ (semi / 12)
   if r < 0.25 then r = 0.25 elseif r > 4 then r = 4 end
   return r
@@ -592,8 +616,10 @@ end
 
 -- longueur de lecture du grain : pilotee en LIVE par os8_size, INDEPENDANTE de la
 -- duree enregistree (bornee au buffer) -> grains plus courts ET plus longs.
+-- MOD : l'energie de la source raccourcit les grains (jeu plus nerveux).
 function os8_play_len(g)
-  local gs     = os8_size
+  local gs = os8_size
+  if os8_mod_on then local act = os8_mod_sig() ; gs = gs * (1 - os8_mod * act * 0.7) end
   local maxlen = (OS8_OFFSET + OS8_DUR) - g.pos
   if gs > maxlen then gs = maxlen end
   if gs < 0.02 then gs = 0.02 end
@@ -2253,6 +2279,7 @@ function state_save()
       p_poto_vol=p_poto_vol, p_poto_spread=p_poto_spread, p_poto_size=p_poto_size,
       p_poto_poly=p_poto_poly, p_monitor=p_monitor, p_poto_smrt_sens=p_poto_smrt_sens, rate_pidx=rate_pidx,
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
+      os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2285,6 +2312,7 @@ function state_load()
     if st.rate_pidx then rate_pidx=st.rate_pidx ; p_poto_rate=RATE_PRESETS[rate_pidx] or p_poto_rate end
     os8_vol=g(st.os8_vol,os8_vol) ; os8_size=g(st.os8_size,os8_size) ; os8_sync=g(st.os8_sync,os8_sync)
     os8_pitch=g(st.os8_pitch,os8_pitch) ; os8_spread=g(st.os8_spread,os8_spread) ; os8_trans=g(st.os8_trans,os8_trans)
+    os8_mod_on=g(st.os8_mod_on,os8_mod_on) ; os8_mod=g(st.os8_mod,os8_mod) ; os8_mod_src=g(st.os8_mod_src,os8_mod_src)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2456,7 +2484,7 @@ end
 ---------------------------------------------------------------------
 function enc(n, d)
   if n == 1 then
-    page = ((page - 1 + d) % 27) + 1
+    page = ((page - 1 + d) % 28) + 1
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -2508,8 +2536,11 @@ function enc(n, d)
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
+    elseif page == 28 then
+      os8_mod = util.clamp(os8_mod + d * 0.05, 0, 1)
     end
   elseif n == 3 then
+    if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #os8_mod_src_names) end
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
     if page == 26 then mgen_recall = util.clamp(mgen_recall + d * 0.05, 0, 1) end
     if page == 1 then
@@ -2589,6 +2620,10 @@ function key(n, z)
   if page == 25 then
     if n == 2 then meta_mgen_scope = (meta_mgen_scope == 1) and 2 or 1
     elseif n == 3 then meta_shake_mgen() end
+    redraw() ; return
+  end
+  if page == 28 then
+    if n == 3 then os8_mod_on = not os8_mod_on end
     redraw() ; return
   end
   if page == 27 then
@@ -2837,6 +2872,29 @@ function redraw()
     screen.update() ; return
   end
 
+  if page == 28 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("8OS MOD")
+    screen.move(126, 8) ; screen.text_right(os8_mod_on and "ON" or "off")
+    screen.level(4)  ; screen.move(2, 20) ; screen.text("E3 SRC")
+    screen.level(15) ; screen.move(74, 20) ; screen.text(os8_mod_src_names[os8_mod_src])
+    screen.level(4)  ; screen.move(2, 32) ; screen.text("E2 DEPTH")
+    screen.level(15) ; screen.move(74, 32) ; screen.text(string.format("%d%%", math.floor(os8_mod * 100)))
+    screen.level(4)  ; screen.rect(2, 35, 120, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 35, 120 * os8_mod, 2) ; screen.fill()
+    -- signaux live de la source (act = energie, tone = brillance/tension)
+    local act, tone = os8_mod_sig()
+    screen.level(os8_mod_on and 8 or 3) ; screen.move(2, 48) ; screen.text("act")
+    screen.level(4) ; screen.rect(24, 44, 38, 4) ; screen.stroke()
+    screen.level(os8_mod_on and 12 or 3) ; screen.rect(24, 44, 38 * act, 4) ; screen.fill()
+    screen.level(os8_mod_on and 8 or 3) ; screen.move(70, 48) ; screen.text("ton")
+    screen.level(4) ; screen.rect(92, 44, 30, 4) ; screen.stroke()
+    screen.level(os8_mod_on and 12 or 3) ; screen.rect(92, 44, 30 * tone, 4) ; screen.fill()
+    screen.level(4) ; screen.move(2, 58) ; screen.text("act>sz/spr  ton>pitch")
+    screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
+    screen.update() ; return
+  end
+
   if splash_active then
     screen.font_size(16)
     screen.level(15)
@@ -2871,7 +2929,7 @@ function redraw()
 
   screen.level(5)
   screen.move(100, 8)
-  screen.text(page .. "/27")
+  screen.text(page .. "/28")
 
   if rec_on then
     screen.level(15)
