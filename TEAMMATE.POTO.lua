@@ -1976,6 +1976,60 @@ end
 ---------------------------------------------------------------------
 -- silence tracker + reponse spontanee
 ---------------------------------------------------------------------
+-- ===== MEMOIRE DE MOTIFS : TEAMMATE se souvient de tes phrases et les ramene, transformees =====
+local motifs = {}          -- banque des phrases marquantes du joueur (max 4)
+local motif_last_t = 0
+
+local function capture_motif(buf)
+  if #buf < 2 then return end
+  local e = 0 ; for _, ev in ipairs(buf) do e = e + (ev.rms or 0) end ; e = e / #buf
+  if e < 0.02 then return end                       -- ignore les phrases trop faibles
+  local copy = {} ; for i, ev in ipairs(buf) do copy[i] = ev end
+  motifs[#motifs + 1] = { evs = copy, energy = e }
+  while #motifs > 4 do table.remove(motifs, 1) end
+end
+
+local MOTIF_SEMIS = { 0, 0, 7, 12, -12, 5, -5 }
+local function play_motif(m)
+  local semis = MOTIF_SEMIS[math.random(#MOTIF_SEMIS)]   -- transpose
+  local rate  = 2 ^ (semis / 12)
+  local beat  = 60.0 / mgen_bpm
+  local gap   = math.max(0.05, beat / (math.random() < 0.5 and 2 or 4))
+  local order = {}
+  for i = 1, #m.evs do order[i] = i end
+  if math.random() < 0.3 then                            -- parfois renverse (developpe au lieu de copier)
+    local r = {} ; for i = #order, 1, -1 do r[#r + 1] = order[i] end ; order = r
+  end
+  strat_name = "MOTIF"
+  for k, idx in ipairs(order) do
+    local ev = m.evs[idx]
+    play_event(ev, rate)
+    mark_played(ev.slot)
+    last_slot = ev.slot
+    if k < #order then clock.sleep(gap) end
+  end
+end
+
+-- rappel d'un motif pendant un creux, plus probable en phase de montee. Opt-in (mind.on).
+local function maybe_recall_motif()
+  if not comp_on then return false end
+  if not (mind and mind.on) then return false end
+  if #motifs == 0 then return false end
+  local now = util.time()
+  if now - motif_last_t < 6.0 then return false end
+  local arc = (mind.arc or 0)
+  if math.random() > (0.15 + arc * 0.5) then return false end
+  motif_last_t = now
+  local m = motifs[math.random(#motifs)]
+  state = "THINK"
+  clock.run(function()
+    local ok, err = pcall(play_motif, m)
+    if not ok then print("tm motif: " .. tostring(err)) end
+    state = "REST" ; clock.sleep(0.4 + math.random()) ; state = "LISTEN"
+  end)
+  return true
+end
+
 local function do_respond(ref_n, rest_base)
   state = "THINK"
   clock.run(function()
@@ -2023,12 +2077,14 @@ local function silence_loop()
       if #phrase_buf > 0 and sil_sec >= p_sil_min then
         local n_phrase = #phrase_buf
         phrase_analysis = analyze_phrase(phrase_buf)
+        capture_motif(phrase_buf)
         phrase_buf = {}
         if count >= MIN_CORPUS and math.random() < p_reply then
           do_respond(n_phrase, 0.3)
         end
 
       elseif #phrase_buf == 0 and sil_sec > p_sil_max and count >= MIN_CORPUS then
+        if maybe_recall_motif() then goto continue end   -- il ramene une de tes phrases (transformee)
         local prob
         if    sil_sec > 8.0 then prob = 0.50
         elseif sil_sec > 4.0 then prob = 0.30
