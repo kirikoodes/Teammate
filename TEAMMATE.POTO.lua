@@ -2324,6 +2324,40 @@ else
 end
 _style_ok = nil ; _style_mod = nil
 
+-- ===== FACE : une "creature" a la Pwnagotchi qui montre l'humeur de TEAMMATE =====
+-- visage ASCII + replique, pilote par l'etat interne (mind / style / METABO / corpus).
+face_blink = 0
+function face_state()
+  local m   = mind
+  local sil = sil_sec or 0
+  local stress = (metabolik and metabolik.on and metabolik.stressFx) or 0
+  if strat_name == "MOTIF" then return "(^_~)", "deja entendu ca" end
+  if count < 4 then return "(o_o)", "j'apprends ton monde" end
+  if m.energy < 0.04 then
+    if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "j'ecoute" end
+  end
+  if stress > 0.66 then return "(>_<)", "ca chauffe !" end
+  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "on monte !!" end
+  if m.phrase == "GAP" then return "(o_o)", "a moi !" end
+  if style and style.on then return "(^_^)", "je joue comme toi" end
+  if m.mood == "DENSE" then return "(@_@)", "ca foisonne" end
+  return "(^_^)", "je te suis"
+end
+
+function face_redraw()
+  screen.clear()
+  local f, quip = face_state()
+  -- clignement occasionnel
+  if face_blink > 0 then face_blink = face_blink - 1 ; f = f:gsub("[o%^%*@>]", "-") end
+  screen.font_size(31) ; screen.level(15)
+  screen.move(64, 40) ; screen.text_center(f)
+  screen.font_size(8)
+  screen.level(9) ; screen.move(64, 58) ; screen.text_center(quip)
+  screen.level(3) ; screen.move(2, 8)   ; screen.text("c:" .. count)
+  screen.level(3) ; screen.move(126, 8) ; screen.text_right(#motifs .. " mtf")
+  screen.update()
+end
+
 -- ===== METABO >>> MGEN : la cellule secoue le sequenceur au hasard (opt-in) =====
 meta_mgen_drive = 0      -- 0..1 intensite (0 = off)
 meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks, styles)
@@ -2640,6 +2674,7 @@ function init()
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
       metabolik.ext_press = (mind.on and mind.drive) or 0   -- coherence : intensite (geste + arc macro) agite METABO (-> compagnon/NIAKABY/MGEN)
+      if math.random() < 0.008 then face_blink = 4 end      -- la creature cligne des yeux de temps en temps
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
       comp_rms = comp_rms * (0.965 - react * 0.165)   -- react haut -> decay rapide -> plus reactif
@@ -2704,7 +2739,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3173,6 +3208,7 @@ function redraw()
     screen.update() ; return
   end
 
+  if page == 33 then face_redraw() ; return end
   if page == 31 then mind.redraw() ; return end
   if page == 32 then style.redraw() ; return end
 
