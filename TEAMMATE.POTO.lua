@@ -2324,6 +2324,27 @@ else
 end
 _style_ok = nil ; _style_mod = nil
 
+-- WIFI : activite des reseaux autour du norns -> musique. Chargement defensif.
+wifi = nil
+_wifi_ok, _wifi_mod = pcall(include, 'lib/wifi')
+if _wifi_ok and type(_wifi_mod) == "table" then
+  wifi = _wifi_mod
+else
+  print("WIFI indisponible (lib/wifi.lua manquant) : " .. tostring(_wifi_mod))
+  wifi = {
+    on = false, nets = {}, count = 0, traffic = 0, energy = 0, newcount = 0,
+    poll = function() end,
+    note_for = function() return 60 end,
+    redraw = function()
+      screen.clear() ; screen.level(15)
+      screen.move(2, 20) ; screen.text("WIFI")
+      screen.level(4) ; screen.move(2, 36) ; screen.text("lib/wifi.lua absent")
+      screen.update()
+    end,
+  }
+end
+_wifi_ok = nil ; _wifi_mod = nil
+
 -- ===== FACE : une "creature" a la Pwnagotchi qui montre l'humeur de TEAMMATE =====
 -- visage ASCII + replique, pilote par l'etat interne (mind / style / METABO / corpus).
 face_blink = 0
@@ -2523,7 +2544,7 @@ function state_save()
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
-      mind_on=mind.on, style_on=style.on,
+      mind_on=mind.on, style_on=style.on, wifi_on=wifi.on,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2561,6 +2582,7 @@ function state_load()
     if type(st.poto_src)=="table" then for k,v in pairs(st.poto_src) do poto_src[k]=v end end
     if st.mind_on ~= nil then mind.on = st.mind_on end
     if st.style_on ~= nil then style.on = st.style_on end
+    if st.wifi_on ~= nil then wifi.on = st.wifi_on end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2626,6 +2648,14 @@ function init()
   end)
 
   silence_loop()
+
+  -- WIFI : scan non bloquant + trafic, toutes les 4 s (seulement si active)
+  clock.run(function()
+    while true do
+      clock.sleep(4)
+      if wifi.on then pcall(wifi.poll, util.time()) end
+    end
+  end)
 
   -- AVATAR METABOLIK (mode METABO) : voix routee par la MATRICE (stream 6) + maj ~30 Hz
   metabolik.note_on  = function(note, vel)
@@ -2739,7 +2769,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 34, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -2915,6 +2945,10 @@ function key(n, z)
   end
   if page == 32 then
     if n == 3 then style.on = not style.on end
+    redraw() ; return
+  end
+  if page == 34 then
+    if n == 3 then wifi.on = not wifi.on end
     redraw() ; return
   end
   if page == 27 then
@@ -3211,6 +3245,7 @@ function redraw()
   if page == 33 then face_redraw() ; return end
   if page == 31 then mind.redraw() ; return end
   if page == 32 then style.redraw() ; return end
+  if page == 34 then wifi.redraw() ; return end
 
   if page == 30 then
     screen.clear() ; screen.font_size(8)
