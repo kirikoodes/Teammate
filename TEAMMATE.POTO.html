@@ -123,6 +123,7 @@ body{background:#0a0a0a;display:flex;flex-direction:column;align-items:center;
       <tr><td>p.29</td><td>MGEN TASTE — combos aimées · K3 like · K2 dislike · E2 parcourt · E3 recall%</td></tr>
       <tr><td>p.30</td><td>LIVE — armer/couper tous les modes · E2 curseur · K3 toggle · K2 panic (all off)</td></tr>
       <tr><td>p.31</td><td>MIND — écoute partagée (énergie/densité/tension/arc/phrase/humeur) · K3 = le compagnon suit ton jeu (dynamique + cohérence + arc + motifs)</td></tr>
+      <tr><td>p.32</td><td>STYLE — apprend ta manière de jouer (rythme/articulation/intervalles/dynamique) · K3 = le compagnon joue à ta manière</td></tr>
     </table>
   </div>
   <div class="doc-col">
@@ -182,7 +183,7 @@ const INTERRUPT_PROB=0.12,POTO_DUR=4.0,OS8_DUR=20.0;
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let page=1,state='LISTEN',corpus={},head=1,count=0,last_slot=0;
 // regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD), puis le reste
-const PAGE_ORDER=[1,2,3,4,5,7,30,29,6,8,28,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31];
+const PAGE_ORDER=[1,2,3,4,5,7,30,29,6,8,28,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,31,32];
 let phrase_buf=[],phrase_analysis=null,recent_slots=[];
 let last_strat='---',strat_name='---',consec_sil=0,sil_sec=0;
 let last_sound_t=now();
@@ -551,6 +552,7 @@ function processGate(ng){
       head=(head%CORPUS_SLOTS)+1;
       count=Math.min(count+1,CORPUS_SLOTS);
       phrase_buf.push(corpus[rec_slot]);
+      styleObserve(rec_t0,dur,avg,cur_freq);   // apprend ta maniere de jouer
     }
   }
 }
@@ -571,6 +573,7 @@ function playEvent(ev,rm){
     const sl=clamp(0.20+Math.random()*(dur*0.80-0.20),0.20,dur-0.02);
     base=Math.random()*Math.max(0,dur-sl); len=sl;
   }
+  if(style.on) len=styleArticLen(len);        // STYLE : articulation (staccato/legato)
   const vi=plyIdx%2; plyIdx++;
   if(plyNodes[vi]) try{
     const t=audioCtx.currentTime+0.02;
@@ -594,7 +597,7 @@ function playEvent(ev,rm){
   src.start(0,Math.random()<REV_PROB?base+len-0.001:base);
   plyNodes[vi]=src; plyGains[vi]=gn;
   const note=freqToMidi(ev.freq||cur_freq);
-  if(note) midiNoteOn(1,note,Math.max(1,Math.min(127,Math.floor(ev.rms*800))));
+  if(note){let vv=Math.max(1,Math.min(127,Math.floor(ev.rms*800)));if(style.on)vv=styleVel(vv);midiNoteOn(1,note,vv);}   // STYLE : ta dynamique
   setTimeout(()=>{
     if(note) midiNoteOff(1,note);
     try{
@@ -680,6 +683,7 @@ function pickStrat(){
 function buildPhrase(strat,rn){
   rn=rn||2;
   let n=rnd(Math.max(PHRASE_MIN,Math.floor(rn*0.5)),Math.min(PHRASE_MAX,rn+2));
+  if(style.on) n=styleN(n);                 // STYLE : ta longueur de phrase
   if(strat==='SPARSE') n=Math.min(n,2);
   if(strat==='DENSIFICATION') n=Math.max(n,4);
   const phrase=[],used={};
@@ -694,6 +698,7 @@ function buildPhrase(strat,rn){
 }
 function improvRate(strat){
   if(p_voice) return 0.97+Math.random()*0.06;
+  if(style.on&&Math.random()<0.7) return styleRate();   // STYLE : tes intervalles/direction
   if(strat==='CONTRASTE') return[0.84,0.89,1.0,1.12,1.33][rnd(0,4)];
   if(strat==='DENSIFICATION') return 0.95+Math.random()*0.10;
   if(strat==='SPARSE') return Math.random()<0.5?0.75:1.5;
@@ -703,9 +708,10 @@ async function playPhrase(phrase,strat){
   const rhythmic=p_rhythm>0&&Math.random()<p_rhythm;
   const beat=60/mgen_bpm;
   const subdiv=Math.random()<0.5?beat/2:beat/4;
-  const gap=rhythmic?subdiv
+  let gap=rhythmic?subdiv
     :strat==='IMITATION'&&phrase_analysis&&phrase_analysis.density>0
     ?Math.max(0.02,1/phrase_analysis.density*0.6):Math.max(0.02,(1-p_density)*0.18);
+  if(style.on) gap=styleGap(beat);            // STYLE : ton timing (IOI / grille-rubato)
   for(let i=0;i<phrase.length;i++){
     playEvent(phrase[i],improvRate(strat));
     markPlayed(phrase[i].slot); last_slot=phrase[i].slot;
@@ -1294,6 +1300,7 @@ function key(n,z){
   if(page===29){if(n===3)poto_mod_on=!poto_mod_on;return;}
   if(page===30){if(n===3){const k=poto_src_keys[poto_src_cursor-1];poto_src[k]=!poto_src[k];}else if(n===2){const all=poto_src.input&&poto_src.metabo&&poto_src.comp&&poto_src.mgen;for(const k of poto_src_keys)poto_src[k]=!all;}return;}
   if(page===31){if(n===3)mind.on=!mind.on;return;}
+  if(page===32){if(n===3)style.on=!style.on;return;}
   if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
   if(n===2&&page===5){p_poto_poly=(p_poto_poly+1)%POTO_POLY_NAMES.length;return;}
   if(n===2&&page===6){os8_sync=!os8_sync;return;}
@@ -1724,6 +1731,34 @@ function maybeRecallMotif(){
   return true;
 }
 
+// ───────────────────────────────────────── STYLE : apprend ta maniere de jouer (parite lib/style.lua)
+const style={on:false,ioi:0.40,density:0,grid:0,artic:0.6,phrase_n:3,interval:0.3,dir:0,reg:0.5,vel:0.5,vel_rng:0.3,
+  _lastT:null,_lastMidi:null,_ioiVar:0.1,_evN:1};
+function styleObserve(onset_t,dur,rms,freq){
+  const cu=x=>x<0?0:(x>1?1:x),lp=(c,x,k)=>c+(x-c)*k,f2m=f=>(f&&f>30)?(69+12*Math.log2(f/440)):null,st=style;
+  if(st._lastT!=null){const ioi=onset_t-st._lastT;
+    if(ioi>=0.05&&ioi<=2.0){
+      st._ioiVar=lp(st._ioiVar,Math.abs(ioi-st.ioi),0.2);
+      st.ioi=lp(st.ioi,ioi,0.2);
+      st.density=lp(st.density,cu((1/ioi)/8),0.1);
+      st.grid=cu(1-st._ioiVar/Math.max(st.ioi,0.1)*1.5);
+      st.artic=lp(st.artic,cu((dur||0)/Math.max(ioi,0.05)),0.2);
+      if(ioi>0.6){st.phrase_n=lp(st.phrase_n,st._evN,0.3);st._evN=1;}else st._evN++;
+    }}
+  st._lastT=onset_t;
+  const m=f2m(freq);
+  if(m!=null){if(st._lastMidi!=null){const d=m-st._lastMidi;st.interval=lp(st.interval,cu(Math.abs(d)/12),0.2);if(d!==0)st.dir=lp(st.dir,(d>0?1:-1),0.15);}st.reg=lp(st.reg,cu((m-36)/60),0.1);st._lastMidi=m;}
+  const v=cu((rms||0)*4);st.vel=lp(st.vel,v,0.2);st.vel_rng=lp(st.vel_rng,Math.abs(v-st.vel),0.1);
+}
+function styleGap(beat){let g=style.ioi;if(style.grid>0.55){const h=beat/2,q=beat/4;g=(Math.abs(g-q)<Math.abs(g-h))?q:h;}return Math.max(0.03,g);}
+function styleN(d){return Math.max(1,Math.floor((d||2)*0.4+style.phrase_n*0.6+0.5));}
+function styleRate(){const up=Math.random()<(0.5+style.dir*0.5);let semis;
+  if(Math.random()<(1-style.interval)*0.6)semis=Math.random()<0.5?0:(up?2:-2);
+  else semis=(up?1:-1)*Math.floor(style.interval*12+0.5);
+  return Math.min(4,Math.max(0.25,Math.pow(2,semis/12)));}
+function styleVel(base){const v=style.vel+(Math.random()*2-1)*style.vel_rng;return Math.max(1,Math.min(127,Math.floor((base||100)*(0.5+Math.max(0,Math.min(1,v))))));}
+function styleArticLen(len){return Math.max(0.03,len*(0.35+Math.max(0,Math.min(1,style.artic))*0.65));}
+
 // ───────────────────────────────────────── boucles 30 Hz (parité Norns)
 metabolik.player();
 setInterval(()=>{
@@ -1888,6 +1923,15 @@ function drawMind(){
   S.level(mind.on?12:3);S.move(2,63);S.text(mind.on?'K3 SUIT':'K3 suit');
   S.level(mind.on?12:6);txtR(126,63,mind.arc_phase);
 }
+function drawStyle(){
+  S.font_size(8);S.level(15);S.move(2,8);S.text('STYLE');S.level(12);txtR(126,8,style.grid>0.55?'GRILLE':'RUBATO');
+  function bar(y,label,v){v=Math.max(0,Math.min(1,v));
+    S.level(4);S.move(2,y);S.text(label);
+    S.level(2);S.rect(50,y-5,74,4);S.stroke();S.level(13);S.rect(50,y-5,74*v,4);S.fill();}
+  bar(18,'densite',style.density);bar(26,'legato',style.artic);bar(34,'sauts',style.interval);bar(42,'dynamiq',style.vel);
+  S.level(4);S.move(2,52);S.text('phrase '+Math.round(style.phrase_n)+'  '+(style.dir>=0?'monte':'descend'));
+  S.level(style.on?12:3);S.move(2,63);S.text(style.on?'K3 JOUE COMME TOI':'K3 joue comme toi');
+}
 function drawTaste(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('MGEN TASTE');
   S.level(8);txtR(126,8,mgen_browse>=1?('combo '+mgen_browse+'/'+mgen_liked.length):(mgen_liked.length+' combos'));
@@ -1925,6 +1969,7 @@ function drawExtraPage(){
   if(page===29){drawPotoMod();return true;}
   if(page===30){drawPotoSrc();return true;}
   if(page===31){drawMind();return true;}
+  if(page===32){drawStyle();return true;}
   return false;
 }
 
