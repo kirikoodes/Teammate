@@ -2352,6 +2352,21 @@ function face_state()
   local m   = mind
   local sil = sil_sec or 0
   local stress = (metabolik and metabolik.on and metabolik.stressFx) or 0
+  -- ===== mode WIFI : la creature renseigne sur les reseaux (Pwnagotchi-style) =====
+  if wifi and wifi.on then
+    local nowt = util.time()
+    if wifi.last_new and (nowt - (wifi.last_new_t or 0) < 6) then
+      local nm = (wifi.last_new == "" and "<cache>") or wifi.last_new
+      return "(O_O)", "new! " .. nm:sub(1, 13)
+    end
+    if (wifi.count or 0) == 0 then return "(-_-)", "aucun reseau..." end
+    if (wifi.traffic or 0) > 0.5 then return "(>_<)", "ca trafique !" end
+    if wifi.peak then
+      local pn = (wifi.peak.ssid == "" and "<cache>") or wifi.peak.ssid
+      return "(o_o)", wifi.count .. " res - " .. pn:sub(1, 8)
+    end
+    return "(o_o)", (wifi.count or 0) .. " reseaux"
+  end
   if strat_name == "MOTIF" then return "(^_~)", "deja entendu ca" end
   if count < 4 then return "(o_o)", "j'apprends ton monde" end
   if m.energy < 0.04 then
@@ -2374,8 +2389,14 @@ function face_redraw()
   screen.move(64, 40) ; screen.text_center(f)
   screen.font_size(8)
   screen.level(9) ; screen.move(64, 58) ; screen.text_center(quip)
-  screen.level(3) ; screen.move(2, 8)   ; screen.text("c:" .. count)
-  screen.level(3) ; screen.move(126, 8) ; screen.text_right(#motifs .. " mtf")
+  if wifi and wifi.on then
+    screen.level(3) ; screen.move(2, 8)   ; screen.text("wifi " .. (wifi.count or 0))
+    screen.level(wifi.newcount and wifi.newcount > 0 and 13 or 3)
+    screen.move(126, 8) ; screen.text_right("+" .. (wifi.newcount or 0))
+  else
+    screen.level(3) ; screen.move(2, 8)   ; screen.text("c:" .. count)
+    screen.level(3) ; screen.move(126, 8) ; screen.text_right(#motifs .. " mtf")
+  end
   screen.update()
 end
 

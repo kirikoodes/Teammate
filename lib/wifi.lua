@@ -14,10 +14,13 @@ M.traffic  = 0           -- 0..1 debit normalise
 M.energy   = 0           -- 0..1 activite globale (reseaux + trafic + apparitions)
 M.peak     = nil         -- reseau le plus fort
 M.newcount = 0           -- nb de reseaux apparus au dernier scan
+M.last_new = nil         -- SSID du dernier reseau APPARU (pour l'annonce du visage)
+M.last_new_t = 0         -- horodatage de cette apparition
 
 local SCAN_FILE = "/tmp/tm_wifi_scan.txt"
 local prev_rx, prev_tx, prev_t = nil, nil, nil
 local seen = {}
+local primed = false     -- evite de compter tout le 1er scan comme "nouveau"
 local scan_pending = false
 
 local function read_file(path)
@@ -48,13 +51,19 @@ function M.poll(now)
       M.nets  = parse_scan(txt)
       M.count = #M.nets
       M.peak  = M.nets[1]
-      local nc, cur = 0, {}
+      local nc, cur, firstnew = 0, {}, nil
       for _, n in ipairs(M.nets) do
         cur[n.ssid] = true
-        if n.ssid ~= "" and not seen[n.ssid] then nc = nc + 1 end
+        if primed and n.ssid ~= "" and not seen[n.ssid] then
+          nc = nc + 1
+          if not firstnew then firstnew = n.ssid end   -- le plus fort des nouveaux (nets trie par signal)
+        end
       end
-      M.newcount = nc
-      seen = cur
+      if primed then
+        M.newcount = nc
+        if firstnew then M.last_new = firstnew ; M.last_new_t = now end
+      end
+      seen = cur ; primed = true
     end
     scan_pending = false
   end
