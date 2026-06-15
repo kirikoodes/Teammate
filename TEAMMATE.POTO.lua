@@ -556,7 +556,7 @@ os8_in_centroid = 0     -- timbre
 
 -- ===== MODULATION INTERNE : une source pilote en continu les parametres d'un mode =====
 -- comme METABO colore NIAKABY / pilote MGEN. Source au choix, profondeur reglable.
-MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN", "COMP" }
+MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN", "COMP", "WIFI" }
 
 -- signaux normalises d'une source (act = energie/mouvement, tone = brillance/tension)
 function mod_signals(src)
@@ -567,8 +567,10 @@ function mod_signals(src)
     return math.min(1, (rms_smooth or 0) * 8), math.min(1, (cur_centroid or 0) / 4000)
   elseif src == 3 then
     return math.min(1, mgen_nenergy or 0), math.min(1, (mgen_nfreq or 0) / 1000)
-  else
+  elseif src == 4 then
     return math.min(1, (comp_rms or 0) * 8), math.min(1, (comp_centroid or 0) / 4000)
+  else
+    return (wifi and wifi.energy) or 0, (wifi and wifi.traffic) or 0   -- WIFI : activite reseaux + trafic
   end
 end
 
@@ -2724,7 +2726,7 @@ function init()
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
-      metabolik.ext_press = (mind.on and mind.drive) or 0   -- coherence : intensite (geste + arc macro) agite METABO (-> compagnon/NIAKABY/MGEN)
+      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0)  -- coherence : intensite (geste/arc) ET activite WiFi agitent METABO (-> tout le cerveau)
       if math.random() < 0.008 then face_blink = 4 end      -- la creature cligne des yeux de temps en temps
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
