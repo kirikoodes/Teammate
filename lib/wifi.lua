@@ -88,10 +88,16 @@ end
 -- principal (fournit root + scale via M.note_for). Ici un defaut chromatique.
 M.root  = 48
 M.scale = { 0, 2, 4, 5, 7, 9, 11 }
+M.snap = nil   -- callback(midi)->midi fourni par le principal : cale sur la GAMME MGEN
 function M.note_for(n)
+  local chan = n.chan or 0
+  if M.snap then
+    -- canal -> note chromatique sur ~2 octaves, puis calee sur la gamme MGEN
+    return M.snap(48 + (chan % 24))
+  end
   local sc  = M.scale
-  local deg = (n.chan or 0) % #sc + 1
-  local oct = (n.chan or 0) > 14 and 1 or 0          -- 5 GHz -> une octave au-dessus
+  local deg = chan % #sc + 1
+  local oct = chan > 14 and 1 or 0                   -- 5 GHz -> une octave au-dessus
   return M.root + oct * 12 + sc[deg]
 end
 

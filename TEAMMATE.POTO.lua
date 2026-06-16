@@ -2351,6 +2351,17 @@ else
 end
 _wifi_ok = nil ; _wifi_mod = nil
 
+-- les notes WiFi sont calees sur la GAMME et la tonalite de MGEN (degre le plus proche)
+wifi.snap = function(midi)
+  local sc = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+  if not sc then return midi end
+  local rel = ((midi - mgen_root) % 12 + 12) % 12
+  local best, bd = sc[1], 999
+  for _, s in ipairs(sc) do local dd = math.abs(s - rel) ; if dd < bd then bd = dd ; best = s end end
+  local oct = math.floor((midi - mgen_root) / 12)
+  return math.max(0, math.min(127, mgen_root + oct * 12 + best))
+end
+
 -- ===== ROUTAGE WIFI -> MIDI : les reseaux jouent des notes, le trafic un CC =====
 wifi_midi_on  = false   -- sortie MIDI du WiFi active
 wifi_midi_dev = 1       -- device 1..4
