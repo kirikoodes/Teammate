@@ -2381,6 +2381,7 @@ end
 -- ===== CC GEN : 16 CC (1..16) avec une INTELLIGENCE INDEPENDANTE par CC =====
 -- chaque CC choisit sa source (signal interne de TEAMMATE ou mouvement autonome),
 -- est lisse, et envoye sur un device + canal MIDI (pour piloter les CC d'un OP-1).
+cc_on     = false      -- master : armable depuis LIVE (gate tout le moteur CC)
 cc_dev    = 1          -- device MIDI de sortie (1..4)
 cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
@@ -2682,7 +2683,7 @@ end
 audio_midi_on = true     -- Audio->MIDI actif (si route page 16) ; armable depuis LIVE
 comp_on = true           -- compagnon (impro corpus) repond ; off = ecoute mais se tait
 live_cursor = 1
-LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO", "WIFI" }
+LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO", "WIFI", "CC" }
 
 function live_toggle(i)
   if i == 1 then
@@ -2707,6 +2708,8 @@ function live_toggle(i)
     if not comp_on then midi_cc_all(1, 123, 0) end   -- relache l'impro
   elseif i == 9 then
     wifi.on = not wifi.on
+  elseif i == 10 then
+    cc_on = not cc_on
   end
 end
 
@@ -2720,6 +2723,7 @@ function live_all_off()
   audio_midi_on = false
   comp_on = false
   wifi.on = false
+  cc_on = false
   for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
@@ -2730,8 +2734,8 @@ function state_save()
     util.make_dir(norns.state.data)
     local mon, mmch = {}, {}
     for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
-    local cc_src, cc_on = {}, {}
-    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_on[i] = cc_lanes[i].on end
+    local cc_src, cc_lon = {}, {}
+    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -2744,7 +2748,7 @@ function state_save()
       mind_on=mind.on, style_on=style.on, wifi_on=wifi.on, creature_auto=creature_auto,
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
-      cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_on=cc_on,
+      cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2788,9 +2792,11 @@ function state_load()
     wifi_midi_on=g(st.wifi_midi_on,wifi_midi_on) ; wifi_midi_dev=g(st.wifi_midi_dev,wifi_midi_dev)
     wifi_midi_ch=g(st.wifi_midi_ch,wifi_midi_ch) ; wifi_midi_cc=g(st.wifi_midi_cc,wifi_midi_cc)
     if type(st.wifi_links)=="table" then wifi_links=st.wifi_links end
+    if st.cc_master ~= nil then cc_on = st.cc_master end
     cc_dev=g(st.cc_dev,cc_dev) ; cc_ch=g(st.cc_ch,cc_ch)
     if type(st.cc_src)=="table" then for i=1,16 do if st.cc_src[i] then cc_lanes[i].src=st.cc_src[i] end end end
-    if type(st.cc_on)=="table"  then for i=1,16 do cc_lanes[i].on=st.cc_on[i] and true or false end end
+    local lon = (type(st.cc_lon)=="table" and st.cc_lon) or (type(st.cc_on)=="table" and st.cc_on) or nil
+    if lon then for i=1,16 do cc_lanes[i].on=lon[i] and true or false end end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2900,7 +2906,7 @@ function init()
     local last = {}
     while true do
       clock.sleep(0.04)                              -- ~25 Hz
-      local out = midi_outs[cc_dev]
+      local out = cc_on and midi_outs[cc_dev] or nil  -- arme depuis LIVE
       if out then
         for i = 1, 16 do
           local lane = cc_lanes[i]
@@ -3504,9 +3510,10 @@ function redraw()
     local states = { p_poto_on and "on" or "-", mode8, mgen_running and "on" or "-",
                      spat.on and "on" or "-", metabolik.on and "on" or "-",
                      niakaby.on and "on" or "-", audio_midi_on and "on" or "-",
-                     comp_on and "on" or "-", wifi.on and tostring(wifi.count or 0) or "-" }
+                     comp_on and "on" or "-", wifi.on and tostring(wifi.count or 0) or "-",
+                     cc_on and "on" or "-" }
     local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
-                     niakaby.on, audio_midi_on, comp_on, wifi.on }
+                     niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on }
     local ys     = { 20, 30, 40, 50, 60 }
     for i = 1, #LIVE_NAMES do
       local left = (i <= 5)
@@ -3685,15 +3692,15 @@ function redraw()
   if page == 37 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("CC GEN")
+    screen.level(cc_on and 12 or 3) ; screen.move(126, 8) ; screen.text_right(cc_on and "ARM" or "off")
     -- ligne OUT (device + canal global) : curseur 0
     local osel = (cc_cursor == 0)
-    screen.level(osel and 15 or 6) ; screen.move(2, 8 + 0)   -- repere a droite de l'entete
-    screen.level(osel and 15 or 5) ; screen.move(58, 8)
-    screen.text((osel and ">" or " ") .. "OUT D" .. cc_dev .. " c" .. cc_ch)
+    screen.level(osel and 15 or 5) ; screen.move(2, 17)
+    screen.text((osel and ">" or " ") .. "OUT  D" .. cc_dev .. "  ch " .. cc_ch)
     -- liste des lanes autour du curseur (5 visibles)
     local cur   = math.max(1, cc_cursor)
     local start = util.clamp(cur - 2, 1, math.max(1, 16 - 4))
-    local y = 20
+    local y = 27
     for i = start, math.min(start + 4, 16) do
       local lane = cc_lanes[i]
       local sel  = (i == cc_cursor)
@@ -3706,9 +3713,8 @@ function redraw()
       if lane.on and (lane.src or 1) > 1 then
         screen.level(sel and 13 or 9) ; screen.rect(74, y - 4, 44 * (lane.val or 0), 3) ; screen.fill()
       end
-      y = y + 9
+      y = y + 8
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("K2 dev  K3 on")
     screen.update() ; return
   end
 
