@@ -542,9 +542,9 @@ local function cur_midi_note()
 end
 
 -- ===== ROUTEUR 8OS TRANS : sources combinables qui pilotent le matching (la "voix live") =====
-os8_src        = { input = true, metabo = false, comp = false, mgen = false }
-os8_src_keys   = { "input", "metabo", "comp", "mgen" }
-os8_src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
+os8_src        = { input = true, metabo = false, comp = false, mgen = false, wifi = false }
+os8_src_keys   = { "input", "metabo", "comp", "mgen", "wifi" }
+os8_src_labels = { "INPUT", "METABO", "COMP", "MGEN", "WIFI" }
 os8_src_cursor = 1
 os8_pitch      = false  -- ameliore : transpose le grain pour coller a la note cible (suit la melodie)
 os8_trans      = 0      -- transposition manuelle en demi-tons (-24..+24), appliquee toujours
@@ -626,13 +626,16 @@ function os8_route()
   if s.mgen then local e = mgen_nenergy or 0
     if e > 0.05 and e > best then best = e ; os8_in_gate = true ; os8_in_midi = os8_f2midi(mgen_nfreq) ; os8_in_rms = e ; os8_in_centroid = (mgen_nfreq or 0)*3 end
   end
+  if s.wifi then local e = wifi.energy or 0
+    if e > 0.05 and e > best then best = e ; os8_in_gate = true ; os8_in_midi = os8_f2midi(wifi.freq()) ; os8_in_rms = e ; os8_in_centroid = 3000 end
+  end
 end
 
 -- ===== SOURCE POtO : sources combinables (comme le 8OS) =====
 -- audio (INPUT, COMP) -> enregistrees dans le buffer ; toutes -> suivi de hauteur (note MIDI)
-poto_src        = { input = true, metabo = false, comp = false, mgen = false }
-poto_src_keys   = { "input", "metabo", "comp", "mgen" }
-poto_src_labels = { "INPUT", "METABO", "COMP", "MGEN" }
+poto_src        = { input = true, metabo = false, comp = false, mgen = false, wifi = false }
+poto_src_keys   = { "input", "metabo", "comp", "mgen", "wifi" }
+poto_src_labels = { "INPUT", "METABO", "COMP", "MGEN", "WIFI" }
 poto_src_cursor = 1
 poto_in_midi    = -1   -- hauteur suivie (la source active la PLUS FORTE mene)
 
@@ -645,6 +648,7 @@ function poto_route()
   if s.metabo then local e = meta_energy or 0 ; if e > 0.05 and e > best then best = e ; bf = meta_freq end end
   if s.comp   then local e = comp_rms or 0    ; if e > 0.02 and e > best then best = e ; bf = comp_freq end end
   if s.mgen   then local e = mgen_nenergy or 0; if e > 0.05 and e > best then best = e ; bf = mgen_nfreq end end
+  if s.wifi   then local e = wifi.energy or 0 ; if e > 0.05 and e > best then best = e ; bf = wifi.freq() end end
   poto_in_midi = (bf and bf > 30) and freq_to_midi(bf) or -1
 end
 
@@ -3254,21 +3258,21 @@ function redraw()
     screen.level(15) ; screen.move(2, 8) ; screen.text("8OS")
     screen.level(os8_rec_n > 0 and 12 or 4) ; screen.move(126, 8) ; screen.text_right(os8_rec_n .. " gr")
     screen.level(4) ; screen.move(2, 18) ; screen.text("TRANS source")
-    local pos    = { {2,28}, {66,28}, {2,38}, {66,38}, {2,48} }
-    local labels = { os8_src_labels[1], os8_src_labels[2], os8_src_labels[3], os8_src_labels[4], "PITCH" }
-    for i = 1, 5 do
-      local on  = (i <= 4) and os8_src[os8_src_keys[i]] or os8_pitch
+    local pos    = { {2,26}, {66,26}, {2,34}, {66,34}, {2,42}, {66,42} }
+    local labels = { os8_src_labels[1], os8_src_labels[2], os8_src_labels[3], os8_src_labels[4], os8_src_labels[5], "PITCH" }
+    for i = 1, 6 do
+      local on  = (i <= #os8_src_keys) and os8_src[os8_src_keys[i]] or os8_pitch
       local sel = (i == os8_src_cursor)
       local x, y = pos[i][1], pos[i][2]
       screen.level(sel and 15 or (on and 10 or 4))
       screen.move(x, y) ; screen.text((sel and ">" or " ") .. labels[i])
       screen.level(on and 15 or 3) ; screen.move(x + 44, y) ; screen.text(on and "[X]" or "[ ]")
     end
-    screen.level(os8_spread > 0 and 10 or 4) ; screen.move(66, 48)
+    screen.level(os8_spread > 0 and 10 or 4) ; screen.move(2, 52)
     screen.text(string.format("spr %d%%", math.floor(os8_spread * 100)))
-    screen.level(os8_trans ~= 0 and 10 or 4) ; screen.move(66, 56)
+    screen.level(os8_trans ~= 0 and 10 or 4) ; screen.move(66, 52)
     screen.text(string.format("tr %+d", os8_trans))
-    screen.level(4) ; screen.move(2, 62) ; screen.text("E2 sel  K3 tgl  K2 all")
+    screen.level(4) ; screen.move(2, 62) ; screen.text("E2sel K3tgl K2all")
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
@@ -3416,7 +3420,7 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("POtO SRC")
     screen.level(4)  ; screen.move(2, 18) ; screen.text("REC: INPUT/COMP  pitch: tous")
-    local ys = { 28, 36, 44, 52 }
+    local ys = { 26, 33, 40, 47, 54 }
     for i = 1, #poto_src_keys do
       local k   = poto_src_keys[i]
       local sel = (i == poto_src_cursor)

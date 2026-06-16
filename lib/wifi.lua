@@ -95,6 +95,13 @@ function M.note_for(n)
   return M.root + oct * 12 + sc[deg]
 end
 
+-- frequence (Hz) du reseau le plus fort -> sert de "pitch WiFi" comme source
+function M.freq()
+  if not M.peak then return 0 end
+  local note = M.note_for(M.peak)
+  return 440 * 2 ^ ((note - 69) / 12)
+end
+
 function M.redraw()
   screen.clear() ; screen.font_size(8)
   screen.level(15) ; screen.move(2, 8)  ; screen.text("WIFI")

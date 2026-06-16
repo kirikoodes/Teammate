@@ -1234,7 +1234,7 @@ function drawP17(){
 function enc(n,d){
   if(n===1){let i=PAGE_ORDER.indexOf(page);i=(i+d+PAGE_ORDER.length)%PAGE_ORDER.length;page=PAGE_ORDER[i];return;}
   // ── pages parité Norns 8,18-27 ──
-  if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,5);else if(n===3){if(os8_src_cursor>4)os8_trans=clamp(os8_trans+d,-24,24);else os8_spread=clamp(os8_spread+d*0.05,0,1);}return;}
+  if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,6);else if(n===3){if(os8_src_cursor>5)os8_trans=clamp(os8_trans+d,-24,24);else os8_spread=clamp(os8_spread+d*0.05,0,1);}return;}
   if(page===18){const M=metabolik;if(n===2)M.scale_idx=((M.scale_idx+d)%M.scale_names.length+M.scale_names.length)%M.scale_names.length;else if(n===3)M.octave=clamp(M.octave+d,-2,2);return;}
   if(page===19){if(n===2)metabo_cur_dev=clamp(metabo_cur_dev+d,1,4);else if(n===3)midi_ch_map[5][metabo_cur_dev-1]=clamp(midi_ch_map[5][metabo_cur_dev-1]+d,1,16);return;}
   if(page===20){const M=metabolik;if(n===2)M.persona_idx=((M.persona_idx+d)%M.persona_names.length+M.persona_names.length)%M.persona_names.length;else if(n===3)M.follow_amt=clamp(M.follow_amt+d*0.05,0,1);return;}
@@ -1285,7 +1285,7 @@ function enc(n,d){
 function key(n,z){
   if(!z) return;
   // ── pages parité Norns 8,18-27 ──
-  if(page===8){if(n===3){if(os8_src_cursor<=4){const k=os8_src_keys[os8_src_cursor-1];os8_src[k]=!os8_src[k];}else os8_pitch=!os8_pitch;}else if(n===2){const all=os8_src.input&&os8_src.metabo&&os8_src.comp&&os8_src.mgen;for(const k of os8_src_keys)os8_src[k]=!all;}return;}
+  if(page===8){if(n===3){if(os8_src_cursor<=5){const k=os8_src_keys[os8_src_cursor-1];os8_src[k]=!os8_src[k];}else os8_pitch=!os8_pitch;}else if(n===2){const all=os8_src_keys.every(k=>os8_src[k]);for(const k of os8_src_keys)os8_src[k]=!all;}return;}
   if(page===18){if(n===3)metabolik.on=!metabolik.on;else if(n===2)metabolik.density_idx=(metabolik.density_idx+1)%metabolik.density_names.length;return;}
   if(page===19){if(n===3)midi_route[5][metabo_cur_dev-1]=!midi_route[5][metabo_cur_dev-1];return;}
   if(page===20){if(n===3)metabolik.on=!metabolik.on;else if(n===2)metabolik.density_idx=(metabolik.density_idx+1)%metabolik.density_names.length;return;}
@@ -1298,7 +1298,7 @@ function key(n,z){
   if(page===27){if(n===3)liveToggle(live_cursor);else if(n===2)liveAllOff();return;}
   if(page===28){if(n===3)os8_mod_on=!os8_mod_on;return;}
   if(page===29){if(n===3)poto_mod_on=!poto_mod_on;return;}
-  if(page===30){if(n===3){const k=poto_src_keys[poto_src_cursor-1];poto_src[k]=!poto_src[k];}else if(n===2){const all=poto_src.input&&poto_src.metabo&&poto_src.comp&&poto_src.mgen;for(const k of poto_src_keys)poto_src[k]=!all;}return;}
+  if(page===30){if(n===3){const k=poto_src_keys[poto_src_cursor-1];poto_src[k]=!poto_src[k];}else if(n===2){const all=poto_src_keys.every(k=>poto_src[k]);for(const k of poto_src_keys)poto_src[k]=!all;}return;}
   if(page===31){if(n===3)mind.on=!mind.on;return;}
   if(page===32){if(n===3)style.on=!style.on;return;}
   if(n===2&&page===4){p_rhythm_idx=(p_rhythm_idx+1)%RHYTHM_RATES.length;p_rhythm=RHYTHM_RATES[p_rhythm_idx];return;}
@@ -1596,8 +1596,8 @@ function mgenTaste(like){
 }
 
 // ───────────────────────────────────────── 8OS sources (page 8)
-const os8_src_keys=['input','metabo','comp','mgen'],os8_src_labels=['INPUT','METABO','COMP','MGEN'];
-let os8_src={input:true,metabo:false,comp:false,mgen:false},os8_src_cursor=1,os8_pitch=false,os8_trans=0,os8_spread=0,os8_cur_freq=0;
+const os8_src_keys=['input','metabo','comp','mgen','wifi'],os8_src_labels=['INPUT','METABO','COMP','MGEN','WIFI'];
+let os8_src={input:true,metabo:false,comp:false,mgen:false,wifi:false},os8_src_cursor=1,os8_pitch=false,os8_trans=0,os8_spread=0,os8_cur_freq=0;
 // modulation interne : une source pilote en continu les params d'un mode (comme METABO->NIAKABY/MGEN)
 // wifi : sur le Norns, capte les reseaux (lib/wifi.lua) ; dans le navigateur,
 // stub inerte (impossible de scanner le WiFi depuis une page web).
@@ -1620,14 +1620,15 @@ function potoModSig(){ return poto_mod_on?modSignals(poto_mod_src):[0,0]; }
 function potoSizeMod(base){ if(!poto_mod_on)return base; const act=potoModSig()[0]; return Math.max(0.03,base*(1-poto_mod*act*0.7)); }
 function potoRate(){ let r=p_poto_rate; if(poto_mod_on){const t=potoModSig()[1];r*=Math.pow(2,poto_mod*t);} return Math.min(4,Math.max(0.25,r)); }
 // --- source POtO : audio (INPUT/COMP) enregistree, toutes pilotent le suivi de hauteur ---
-const poto_src_keys=['input','metabo','comp','mgen'],poto_src_labels=['INPUT','METABO','COMP','MGEN'];
-let poto_src={input:true,metabo:false,comp:false,mgen:false},poto_src_cursor=1,poto_in_midi=-1;
+const poto_src_keys=['input','metabo','comp','mgen','wifi'],poto_src_labels=['INPUT','METABO','COMP','MGEN','WIFI'];
+let poto_src={input:true,metabo:false,comp:false,mgen:false,wifi:false},poto_src_cursor=1,poto_in_midi=-1;
 function potoRoute(){
   let best=-1,bf=0;const s=poto_src;
   if(s.input&&(cur_freq||0)>30&&cur_rms>best){best=cur_rms;bf=cur_freq;}
   if(s.metabo&&meta_energy>0.05&&meta_energy>best){best=meta_energy;bf=meta_freq;}
   if(s.comp&&comp_rms>0.02&&comp_rms>best){best=comp_rms;bf=comp_freq;}
   if(s.mgen&&mgen_nenergy>0.05&&mgen_nenergy>best){best=mgen_nenergy;bf=mgen_nfreq;}
+  if(s.wifi&&(wifi.energy||0)>0.05&&wifi.energy>best){best=wifi.energy;bf=0;}  // WiFi : inerte ici (pas de scan navigateur)
   poto_in_midi=(bf&&bf>30)?freqToMidi(bf):-1;
 }
 function os8Route(){let br=0,bf=0;const s=os8_src;
@@ -1635,6 +1636,7 @@ function os8Route(){let br=0,bf=0;const s=os8_src;
   if(s.metabo&&meta_energy>br&&(meta_freq||0)>30){br=meta_energy;bf=meta_freq;}
   if(s.comp&&comp_rms>br&&(comp_freq||0)>30){br=comp_rms;bf=comp_freq;}
   if(s.mgen&&mgen_nenergy>br&&(mgen_nfreq||0)>30){br=mgen_nenergy;bf=mgen_nfreq;}
+  if(s.wifi&&(wifi.energy||0)>br){br=wifi.energy;}  // WiFi : inerte ici (pas de scan navigateur)
   if(bf>0)os8_cur_freq=bf;
 }
 // transpo de lecture du grain : os8_trans (manuel, ±24 demi-tons) TOUJOURS appliquée
@@ -1796,15 +1798,15 @@ function drawP8src(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('8OS');
   S.level(os8_rec_n>0?12:4);txtR(126,8,os8_rec_n+' gr');
   S.level(4);S.move(2,18);S.text('TRANS source');
-  const pos=[[2,28],[66,28],[2,38],[66,38],[2,48]];
-  const labels=[os8_src_labels[0],os8_src_labels[1],os8_src_labels[2],os8_src_labels[3],'PITCH'];
-  for(let i=0;i<5;i++){const on=(i<4)?os8_src[os8_src_keys[i]]:os8_pitch;const sel=(i+1===os8_src_cursor);
+  const pos=[[2,26],[66,26],[2,34],[66,34],[2,42],[66,42]];
+  const labels=[os8_src_labels[0],os8_src_labels[1],os8_src_labels[2],os8_src_labels[3],os8_src_labels[4],'PITCH'];
+  for(let i=0;i<6;i++){const on=(i<os8_src_keys.length)?os8_src[os8_src_keys[i]]:os8_pitch;const sel=(i+1===os8_src_cursor);
     const x=pos[i][0],y=pos[i][1];
     S.level(sel?15:(on?10:4));S.move(x,y);S.text((sel?'>':' ')+labels[i]);
     S.level(on?15:3);S.move(x+44,y);S.text(on?'[X]':'[ ]');}
-  S.level(os8_spread>0?10:4);S.move(66,48);S.text('spr '+Math.floor(os8_spread*100)+'%');
-  S.level(os8_trans!==0?10:4);S.move(66,56);S.text('tr '+(os8_trans>=0?'+':'')+os8_trans);
-  S.level(4);S.move(2,62);S.text('E2 sel  K3 tgl  K2 all');
+  S.level(os8_spread>0?10:4);S.move(2,52);S.text('spr '+Math.floor(os8_spread*100)+'%');
+  S.level(os8_trans!==0?10:4);S.move(66,52);S.text('tr '+(os8_trans>=0?'+':'')+os8_trans);
+  S.level(4);S.move(2,62);S.text('E2sel K3tgl K2all');
 }
 function drawMetabo(){const M=metabolik;
   S.font_size(8);S.level(15);S.move(2,8);S.text('METABO');txtR(126,8,M.on?'ON':'off');
@@ -1908,7 +1910,7 @@ function drawPotoMod(){
 function drawPotoSrc(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('POtO SRC');
   S.level(4);S.move(2,18);S.text('REC: INPUT/COMP  pitch: tous');
-  const ys=[28,36,44,52];
+  const ys=[26,33,40,47,54];
   for(let i=0;i<poto_src_keys.length;i++){
     const k=poto_src_keys[i],sel=(i+1===poto_src_cursor),aud=(k==='input'||k==='comp');
     S.level(sel?15:(poto_src[k]?10:4));S.move(sel?2:10,ys[i]);S.text((sel?'> ':'')+poto_src_labels[i]);
