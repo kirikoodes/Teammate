@@ -1648,7 +1648,7 @@ function os8GrainRate(){
 
 // ───────────────────────────────────────── PAGE LIVE
 let live_cursor=1,comp_on=true,audio_midi_on=true;
-const LIVE_NAMES=['POtO','8OS','MGEN','SPAT','METABO','NIAKABY','AUDIO','IMPRO'];
+const LIVE_NAMES=['POtO','8OS','MGEN','SPAT','METABO','NIAKABY','AUDIO','IMPRO','WIFI'];
 function liveToggle(i){
   if(i===1){ensureAudio();actVia(5,3);}
   else if(i===2){ensureAudio();os8_mode=(os8_mode==='OFF')?'TRANS':'OFF';if(os8_mode==='TRANS'&&!os8GrainActive&&os8_recorded_samples>1000){os8GrainActive=true;os8Grain();}}
@@ -1658,13 +1658,14 @@ function liveToggle(i){
   else if(i===6){niakaby.on=!niakaby.on;if(!niakaby.on)niakaby.release();}
   else if(i===7)audio_midi_on=!audio_midi_on;
   else if(i===8)comp_on=!comp_on;
+  else if(i===9)wifi.on=!wifi.on;
 }
 function liveAllOff(){
   if(p_poto_on)p_poto_on=false;os8_mode='OFF';
   if(mgen_running)mgenStop();
   if(spat.on){spat.on=false;spatStop();}
   metabolik.on=false;if(niakaby.on){niakaby.on=false;niakaby.release();}
-  audio_midi_on=false;comp_on=false;
+  audio_midi_on=false;comp_on=false;wifi.on=false;
   for(let d=0;d<4;d++)if(midi_outs[d])for(let ch=0;ch<16;ch++)midi_outs[d].send([0xB0|ch,123,0]);
 }
 
@@ -1949,9 +1950,9 @@ function drawTaste(){
 }
 function drawLive(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('LIVE');S.level(4);txtR(126,8,'K3 tgl  K2 panic');
-  const states=[p_poto_on?'ON':'off',os8_mode,mgen_running?'ON':'off',spat.on?'ON':'off',metabolik.on?'ON':'off',niakaby.on?'ON':'off',audio_midi_on?'ON':'off',comp_on?'ON':'off'];
-  const ons=[p_poto_on,os8_mode!=='OFF',mgen_running,spat.on,metabolik.on,niakaby.on,audio_midi_on,comp_on];
-  const ys=[14,21,28,35,42,49,56,63];
+  const states=[p_poto_on?'ON':'off',os8_mode,mgen_running?'ON':'off',spat.on?'ON':'off',metabolik.on?'ON':'off',niakaby.on?'ON':'off',audio_midi_on?'ON':'off',comp_on?'ON':'off',wifi.on?(wifi.count+'res'):'off'];
+  const ons=[p_poto_on,os8_mode!=='OFF',mgen_running,spat.on,metabolik.on,niakaby.on,audio_midi_on,comp_on,wifi.on];
+  const ys=[13,19,25,31,37,43,49,55,61];
   for(let i=0;i<LIVE_NAMES.length;i++){const sel=(i+1===live_cursor);
     S.level(sel?15:(ons[i]?11:4));S.move(2,ys[i]);S.text((sel?'>':' ')+LIVE_NAMES[i]);
     S.level(ons[i]?15:3);S.move(78,ys[i]);S.text(states[i]);}

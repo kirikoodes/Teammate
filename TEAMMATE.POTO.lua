@@ -2513,7 +2513,7 @@ end
 audio_midi_on = true     -- Audio->MIDI actif (si route page 16) ; armable depuis LIVE
 comp_on = true           -- compagnon (impro corpus) repond ; off = ecoute mais se tait
 live_cursor = 1
-LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO" }
+LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO", "WIFI" }
 
 function live_toggle(i)
   if i == 1 then
@@ -2536,6 +2536,8 @@ function live_toggle(i)
   elseif i == 8 then
     comp_on = not comp_on
     if not comp_on then midi_cc_all(1, 123, 0) end   -- relache l'impro
+  elseif i == 9 then
+    wifi.on = not wifi.on
   end
 end
 
@@ -2548,6 +2550,7 @@ function live_all_off()
   if niakaby.on then niakaby.on = false ; niakaby.release() end
   audio_midi_on = false
   comp_on = false
+  wifi.on = false
   for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
@@ -3140,10 +3143,11 @@ function redraw()
     local states = { p_poto_on and "ON" or "off", os8_mode, mgen_running and "ON" or "off",
                      spat.on and "ON" or "off", metabolik.on and "ON" or "off",
                      niakaby.on and "ON" or "off", audio_midi_on and "ON" or "off",
-                     comp_on and "ON" or "off" }
+                     comp_on and "ON" or "off",
+                     wifi.on and (wifi.count .. "res") or "off" }
     local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
-                     niakaby.on, audio_midi_on, comp_on }
-    local ys     = { 14, 21, 28, 35, 42, 49, 56, 63 }
+                     niakaby.on, audio_midi_on, comp_on, wifi.on }
+    local ys     = { 13, 19, 25, 31, 37, 43, 49, 55, 61 }
     for i = 1, #LIVE_NAMES do
       local sel = (i == live_cursor)
       screen.level(sel and 15 or (ons[i] and 11 or 4))
