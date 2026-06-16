@@ -2397,6 +2397,7 @@ wifi_unknown_n   = 0
 wifi_place_back_t= 0     -- horodatage du "welcome back" (salut ponctuel a l'armement)
 wifi_greet       = false -- WiFi vient d'etre (r)allume : saluer au prochain lieu reconnu
 wifi_prev_on     = false
+wifi_place_name  = ""    -- nom du lieu reconnu (= son reseau dominant)
 
 function wifi_places_save()   -- fichier separe, isole : ne touche pas la sauvegarde principale
   pcall(function()
@@ -2425,14 +2426,15 @@ function wifi_place_update()
   if best >= 0.5 then
     wifi_place_state = "KNOWN" ; wifi_place_id = bi
     wifi_places[bi].n = (wifi_places[bi].n or 0) + 1
+    wifi_place_name = wifi_places[bi].name or (wifi_places[bi].list and wifi_places[bi].list[1]) or ""
     wifi_unknown_n = 0
   else
     wifi_place_state = "NEW"
     wifi_unknown_n = wifi_unknown_n + 1
     if wifi_unknown_n >= 3 and nc >= 3 then            -- nouveau lieu confirme -> memorise
-      wifi_places[#wifi_places + 1] = { list = curlist, n = 1 }
+      wifi_places[#wifi_places + 1] = { list = curlist, n = 1, name = curlist[1] or "?" }
       while #wifi_places > 12 do table.remove(wifi_places, 1) end
-      wifi_unknown_n = 0 ; wifi_place_id = #wifi_places
+      wifi_unknown_n = 0 ; wifi_place_id = #wifi_places ; wifi_place_name = curlist[1] or "?"
       wifi_places_save() ; creature_xp_add(20)   -- nouveau lieu decouvert
     end
   end
@@ -2443,42 +2445,56 @@ function wifi_place_update()
   end
 end
 
+-- choisit une replique dans une liste, stable ~4 s puis change (vivant sans clignoter)
+function face_vary(list, salt)
+  local b = math.floor((util.time() or 0) / 4)
+  return list[(((salt or 0) + b) % #list) + 1]
+end
+
 function face_state()
   local m   = mind
   local sil = sil_sec or 0
   local stress = (metabolik and metabolik.on and metabolik.stressFx) or 0
+  local nm  = (wifi_place_name ~= "" and wifi_place_name:sub(1, 9)) or "this spot"
   -- #2 LEVEL UP : annonce 4 s
   if creature_lvl_t > 0 and (util.time() - creature_lvl_t < 4) then
     return "(^o^)", "level " .. creature_level .. " agent!"
   end
   -- #3 REVE (autonomie + silence profond)
-  if creature_dream then return "(u_u)", "dreaming... agent" end
+  if creature_dream then
+    return "(u_u)", face_vary({"dreaming... agent", "drifting away...", "i hear echoes", "replaying you..."}, 1)
+  end
   -- #1 LIEUX + reseaux (Pwnagotchi)
   if wifi and wifi.on then
     local nowt = util.time()
     if wifi.last_new and (nowt - (wifi.last_new_t or 0) < 5) then
-      return "(O_O)", "new! " .. (((wifi.last_new == "") and "<hidden>") or wifi.last_new):sub(1, 12)
+      return "(O_O)", "found " .. (((wifi.last_new == "") and "<hidden>") or wifi.last_new):sub(1, 11)
     end
-    if wifi_place_state == "NEW"   then return "(o_o)", "new place agent" end
+    if wifi_place_state == "NEW" then
+      return "(o_o)", face_vary({"new place agent", "never been here", "fresh ground agent", "where are we?"}, 2)
+    end
     if wifi_place_state == "KNOWN" and (util.time() - (wifi_place_back_t or 0)) < 5 then
-      return "(^_^)", "welcome back agent"
+      return "(^_^)", face_vary({"welcome back " .. nm, "good to see " .. nm, "back at " .. nm .. " agent"}, 3)
     end
-    if (wifi.count or 0) == 0 then return "(-_-)", "no networks" end
-    if (wifi.traffic or 0) > 0.5 then return "(>_<)", "busy traffic!" end
-    return "(o_o)", (wifi.count or 0) .. " networks"
+    if (wifi.count or 0) == 0 then return "(-_-)", "no signal agent" end
+    if (wifi.traffic or 0) > 0.5 then
+      return "(>_<)", face_vary({"busy traffic!", "it's buzzing here", "lots of chatter"}, 4)
+    end
+    return "(o_o)", face_vary({(wifi.count or 0) .. " networks", "i feel " .. (wifi.count or 0) .. " around", "scanning, agent"}, 5)
   end
-  -- #4 OPINIONS sur ton jeu
-  if strat_name == "MOTIF" then return "(^_~)", "heard that, agent" end
-  if count < 4 then return "(o_o)", "learning, agent" end
-  if stress > 0.72 then return "(>_<)", "too repetitive" end
-  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", "breathe agent!" end
+  -- #4 OPINIONS sur ton jeu (chaleureux, varie)
+  if strat_name == "MOTIF" then return "(^_~)", face_vary({"heard that agent", "deja vu agent", "bringing it back"}, 6) end
+  if count < 4 then return "(o_o)", face_vary({"learning you agent", "i'm all ears", "show me more"}, 7) end
+  if stress > 0.72 then return "(>_<)", face_vary({"getting repetitive", "loosen up agent", "shake it up"}, 8) end
+  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", face_vary({"breathe agent!", "easy now", "so much going on"}, 9) end
   if m.energy < 0.04 then
-    if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "listening agent" end
+    if sil > 6 then return "(-_-)", face_vary({"zzZ", "resting agent", "i'll wait"}, 10)
+    else return "(o_o)", face_vary({"listening agent", "go on agent", "i'm with you"}, 11) end
   end
-  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "nice agent!" end
-  if m.phrase == "GAP" then return "(o_o)", "my turn!" end
-  if style and style.on then return "(^_^)", "playing your way" end
-  return "(^_^)", "at your service agent"
+  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", face_vary({"nice agent!", "yes! keep going", "loving this", "that's it agent"}, 12) end
+  if m.phrase == "GAP" then return "(o_o)", face_vary({"my turn agent", "let me agent", "here i go"}, 13) end
+  if style and style.on then return "(^_^)", face_vary({"playing your way", "in your style agent", "like you taught me"}, 14) end
+  return "(^_^)", face_vary({"with you agent", "at your service", "ready agent", "right here agent"}, 15)
 end
 
 function face_redraw()
@@ -2500,7 +2516,8 @@ function face_redraw()
   -- pied : K3 + lieu connu/nouveau
   screen.level(4) ; screen.move(2, 63) ; screen.text("K3 auto")
   if wifi and wifi.on and wifi_place_state ~= "--" then
-    screen.level(6) ; screen.move(126, 63) ; screen.text_right(wifi_place_state)
+    local lbl = (wifi_place_state == "KNOWN" and wifi_place_name ~= "" and wifi_place_name:sub(1, 9)) or wifi_place_state
+    screen.level(6) ; screen.move(126, 63) ; screen.text_right(lbl)
   end
   screen.update()
 end
