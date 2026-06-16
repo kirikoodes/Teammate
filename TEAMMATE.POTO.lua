@@ -2146,6 +2146,17 @@ end
 ---------------------------------------------------------------------
 local function midi_clock_in(data)
   local b = data[1]
+  if b and b >= 0xB0 and b <= 0xBF then   -- Control Change : moniteur + learn
+    cc_rx_cc = data[2] or -1
+    cc_rx_ch = (b - 0xB0) + 1
+    cc_rx_t  = util.time()
+    if cc_learn and cc_cursor >= 1 and cc_lanes[cc_cursor] then
+      cc_lanes[cc_cursor].num = cc_rx_cc
+      cc_ch    = cc_rx_ch
+      cc_learn = false                     -- one-shot
+    end
+    return
+  end
   if b == 0xFA then                -- transport start
     mclk_t           = {}
     mclk_pulse_count = 0
@@ -2382,6 +2393,10 @@ end
 -- chaque CC choisit sa source (signal interne de TEAMMATE ou mouvement autonome),
 -- est lisse, et envoye sur un device + canal MIDI (pour piloter les CC d'un OP-1).
 cc_on     = false      -- master : armable depuis LIVE (gate tout le moteur CC)
+cc_rx_cc  = -1         -- moniteur : dernier numero de CC recu en entree
+cc_rx_ch  = 0          -- canal de ce CC
+cc_rx_t   = 0          -- horodatage (pour l'affichage "recent")
+cc_learn  = false      -- si vrai, le prochain CC recu se copie dans la lane selectionnee
 cc_dev    = 1          -- device MIDI de sortie (1..4)
 cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
@@ -3333,7 +3348,9 @@ function key(n, z)
     redraw() ; return
   end
   if page == 37 then
-    if n == 2 then
+    if n == 1 then
+      cc_learn = (not cc_learn) and cc_cursor >= 1                 -- arme l'apprentissage (lane seulement)
+    elseif n == 2 then
       if cc_cursor == 0 then
         cc_dev = (cc_dev % 4) + 1                                  -- OUT : device global
       else
@@ -3715,9 +3732,9 @@ function redraw()
     screen.text((osel and ">" or " ") .. "D" .. cc_dev .. " " .. dnm .. " ch" .. cc_ch)
     -- liste des lanes autour du curseur (5 visibles)
     local cur   = math.max(1, cc_cursor)
-    local start = util.clamp(cur - 2, 1, math.max(1, 16 - 3))
+    local start = util.clamp(cur - 1, 1, math.max(1, 16 - 2))
     local y = 27
-    for i = start, math.min(start + 3, 16) do
+    for i = start, math.min(start + 2, 16) do
       local lane = cc_lanes[i]
       local sel  = (i == cc_cursor)
       screen.level(sel and 15 or (lane.on and 8 or 4)) ; screen.move(2, y)
@@ -3731,9 +3748,18 @@ function redraw()
       end
       y = y + 8
     end
+    -- moniteur d'entree CC / apprentissage
+    local recent = (util.time() - (cc_rx_t or 0)) < 4
+    if cc_learn then
+      screen.level(15) ; screen.move(2, 54) ; screen.text("LEARN: tourne un bouton OP-1")
+    elseif recent and cc_rx_cc >= 0 then
+      screen.level(8) ; screen.move(2, 54) ; screen.text("rx  cc" .. cc_rx_cc .. "  ch" .. cc_rx_ch)
+    else
+      screen.level(3) ; screen.move(2, 54) ; screen.text("K1 learn (tourne un bouton)")
+    end
     screen.level(3) ; screen.move(2, 62)
     if cc_cursor == 0 then screen.text("E3 ch  K2 dev  K3 arm")
-    else screen.text("E3 cc#  K2 src  K3 on") end
+    else screen.text("E3 cc#  K2 src  K3 on  K1 learn") end
     screen.update() ; return
   end
 
