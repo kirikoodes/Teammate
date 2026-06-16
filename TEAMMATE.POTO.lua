@@ -2420,11 +2420,11 @@ function wifi_place_update()
     if j > best then best = j ; bi = i end
   end
   if best >= 0.5 then
-    wifi_place_state = "CONNU" ; wifi_place_id = bi
+    wifi_place_state = "KNOWN" ; wifi_place_id = bi
     wifi_places[bi].n = (wifi_places[bi].n or 0) + 1
     wifi_unknown_n = 0
   else
-    wifi_place_state = "NOUVEAU"
+    wifi_place_state = "NEW"
     wifi_unknown_n = wifi_unknown_n + 1
     if wifi_unknown_n >= 3 and nc >= 3 then            -- nouveau lieu confirme -> memorise
       wifi_places[#wifi_places + 1] = { list = curlist, n = 1 }
@@ -2441,34 +2441,34 @@ function face_state()
   local stress = (metabolik and metabolik.on and metabolik.stressFx) or 0
   -- #2 LEVEL UP : annonce 4 s
   if creature_lvl_t > 0 and (util.time() - creature_lvl_t < 4) then
-    return "(^o^)", "niveau " .. creature_level .. " agent!"
+    return "(^o^)", "level " .. creature_level .. " agent!"
   end
   -- #3 REVE (autonomie + silence profond)
-  if creature_dream then return "(u_u)", "reve... agent" end
+  if creature_dream then return "(u_u)", "dreaming... agent" end
   -- #1 LIEUX + reseaux (Pwnagotchi)
   if wifi and wifi.on then
     local nowt = util.time()
     if wifi.last_new and (nowt - (wifi.last_new_t or 0) < 5) then
-      return "(O_O)", "new! " .. (((wifi.last_new == "") and "<cache>") or wifi.last_new):sub(1, 12)
+      return "(O_O)", "new! " .. (((wifi.last_new == "") and "<hidden>") or wifi.last_new):sub(1, 12)
     end
-    if wifi_place_state == "NOUVEAU" then return "(o_o)", "nouveau lieu agent" end
-    if wifi_place_state == "CONNU"   then return "(^_^)", "te revoila agent" end
-    if (wifi.count or 0) == 0 then return "(-_-)", "aucun reseau" end
-    if (wifi.traffic or 0) > 0.5 then return "(>_<)", "ca trafique !" end
-    return "(o_o)", (wifi.count or 0) .. " reseaux"
+    if wifi_place_state == "NEW"   then return "(o_o)", "new place agent" end
+    if wifi_place_state == "KNOWN" then return "(^_^)", "welcome back agent" end
+    if (wifi.count or 0) == 0 then return "(-_-)", "no networks" end
+    if (wifi.traffic or 0) > 0.5 then return "(>_<)", "busy traffic!" end
+    return "(o_o)", (wifi.count or 0) .. " networks"
   end
   -- #4 OPINIONS sur ton jeu
-  if strat_name == "MOTIF" then return "(^_~)", "deja entendu, agent" end
-  if count < 4 then return "(o_o)", "j'apprends, agent" end
-  if stress > 0.72 then return "(>_<)", "trop repetitif" end
-  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", "respire agent !" end
+  if strat_name == "MOTIF" then return "(^_~)", "heard that, agent" end
+  if count < 4 then return "(o_o)", "learning, agent" end
+  if stress > 0.72 then return "(>_<)", "too repetitive" end
+  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", "breathe agent!" end
   if m.energy < 0.04 then
-    if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "j'ecoute agent" end
+    if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "listening agent" end
   end
-  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "joli agent !" end
-  if m.phrase == "GAP" then return "(o_o)", "a moi !" end
-  if style and style.on then return "(^_^)", "je joue comme toi" end
-  return "(^_^)", "a vos ordres agent"
+  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "nice agent!" end
+  if m.phrase == "GAP" then return "(o_o)", "my turn!" end
+  if style and style.on then return "(^_^)", "playing your way" end
+  return "(^_^)", "at your service agent"
 end
 
 function face_redraw()
@@ -2833,12 +2833,18 @@ function init()
     end
   end)
 
-  -- WIFI LINK : chaque reseau LIE rejoue sa note EN RYTHME (sur le beat,
-  -- re-attaquee) sur son device/canal. Hauteur=canal, velocite=signal.
+  -- WIFI LINK : chaque reseau LIE joue son PROPRE RYTHME EUCLIDIEN (16 pas) :
+  -- signal -> densite (2..8 frappes), canal -> decalage. Polyrythme du paysage WiFi.
   clock.run(function()
-    local playing = {}   -- notes du pulse precedent a couper
+    local step, playing = 0, {}
+    local function euclid(k, n, i)                  -- la frappe i (1..n) est-elle active ?
+      if k <= 0 then return false end
+      if k >= n then return true end
+      return math.floor(i * k / n) ~= math.floor((i - 1) * k / n)
+    end
     while true do
-      clock.sync(1)                                -- une noire, CALE sur la grille de l'horloge globale
+      clock.sync(1/4)                               -- 1/16 de note, cale sur la grille
+      step = (step + 1) % 16
       for _, p in ipairs(playing) do
         local out = midi_outs[p.dev] ; if out then out:note_off(p.note, p.ch) end
       end
@@ -2849,12 +2855,16 @@ function init()
         for ssid, link in pairs(wifi_links) do
           local n = present[ssid]
           if link.on and n then
-            local out = midi_outs[link.dev]
-            if out then
-              local note = wifi.note_for(n)
-              local vel  = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
-              out:note_on(note, vel, link.ch)
-              playing[#playing + 1] = { note = note, dev = link.dev, ch = link.ch }
+            local k   = 2 + math.floor((n.sig or 50) / 100 * 6)        -- signal -> 2..8 frappes/16
+            local off = (n.chan or 0) % 16                              -- canal -> decalage du motif
+            if euclid(k, 16, (step + off) % 16 + 1) then
+              local out = midi_outs[link.dev]
+              if out then
+                local note = wifi.note_for(n)
+                local vel  = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
+                out:note_on(note, vel, link.ch)
+                playing[#playing + 1] = { note = note, dev = link.dev, ch = link.ch }
+              end
             end
           end
         end
