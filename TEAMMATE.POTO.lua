@@ -2724,28 +2724,30 @@ function init()
     end
   end)
 
-  -- WIFI LINK : chaque reseau LIE = une voix MIDI tenue (hauteur=canal,
-  -- velocite/CC=signal) sur son device/canal. Reconcilie 2x/s.
+  -- WIFI LINK : chaque reseau LIE rejoue sa note EN RYTHME (sur le beat,
+  -- re-attaquee) sur son device/canal. Hauteur=canal, velocite=signal.
   clock.run(function()
-    local voices = {}   -- ssid -> {note, dev, ch}
+    local playing = {}   -- notes du pulse precedent a couper
     while true do
-      clock.sleep(0.5)
-      local present = {}
-      if wifi.on then for _, n in ipairs(wifi.nets) do present[n.ssid] = n end end
-      for ssid, link in pairs(wifi_links) do
-        local v = voices[ssid] ; local n = present[ssid]
-        if wifi.on and link.on and n then
-          local note = wifi.note_for(n)
-          local out  = midi_outs[link.dev]
-          if out then
-            if v and v.note ~= note then out:note_off(v.note, v.ch) ; v = nil ; voices[ssid] = nil end
-            if not v then
-              local vel = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
-              out:note_on(note, vel, link.ch) ; voices[ssid] = { note = note, dev = link.dev, ch = link.ch }
+      clock.sleep(60.0 / mgen_bpm)                 -- une noire (suit le BPM global)
+      for _, p in ipairs(playing) do
+        local out = midi_outs[p.dev] ; if out then out:note_off(p.note, p.ch) end
+      end
+      playing = {}
+      if wifi.on then
+        local present = {}
+        for _, n in ipairs(wifi.nets) do present[n.ssid] = n end
+        for ssid, link in pairs(wifi_links) do
+          local n = present[ssid]
+          if link.on and n then
+            local out = midi_outs[link.dev]
+            if out then
+              local note = wifi.note_for(n)
+              local vel  = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
+              out:note_on(note, vel, link.ch)
+              playing[#playing + 1] = { note = note, dev = link.dev, ch = link.ch }
             end
           end
-        elseif v then
-          local out = midi_outs[v.dev] ; if out then out:note_off(v.note, v.ch) end ; voices[ssid] = nil
         end
       end
     end
