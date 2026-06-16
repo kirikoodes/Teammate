@@ -23,6 +23,8 @@ Seven layers running in parallel:
 - **METABO** — a separate, autonomous mode (it does **not** touch the companion). Incoming sound feeds a living **cell metabolism**; the cell answers in MIDI notes where the notes **are** its active metabolic pathways. Monotonous, repetitive playing raises the cell's **stress** and the tempo races; varied, rich playing keeps it calm — homeostatic regulation. It breathes: phrases alternate with **silences**, longer when calm. Routed through its own matrix stream (stream 6), on its own channel.
 - **NIAKABY** — a harmonizer: it turns a melodic line into **MIDI chords** (diatonic triads/7ths/9ths/sus, snapped to a scale, with a bass note), routed on its own matrix stream (stream 7). Its **source** can be the live **input**, **METABO** (the cell's notes drive the chords) or the **companion** — and when METABO is on it **colours** the chords (tensions under stress, octave doublings on growth).
 
+On top of these, a **living layer** makes it feel like a partner: **MIND** (shared listening — it follows your dynamics, builds a long arc, recalls your motifs), **STYLE** (it learns and plays in your manner), an **agent** with a face that grows, has opinions and recognizes places, and a **WiFi** dimension that turns the networks in the room into a playable source. See the dedicated sections below.
+
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
 
 ---
@@ -44,6 +46,8 @@ Sept couches en parallèle :
 - **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
 - **METABO** — un mode **séparé et autonome** (il ne **touche pas** au compagnon). Le son entrant nourrit un **métabolisme cellulaire** vivant ; la cellule répond en notes MIDI où les notes **sont** ses voies métaboliques actives. Un jeu monotone et répétitif fait monter le **stress** de la cellule et le tempo s'emballe ; un jeu varié et riche la garde calme — régulation homéostatique. Elle respire : les phrases alternent avec des **silences**, plus longs quand elle est calme. Routé via son propre stream de matrice (stream 6), sur son propre canal.
 - **NIAKABY** — un harmoniseur : il transforme une ligne mélodique en **accords MIDI** (triades / 7e / 9e / sus diatoniques calés dans une gamme, avec une basse), routés sur son propre stream de matrice (stream 7). Sa **source** peut être l'**entrée** live, **METABO** (les notes de la cellule pilotent les accords) ou le **compagnon** — et quand METABO est actif il **colore** les accords (tensions sous stress, doublures si croissance).
+
+Par-dessus, une **couche vivante** en fait un vrai partenaire : **MIND** (écoute partagée — il suit ta dynamique, construit un arc long, rappelle tes motifs), **STYLE** (il apprend et joue à ta manière), un **agent** à visage qui grandit, a des opinions et reconnaît les lieux, et une dimension **WiFi** qui transforme les réseaux de la salle en source jouable. Voir les sections dédiées plus bas.
 
 Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Python de 12 000 lignes.
 
@@ -74,13 +78,17 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 ## Navigation
 
 ```
-E1        — previous / next page (loops 1→27)
+E1        — previous / next page (loops through all pages)
 K3        — main action for current page (see table)
 ```
 
+> Pages are **grouped by mode** in the display order (POtO · 8OS · MIDI routing · MGEN · Audio→MIDI · SPAT · METABO · NIAKABY · MGEN TASTE · LIVE · **WiFi** · **the agent**). The page numbers in the section titles below are the original **logical IDs** (unchanged); the live display order is regrouped, so e.g. *POtO grain* sits next to *POtO granular*, and the *METABO* block is contiguous.
+
+> *Les pages sont **regroupées par mode** dans l'ordre d'affichage. Les numéros des titres ci-dessous sont les **IDs logiques** d'origine (inchangés) ; l'ordre affiché, lui, est regroupé.*
+
 ---
 
-## The 27 pages
+## The pages
 
 ### Page 1 — CORPUS
 Short-term memory. Everything you play is sliced into events.
@@ -835,11 +843,71 @@ MGEN learns the **genre combinations** you like — the full layout of genres ac
 
 ---
 
+## Modulation — 8OS MOD / POtO MOD
+
+Internal modulation: a **source** drives a granular engine's sound in real time, like METABO colours NIAKABY. Each page (one for 8OS, one for POtO): **E3** picks the source — **METABO** (stress/growth) · **AUDIO** (live rms/centroid) · **MGEN** (energy/freq) · **COMP** (companion) · **WIFI** (network activity) — **E2** sets depth, **K3** on/off. Two signals are extracted (energy + brightness): energy → shorter grains, brightness → pitch up, energy → spread. Live VU-meters show the source.
+
+*Modulation interne : une **source** pilote en continu le son d'un moteur granulaire. Une page pour le 8OS, une pour le POtO : **E3** choisit la source (METABO / AUDIO / MGEN / COMP / WIFI), **E2** la profondeur, **K3** on/off. Énergie → grains plus courts, brillance → pitch, énergie → spread.*
+
+---
+
+## Sources — WiFi everywhere
+
+Beyond INPUT / METABO / COMP / MGEN, **WiFi** is now a selectable **input source** wherever a source is chosen: **POtO SRC**, **8OS SRC** (grain matching / pitch follow), **METABO FEED** (the cell feeds on network activity), and the MOD pages above. The "WiFi pitch" = the note of the **strongest network** (its channel → a note, **snapped to the MGEN scale**); the energy = WiFi activity. So the granular engines, the cell and the harmonizer can all **follow the WiFi landscape**.
+
+*Au-delà de INPUT / METABO / COMP / MGEN, le **WiFi** est désormais une **source d'entrée** partout où on choisit une source (POtO SRC, 8OS SRC, METABO FEED, pages MOD). Le « pitch WiFi » = la note du réseau le plus fort (canal → note, **calée sur la gamme MGEN**) ; l'énergie = l'activité WiFi.*
+
+---
+
+## The living layer — MIND & STYLE
+
+Two opt-in layers (each a page with a **K3** toggle) that make the companion feel like a partner, not a reactor. Off by default — your patch is unchanged until you enable them.
+
+### MIND — shared listening
+A page that **shows what TEAMMATE hears**: energy, density, tension, a slow **macro arc** (CALM → BUILD → PEAK → RELEASE over minutes), phrase state (SPEAKING / GAP / QUIET) and a readable **mood**. With **K3** on, this drives behaviour: the companion **follows your dynamics** (you charge → denser answers; soft → space), your intensity **agitates METABO** (which cascades to the companion, NIAKABY, MGEN — one breathing organism), the macro arc shapes a **long-form set**, and it **recalls your motifs** (transformed) in the gaps.
+
+### STYLE — it plays your way
+Learns your **playing style** from every recorded note — tempo (inter-onset), grid vs rubato, **articulation** (legato/staccato), phrase length, **intervals** (steps vs leaps) + direction, register, **dynamics**. With **K3** on, it biases the companion's generation — timing, phrase length, transpositions, articulation, velocity — so it plays *in your manner*, not just with your sound. The page shows the learned profile.
+
+*Deux couches opt-in (chacune une page, toggle **K3**, off par défaut). **MIND** : montre ce que TEAMMATE entend (énergie / densité / tension / arc macro / phrase / humeur) ; activée, le compagnon suit ta dynamique, ton intensité agite METABO (et tout le reste), un arc long structure le set, et il rappelle tes motifs dans les silences. **STYLE** : apprend ta manière de jouer (rythme, grille/rubato, articulation, intervalles, dynamique) et fait jouer le compagnon à ta façon.*
+
+---
+
+## The agent — a Pwnagotchi for music
+
+A **creature** with a face (page **FACE**) whose ASCII expression and one-liners are driven by everything inside — mood, METABO stress, your style, motif recall, and the **WiFi around it**. It speaks in English and calls you **agent**.
+
+- **Recognizes places** by their WiFi fingerprint: *"new place agent"*, then *"welcome back agent"* when you re-arm WiFi somewhere it knows (up to 12 places, **persisted across sessions**).
+- **Has opinions** on your playing: *"too repetitive"*, *"breathe agent!"*, *"nice agent!"*, *"my turn!"*.
+- **XP & levels**: it grows from networks discovered, places found, motifs learned and time played — announces *"level N agent!"* and shows **Lv N**. Persisted.
+- **Autonomy** (**K3** = AUTO, off by default): when you stop, it **dreams** — replaying your motifs on its own (*"dreaming…"*); when METABO gets monotonous, it **decides** to change the MGEN theme by itself.
+
+*Une **créature** à visage (page FACE), pilotée par tout l'état interne + le **WiFi** autour. Elle parle anglais et t'appelle **agent**. Elle **reconnaît les lieux** par leur empreinte WiFi (« welcome back agent » au rallumage, jusqu'à 12 lieux persistés), a des **opinions** sur ton jeu, gagne de l'**XP / niveaux**, et — sous **AUTO (K3)** — **rêve** tes motifs quand tu t'arrêtes et **décide** de changer le thème MGEN quand c'est monotone.*
+
+---
+
+## WiFi — the room is an instrument
+
+TEAMMATE can listen to the **WiFi activity** around it and make music from it (Norns only — needs the hardware). Passive scanning only: nearby networks (signal, channel, appearances) + traffic rate. Arm it from the **LIVE** page (9th mode).
+
+- **WiFi page** — monitor (signal bars per network + traffic) **and** per-network MIDI routing.
+- **Feeds the brain** — WiFi activity agitates METABO → the whole instrument reacts; also a MOD/input source (above).
+- **WiFi → MIDI (notes only)**:
+  - **WIFI MIDI** — a global **arpeggio** of the networks (channel → pitch, signal → velocity), a ping on each new network, on a chosen device + channel.
+  - **WiFi LINK** — assign **each network** to its own device + channel (**E2** select · **E3** channel · **K2** device · **K3** link). Each linked network plays its **own euclidean rhythm** over 16 steps (signal → density 2–8 hits, channel → offset) → a **polyrhythm drawn by the WiFi landscape**.
+- All WiFi notes are **clock-synced** (`clock.sync`, follows MGEN BPM and external MIDI clock) and **snapped to the MGEN scale**.
+
+*TEAMMATE peut écouter l'**activité WiFi** autour de lui et en faire de la musique (Norns seulement). Scan passif : réseaux (signal / canal / apparitions) + débit. Armé depuis la page **LIVE**. Page **WIFI** = moniteur + routage par réseau. Il **nourrit le cerveau** (agite METABO) et sert de source MOD/entrée. **WIFI MIDI** = arpège global des réseaux ; **WiFi LINK** = chaque réseau → son device/canal avec son **rythme euclidien** (signal → densité, canal → décalage) → polyrythme du paysage WiFi. Notes **calées sur l'horloge** et **sur la gamme MGEN**.*
+
+> **Not** included: SSID broadcasting / beacon-flooding (the Norns Wi-Fi chip has no monitor mode) — WiFi here is **read-only** observation.
+
+---
+
 ## Memory / persistence
 
-All your settings persist across reloads and reboots. They're saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) — automatically every 30 s, on exit, and reloaded on startup. This covers the companion, POtO, 8OS, MGEN (BPM / scale / evo / channels / routing), METABO, NIAKABY, SPAT, the MIDI routing matrix, and the MGEN taste bank. Live run-states (which modes are playing) are **not** restored — the script starts clean and you arm modes from the LIVE page.
+All your settings persist across reloads and reboots. They're saved to the norns SD card (`dust/data/TEAMMATE.POTO/`) — automatically every 30 s, on exit, and reloaded on startup. This covers the companion, POtO (incl. SRC / MOD), 8OS (incl. SRC / MOD), MGEN (BPM / scale / evo / channels / routing), METABO, NIAKABY, SPAT, the MIDI routing matrix, the MGEN taste bank, the **MIND / STYLE / AUTO** toggles, the **WiFi → MIDI** settings and per-network links, and the **agent's XP & level**. The agent's **known WiFi places** are saved in their own file (`wifi_places.data`, isolated so it can never corrupt the main save). Live run-states (which modes are playing) are **not** restored — the script starts clean and you arm modes from the LIVE page.
 
-*Tous tes réglages persistent entre les rechargements et les reboots — sauvegardés sur la carte SD (`dust/data/TEAMMATE.POTO/`) toutes les 30 s, à la fermeture, et rechargés au démarrage. Les états de jeu (modes en cours) ne sont pas restaurés : le script démarre propre, tu armes les modes depuis la page LIVE.*
+*Tous tes réglages persistent entre les rechargements et les reboots — carte SD (`dust/data/TEAMMATE.POTO/`), toutes les 30 s, à la fermeture, rechargés au démarrage. Couvre le compagnon, POtO (SRC / MOD), 8OS (SRC / MOD), MGEN, METABO, NIAKABY, SPAT, la matrice MIDI, la banque de goûts MGEN, les toggles **MIND / STYLE / AUTO**, les réglages **WiFi → MIDI** et liens par réseau, et l'**XP / niveau de l'agent**. Les **lieux WiFi** connus sont dans leur propre fichier (`wifi_places.data`, isolé). Les états de jeu ne sont pas restaurés.*
 
 ---
 
