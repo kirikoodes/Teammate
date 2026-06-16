@@ -2353,6 +2353,11 @@ wifi_midi_dev = 1       -- device 1..4
 wifi_midi_ch  = 1       -- canal 1..16
 wifi_midi_cc  = 1       -- CC pour le trafic (1 = modwheel)
 
+-- routage PAR RESEAU : chaque SSID -> sa voix MIDI (device + canal). Le signal
+-- du reseau pilote velocite/CC ; present = note tenue, absent = note off.
+wifi_links    = {}      -- ssid -> { dev=1..4, ch=1..16, on=bool }
+wifi_link_cur = 1       -- curseur dans la liste des reseaux scannes
+
 -- ===== FACE : une "creature" a la Pwnagotchi qui montre l'humeur de TEAMMATE =====
 -- visage ASCII + replique, pilote par l'etat interne (mind / style / METABO / corpus).
 face_blink = 0
@@ -2577,7 +2582,7 @@ function state_save()
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
       mind_on=mind.on, style_on=style.on, wifi_on=wifi.on,
-      wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc,
+      wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2618,6 +2623,7 @@ function state_load()
     if st.wifi_on ~= nil then wifi.on = st.wifi_on end
     wifi_midi_on=g(st.wifi_midi_on,wifi_midi_on) ; wifi_midi_dev=g(st.wifi_midi_dev,wifi_midi_dev)
     wifi_midi_ch=g(st.wifi_midi_ch,wifi_midi_ch) ; wifi_midi_cc=g(st.wifi_midi_cc,wifi_midi_cc)
+    if type(st.wifi_links)=="table" then wifi_links=st.wifi_links end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2715,6 +2721,34 @@ function init()
         out:cc(wifi_midi_cc, math.floor((wifi.traffic or 0) * 127), wifi_midi_ch)  -- trafic -> CC
       elseif lastnote and out then
         out:note_off(lastnote, wifi_midi_ch) ; lastnote = nil
+      end
+    end
+  end)
+
+  -- WIFI LINK : chaque reseau LIE = une voix MIDI tenue (hauteur=canal,
+  -- velocite/CC=signal) sur son device/canal. Reconcilie 2x/s.
+  clock.run(function()
+    local voices = {}   -- ssid -> {note, dev, ch}
+    while true do
+      clock.sleep(0.5)
+      local present = {}
+      if wifi.on then for _, n in ipairs(wifi.nets) do present[n.ssid] = n end end
+      for ssid, link in pairs(wifi_links) do
+        local v = voices[ssid] ; local n = present[ssid]
+        if wifi.on and link.on and n then
+          local note = wifi.note_for(n)
+          local out  = midi_outs[link.dev]
+          if out then
+            if v and v.note ~= note then out:note_off(v.note, v.ch) ; v = nil ; voices[ssid] = nil end
+            if not v then
+              local vel = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
+              out:note_on(note, vel, link.ch) ; voices[ssid] = { note = note, dev = link.dev, ch = link.ch }
+            end
+            out:cc(1, math.floor((n.sig or 0) / 100 * 127), link.ch)   -- signal du reseau -> CC1
+          end
+        elseif v then
+          local out = midi_outs[v.dev] ; if out then out:note_off(v.note, v.ch) end ; voices[ssid] = nil
+        end
       end
     end
   end)
@@ -2831,7 +2865,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 34,35, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 34,35,36, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -2900,11 +2934,20 @@ function enc(n, d)
       poto_src_cursor = ((poto_src_cursor - 1 + d) % #poto_src_keys) + 1
     elseif page == 35 then
       wifi_midi_dev = util.clamp(wifi_midi_dev + d, 1, 4)
+    elseif page == 36 then
+      wifi_link_cur = util.clamp(wifi_link_cur + d, 1, math.max(1, #wifi.nets))
     end
   elseif n == 3 then
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 35 then wifi_midi_ch = util.clamp(wifi_midi_ch + d, 1, 16) end
+    if page == 36 then
+      local net = wifi.nets[wifi_link_cur]
+      if net then
+        local L = wifi_links[net.ssid] or { dev = 1, ch = 1, on = false }
+        L.ch = util.clamp(L.ch + d, 1, 16) ; wifi_links[net.ssid] = L
+      end
+    end
     if page == 25 then meta_note_inf = util.clamp(meta_note_inf + d * 0.05, 0, 1) end
     if page == 26 then mgen_recall = util.clamp(mgen_recall + d * 0.05, 0, 1) end
     if page == 1 then
@@ -3022,6 +3065,16 @@ function key(n, z)
       local ccs = { 1, 7, 11, 74 }   -- modwheel / volume / expression / cutoff
       local i = 1 ; for k, v in ipairs(ccs) do if v == wifi_midi_cc then i = k end end
       wifi_midi_cc = ccs[(i % #ccs) + 1]
+    end
+    redraw() ; return
+  end
+  if page == 36 then
+    local net = wifi.nets[wifi_link_cur]
+    if net then
+      local L = wifi_links[net.ssid] or { dev = 1, ch = 1, on = false }
+      if n == 2 then L.dev = (L.dev % 4) + 1
+      elseif n == 3 then L.on = not L.on end
+      wifi_links[net.ssid] = L
     end
     redraw() ; return
   end
@@ -3332,6 +3385,35 @@ function redraw()
     screen.level(6)  ; screen.move(2, 44) ; screen.text("reseaux -> notes (" .. (wifi.count or 0) .. ")")
     screen.level(6)  ; screen.move(2, 52) ; screen.text("trafic -> CC " .. wifi_midi_cc)
     screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 on/off   K2 CC")
+    screen.update() ; return
+  end
+  if page == 36 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("WIFI LINK")
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. " res")
+    local n = #wifi.nets
+    if n == 0 then
+      screen.level(4) ; screen.move(2, 34) ; screen.text("aucun reseau (arme WIFI)")
+      screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel E3 ch K2 dev K3 link")
+      screen.update() ; return
+    end
+    wifi_link_cur = util.clamp(wifi_link_cur, 1, n)
+    local start = util.clamp(wifi_link_cur - 1, 1, math.max(1, n - 3))
+    local y = 20
+    for i = start, math.min(start + 3, n) do
+      local net  = wifi.nets[i]
+      local link = wifi_links[net.ssid]
+      local sel  = (i == wifi_link_cur)
+      screen.level(sel and 15 or 6) ; screen.move(2, y)
+      screen.text((sel and ">" or " ") .. (((net.ssid == "") and "<cache>") or net.ssid):sub(1, 9))
+      if link and link.on then
+        screen.level(sel and 15 or 10) ; screen.move(78, y) ; screen.text("D" .. link.dev .. "c" .. link.ch)
+      else
+        screen.level(3) ; screen.move(78, y) ; screen.text("--")
+      end
+      y = y + 9
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel E3 ch K2 dev K3 link")
     screen.update() ; return
   end
 
