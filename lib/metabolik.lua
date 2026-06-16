@@ -61,7 +61,7 @@ M.spat = false
 M.cc   = nil
 
 -- source qui nourrit le metabolisme : INPUT (micro/ligne) / COMP (le compagnon) / MIX (les deux)
-M.feed_names = {"INPUT","COMP","MIX"}
+M.feed_names = {"INPUT","COMP","MIX","WIFI"}
 M.feed_idx   = 1
 M.react      = 0.5    -- reactivite au compagnon : 0 = lisse/lent, 1 = vif/serre
 
@@ -555,6 +555,7 @@ local FEED_DESC = {
   INPUT = "micro / ligne",
   COMP  = "le compagnon",
   MIX   = "entree + compagnon",
+  WIFI  = "activite des reseaux",
 }
 
 function M.redraw_feed()

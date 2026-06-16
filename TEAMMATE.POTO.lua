@@ -2817,6 +2817,8 @@ function init()
                          (comp_freq > 0 and ce > cur_rms) and comp_freq or cur_freq,
                          math.max(cur_centroid, comp_centroid),
                          math.max(cur_flatness, comp_flatness), 1/30)
+      elseif fi == 4 then    -- WIFI : l'activite des reseaux nourrit la cellule
+        metabolik.update(wifi.energy or 0, wifi.freq(), 3000, 0.1, 1/30)
       else                   -- INPUT : micro / ligne (defaut)
         metabolik.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
       end

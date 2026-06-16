@@ -1401,7 +1401,7 @@ const metabolik=(()=>{
   M.density_names=['SPARSE','FLOW','DENSE'];M.density_idx=1;M.motif=null;M.rhythm=null;M.motif_age=0;
   M.persona_names=['CELL','PIANO','POLY','BASS'];M.persona_idx=0;
   M.spat=false;M.cc=null;
-  M.feed_names=['INPUT','COMP','MIX'];M.feed_idx=0;M.react=0.5;
+  M.feed_names=['INPUT','COMP','MIX','WIFI'];M.feed_idx=0;M.react=0.5;
   M.influence_names=['OFF','LOW','MID','HIGH'];M.INFLU_AMT=[0,0.33,0.66,1.0];M.influence_idx=0;
   M.follow_amt=0.6;M.in_note=null;M.center=60;M.note_on=null;M.note_off=null;
   let feat={level:0,bright:0,texture:0,pitchN:0},prevV=null,novAcc=0;
@@ -1786,6 +1786,7 @@ setInterval(()=>{
   const ce=comp_rms*(0.6+react*1.2),fi=metabolik.feed_idx;
   if(fi===1)metabolik.update(ce,comp_freq,comp_centroid,comp_flatness,1/30);
   else if(fi===2)metabolik.update(Math.max(cur_rms,ce),(comp_freq>0&&ce>cur_rms)?comp_freq:cur_freq,Math.max(cur_centroid,comp_centroid),Math.max(cur_flatness,comp_flatness),1/30);
+  else if(fi===3)metabolik.update(wifi.energy||0,0,3000,0.1,1/30);  // WIFI : inerte ici (pas de scan navigateur)
   else metabolik.update(cur_rms,cur_freq,cur_centroid,cur_flatness,1/30);
 },1000/30);
 // METABO >>> MGEN : secousses
@@ -1844,7 +1845,7 @@ function drawMetaboPlay(){const M=metabolik;
 }
 function drawMetaboFeed(){const M=metabolik;
   S.font_size(8);S.level(15);S.move(2,8);S.text('METABO FEED');txtR(126,8,M.on?'ON':'off');
-  const f=M.feed_names[M.feed_idx],FD={INPUT:'micro / ligne',COMP:'le compagnon',MIX:'entree + compagnon'};
+  const f=M.feed_names[M.feed_idx],FD={INPUT:'micro / ligne',COMP:'le compagnon',MIX:'entree + compagnon',WIFI:'activite des reseaux'};
   S.level(4);S.move(2,22);S.text('E2 SOURCE');S.level(15);S.move(74,22);S.text(f);
   S.level(3);S.move(2,31);S.text(FD[f]||'');
   S.level(4);S.move(2,44);S.text('E3 REACT');S.level(15);S.move(74,44);S.text(Math.floor(M.react*100)+'%');
