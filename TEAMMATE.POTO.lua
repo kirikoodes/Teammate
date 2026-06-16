@@ -2718,7 +2718,6 @@ function init()
         local vel  = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
         out:note_on(note, vel, wifi_midi_ch)
         lastnote = note
-        out:cc(wifi_midi_cc, math.floor((wifi.traffic or 0) * 127), wifi_midi_ch)  -- trafic -> CC
       elseif lastnote and out then
         out:note_off(lastnote, wifi_midi_ch) ; lastnote = nil
       end
@@ -2744,7 +2743,6 @@ function init()
               local vel = math.max(1, math.min(127, math.floor((n.sig or 50) * 1.27)))
               out:note_on(note, vel, link.ch) ; voices[ssid] = { note = note, dev = link.dev, ch = link.ch }
             end
-            out:cc(1, math.floor((n.sig or 0) / 100 * 127), link.ch)   -- signal du reseau -> CC1
           end
         elseif v then
           local out = midi_outs[v.dev] ; if out then out:note_off(v.note, v.ch) end ; voices[ssid] = nil
@@ -3060,12 +3058,7 @@ function key(n, z)
     redraw() ; return
   end
   if page == 35 then
-    if n == 3 then wifi_midi_on = not wifi_midi_on
-    elseif n == 2 then
-      local ccs = { 1, 7, 11, 74 }   -- modwheel / volume / expression / cutoff
-      local i = 1 ; for k, v in ipairs(ccs) do if v == wifi_midi_cc then i = k end end
-      wifi_midi_cc = ccs[(i % #ccs) + 1]
-    end
+    if n == 3 then wifi_midi_on = not wifi_midi_on end
     redraw() ; return
   end
   if page == 36 then
@@ -3383,8 +3376,7 @@ function redraw()
     screen.level(4)  ; screen.move(2, 32) ; screen.text("E3 canal")
     screen.level(15) ; screen.move(74, 32) ; screen.text("ch " .. wifi_midi_ch)
     screen.level(6)  ; screen.move(2, 44) ; screen.text("reseaux -> notes (" .. (wifi.count or 0) .. ")")
-    screen.level(6)  ; screen.move(2, 52) ; screen.text("trafic -> CC " .. wifi_midi_cc)
-    screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 on/off   K2 CC")
+    screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 on/off")
     screen.update() ; return
   end
   if page == 36 then
