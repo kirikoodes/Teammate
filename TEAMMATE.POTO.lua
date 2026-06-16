@@ -2734,8 +2734,8 @@ function state_save()
     util.make_dir(norns.state.data)
     local mon, mmch = {}, {}
     for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
-    local cc_src, cc_lon = {}, {}
-    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on end
+    local cc_src, cc_lon, cc_num = {}, {}, {}
+    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on ; cc_num[i] = cc_lanes[i].num end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -2748,7 +2748,7 @@ function state_save()
       mind_on=mind.on, style_on=style.on, wifi_on=wifi.on, creature_auto=creature_auto,
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
-      cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon,
+      cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2797,6 +2797,7 @@ function state_load()
     if type(st.cc_src)=="table" then for i=1,16 do if st.cc_src[i] then cc_lanes[i].src=st.cc_src[i] end end end
     local lon = (type(st.cc_lon)=="table" and st.cc_lon) or (type(st.cc_on)=="table" and st.cc_on) or nil
     if lon then for i=1,16 do cc_lanes[i].on=lon[i] and true or false end end
+    if type(st.cc_num)=="table" then for i=1,16 do if st.cc_num[i] then cc_lanes[i].num=st.cc_num[i] end end end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2828,7 +2829,7 @@ function init()
   math.randomseed(os.time())
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
-  for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5 } end  -- 16 CC
+  for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5, num = i } end  -- 16 CC (num = numero CC envoye)
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
   pcall(function() audio.level_monitor(p_monitor) end)
@@ -2915,7 +2916,7 @@ function init()
             if tgt then
               lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2   -- lissage
               local v = math.floor(lane.val * 127 + 0.5)
-              if v ~= last[i] then out:cc(i, v, cc_ch) ; last[i] = v end    -- CC numero = i
+              if v ~= last[i] then out:cc(lane.num or i, v, cc_ch) ; last[i] = v end
             end
           end
         end
@@ -3196,7 +3197,7 @@ function enc(n, d)
         cc_ch = util.clamp(cc_ch + d, 1, 16)
       else
         local lane = cc_lanes[cc_cursor]
-        lane.src = ((lane.src - 1 + d) % #CC_SRC) + 1
+        lane.num = util.clamp((lane.num or cc_cursor) + d, 0, 127)   -- numero CC vise (0..127)
       end
     end
     if page == 36 then
@@ -3332,13 +3333,26 @@ function key(n, z)
     redraw() ; return
   end
   if page == 37 then
-    if n == 2 then cc_dev = (cc_dev % 4) + 1
+    if n == 2 then
+      if cc_cursor == 0 then
+        cc_dev = (cc_dev % 4) + 1                                  -- OUT : device global
+      else
+        local lane = cc_lanes[cc_cursor]
+        lane.src = (lane.src % #CC_SRC) + 1                        -- lane : cycle la source
+      end
     elseif n == 3 then
       if cc_cursor == 0 then
         local anyon = false ; for i = 1, 16 do if cc_lanes[i].on then anyon = true end end
-        for i = 1, 16 do cc_lanes[i].on = not anyon end
+        for i = 1, 16 do
+          cc_lanes[i].on = not anyon
+          if cc_lanes[i].on and (cc_lanes[i].src or 1) == 1 then cc_lanes[i].src = 9 end  -- defaut LFO
+        end
+        cc_on = not anyon            -- allumer toutes les lanes arme aussi le master
       else
-        cc_lanes[cc_cursor].on = not cc_lanes[cc_cursor].on
+        local lane = cc_lanes[cc_cursor]
+        lane.on = not lane.on
+        if lane.on and (lane.src or 1) == 1 then lane.src = 9 end                          -- defaut LFO
+        if lane.on then cc_on = true end                                                   -- arme le master
       end
     end
     redraw() ; return
@@ -3695,18 +3709,20 @@ function redraw()
     screen.level(cc_on and 12 or 3) ; screen.move(126, 8) ; screen.text_right(cc_on and "ARM" or "off")
     -- ligne OUT (device + canal global) : curseur 0
     local osel = (cc_cursor == 0)
+    local dv   = midi_outs[cc_dev]
+    local dnm  = (dv and dv.name and dv.name:sub(1, 8)) or "none"
     screen.level(osel and 15 or 5) ; screen.move(2, 17)
-    screen.text((osel and ">" or " ") .. "OUT  D" .. cc_dev .. "  ch " .. cc_ch)
+    screen.text((osel and ">" or " ") .. "D" .. cc_dev .. " " .. dnm .. " ch" .. cc_ch)
     -- liste des lanes autour du curseur (5 visibles)
     local cur   = math.max(1, cc_cursor)
-    local start = util.clamp(cur - 2, 1, math.max(1, 16 - 4))
+    local start = util.clamp(cur - 2, 1, math.max(1, 16 - 3))
     local y = 27
-    for i = start, math.min(start + 4, 16) do
+    for i = start, math.min(start + 3, 16) do
       local lane = cc_lanes[i]
       local sel  = (i == cc_cursor)
-      screen.level(sel and 15 or 6) ; screen.move(2, y)
-      screen.text((sel and ">" or " ") .. "CC" .. i)
-      screen.level(lane.on and (sel and 15 or 10) or 3) ; screen.move(34, y)
+      screen.level(sel and 15 or (lane.on and 8 or 4)) ; screen.move(2, y)
+      screen.text((sel and ">" or " ") .. "CC" .. (lane.num or i))
+      screen.level(lane.on and (sel and 15 or 10) or 3) ; screen.move(40, y)
       screen.text(CC_SRC[lane.src or 1])
       -- barre de valeur
       screen.level(2)  ; screen.rect(74, y - 4, 44, 3) ; screen.stroke()
@@ -3715,6 +3731,9 @@ function redraw()
       end
       y = y + 8
     end
+    screen.level(3) ; screen.move(2, 62)
+    if cc_cursor == 0 then screen.text("E3 ch  K2 dev  K3 arm")
+    else screen.text("E3 cc#  K2 src  K3 on") end
     screen.update() ; return
   end
 
