@@ -2373,57 +2373,108 @@ wifi_midi_cc  = 1       -- CC pour le trafic (1 = modwheel)
 wifi_links    = {}      -- ssid -> { dev=1..4, ch=1..16, on=bool }
 wifi_link_cur = 1       -- curseur dans la liste des reseaux scannes
 
--- ===== FACE : une "creature" a la Pwnagotchi qui montre l'humeur de TEAMMATE =====
--- visage ASCII + replique, pilote par l'etat interne (mind / style / METABO / corpus).
-face_blink = 0
+-- ===== FACE : une "creature" a la Pwnagotchi (humeur + lieux WiFi + opinions + autonomie) =====
+face_blink     = 0
+creature_auto  = false   -- AUTO (K3) : la creature AGIT (reve + decide). off = affichage seul.
+creature_dream = false   -- en train de rever (idle profond + auto)
+
+-- MEMOIRE DES LIEUX : empreinte WiFi (ensemble des SSID) -> reconnait les endroits
+wifi_places      = {}    -- { { set = {ssid=true,...}, n = vues }, ... }
+wifi_place_state = "--"  -- "CONNU" / "NOUVEAU" / "--"
+wifi_place_id    = nil
+wifi_unknown_n   = 0
+
+function wifi_places_save()   -- fichier separe, isole : ne touche pas la sauvegarde principale
+  pcall(function()
+    if norns and norns.state and norns.state.data then
+      tab.save(wifi_places, norns.state.data .. "wifi_places.data")
+    end
+  end)
+end
+
+function wifi_place_update()
+  if not (wifi and wifi.on) or #wifi.nets < 2 then wifi_place_state = "--" ; return end
+  local cur, curlist, nc = {}, {}, 0
+  for _, nn in ipairs(wifi.nets) do
+    if nn.ssid ~= "" then cur[nn.ssid] = true ; curlist[#curlist + 1] = nn.ssid ; nc = nc + 1 end
+  end
+  -- meilleure similarite (Jaccard) avec les lieux connus
+  local best, bi = 0, nil
+  for i, pl in ipairs(wifi_places) do
+    local inter, seen = 0, {}
+    for _, s in ipairs(pl.list) do seen[s] = true ; if cur[s] then inter = inter + 1 end end
+    for s in pairs(cur) do seen[s] = true end
+    local u = 0 ; for _ in pairs(seen) do u = u + 1 end
+    local j = u > 0 and inter / u or 0
+    if j > best then best = j ; bi = i end
+  end
+  if best >= 0.5 then
+    wifi_place_state = "CONNU" ; wifi_place_id = bi
+    wifi_places[bi].n = (wifi_places[bi].n or 0) + 1
+    wifi_unknown_n = 0
+  else
+    wifi_place_state = "NOUVEAU"
+    wifi_unknown_n = wifi_unknown_n + 1
+    if wifi_unknown_n >= 3 and nc >= 3 then            -- nouveau lieu confirme -> memorise
+      wifi_places[#wifi_places + 1] = { list = curlist, n = 1 }
+      while #wifi_places > 12 do table.remove(wifi_places, 1) end
+      wifi_unknown_n = 0 ; wifi_place_id = #wifi_places
+      wifi_places_save()
+    end
+  end
+end
+
 function face_state()
   local m   = mind
   local sil = sil_sec or 0
   local stress = (metabolik and metabolik.on and metabolik.stressFx) or 0
-  -- ===== mode WIFI : la creature renseigne sur les reseaux (Pwnagotchi-style) =====
+  -- #3 REVE (autonomie + silence profond)
+  if creature_dream then return "(u_u)", "reve..." end
+  -- #1 LIEUX + reseaux (Pwnagotchi)
   if wifi and wifi.on then
     local nowt = util.time()
-    if wifi.last_new and (nowt - (wifi.last_new_t or 0) < 6) then
-      local nm = (wifi.last_new == "" and "<cache>") or wifi.last_new
-      return "(O_O)", "new! " .. nm:sub(1, 13)
+    if wifi.last_new and (nowt - (wifi.last_new_t or 0) < 5) then
+      return "(O_O)", "new! " .. (((wifi.last_new == "") and "<cache>") or wifi.last_new):sub(1, 12)
     end
-    if (wifi.count or 0) == 0 then return "(-_-)", "aucun reseau..." end
+    if wifi_place_state == "NOUVEAU" then return "(o_o)", "nouveau lieu !" end
+    if wifi_place_state == "CONNU"   then return "(^_^)", "je reconnais ici" end
+    if (wifi.count or 0) == 0 then return "(-_-)", "aucun reseau" end
     if (wifi.traffic or 0) > 0.5 then return "(>_<)", "ca trafique !" end
-    if wifi.peak then
-      local pn = (wifi.peak.ssid == "" and "<cache>") or wifi.peak.ssid
-      return "(o_o)", wifi.count .. " res - " .. pn:sub(1, 8)
-    end
     return "(o_o)", (wifi.count or 0) .. " reseaux"
   end
+  -- #4 OPINIONS sur ton jeu
   if strat_name == "MOTIF" then return "(^_~)", "deja entendu ca" end
   if count < 4 then return "(o_o)", "j'apprends ton monde" end
+  if stress > 0.72 then return "(>_<)", "trop repetitif" end
+  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", "respire !" end
   if m.energy < 0.04 then
     if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "j'ecoute" end
   end
-  if stress > 0.66 then return "(>_<)", "ca chauffe !" end
-  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "on monte !!" end
+  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "j'aime ca !" end
   if m.phrase == "GAP" then return "(o_o)", "a moi !" end
   if style and style.on then return "(^_^)", "je joue comme toi" end
-  if m.mood == "DENSE" then return "(@_@)", "ca foisonne" end
   return "(^_^)", "je te suis"
 end
 
 function face_redraw()
   screen.clear()
   local f, quip = face_state()
-  -- clignement occasionnel
-  if face_blink > 0 then face_blink = face_blink - 1 ; f = f:gsub("[o%^%*@>]", "-") end
+  if face_blink > 0 then face_blink = face_blink - 1 ; f = f:gsub("[oO%^%*@>]", "-") end
   screen.font_size(31) ; screen.level(15)
-  screen.move(64, 40) ; screen.text_center(f)
+  screen.move(64, 38) ; screen.text_center(f)
   screen.font_size(8)
-  screen.level(9) ; screen.move(64, 58) ; screen.text_center(quip)
+  screen.level(9) ; screen.move(64, 52) ; screen.text_center(quip)
+  -- entete : autonomie + contexte
+  screen.level(creature_auto and 12 or 3) ; screen.move(2, 8) ; screen.text(creature_auto and "AUTO" or "auto")
   if wifi and wifi.on then
-    screen.level(3) ; screen.move(2, 8)   ; screen.text("wifi " .. (wifi.count or 0))
-    screen.level(wifi.newcount and wifi.newcount > 0 and 13 or 3)
-    screen.move(126, 8) ; screen.text_right("+" .. (wifi.newcount or 0))
+    screen.level(3) ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. "r")
   else
-    screen.level(3) ; screen.move(2, 8)   ; screen.text("c:" .. count)
-    screen.level(3) ; screen.move(126, 8) ; screen.text_right(#motifs .. " mtf")
+    screen.level(3) ; screen.move(126, 8) ; screen.text_right("c:" .. count)
+  end
+  -- pied : K3 + lieu connu/nouveau
+  screen.level(4) ; screen.move(2, 63) ; screen.text("K3 auto")
+  if wifi and wifi.on and wifi_place_state ~= "--" then
+    screen.level(6) ; screen.move(126, 63) ; screen.text_right(wifi_place_state)
   end
   screen.update()
 end
@@ -2596,7 +2647,7 @@ function state_save()
       os8_vol=os8_vol, os8_size=os8_size, os8_sync=os8_sync, os8_src=os8_src, os8_pitch=os8_pitch, os8_spread=os8_spread, os8_trans=os8_trans,
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
-      mind_on=mind.on, style_on=style.on, wifi_on=wifi.on,
+      mind_on=mind.on, style_on=style.on, wifi_on=wifi.on, creature_auto=creature_auto,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -2636,6 +2687,7 @@ function state_load()
     if st.mind_on ~= nil then mind.on = st.mind_on end
     if st.style_on ~= nil then style.on = st.style_on end
     if st.wifi_on ~= nil then wifi.on = st.wifi_on end
+    if st.creature_auto ~= nil then creature_auto = st.creature_auto end
     wifi_midi_on=g(st.wifi_midi_on,wifi_midi_on) ; wifi_midi_dev=g(st.wifi_midi_dev,wifi_midi_dev)
     wifi_midi_ch=g(st.wifi_midi_ch,wifi_midi_ch) ; wifi_midi_cc=g(st.wifi_midi_cc,wifi_midi_cc)
     if type(st.wifi_links)=="table" then wifi_links=st.wifi_links end
@@ -2669,6 +2721,7 @@ end
 function init()
   math.randomseed(os.time())
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
+  pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
   pcall(function() audio.level_monitor(p_monitor) end)
@@ -2709,7 +2762,29 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(4)
-      if wifi.on then pcall(wifi.poll, util.time()) end
+      if wifi.on then pcall(wifi.poll, util.time()) ; pcall(wifi_place_update) end
+    end
+  end)
+
+  -- CREATURE : autonomie (reve quand idle + decisions quand monotone). Opt-in (AUTO).
+  clock.run(function()
+    while true do
+      clock.sleep(2.5)
+      local idle = (sil_sec or 0) > 8 and (mind.energy or 0) < 0.04
+      creature_dream = creature_auto and idle and (#motifs > 0)
+      if creature_auto then
+        if idle then
+          -- #3 REVE : rejoue un de tes motifs, transforme, tout seul
+          if #motifs > 0 and math.random() < 0.35 then
+            clock.run(function() local ok = pcall(play_motif, motifs[math.random(#motifs)]) end)
+          end
+        elseif metabolik.on and (metabolik.stressFx or 0) > 0.72 and mgen_running then
+          -- #5 DECIDE : la monotonie l'ennuie -> il change le theme MGEN
+          if math.random() < 0.2 then mgen_gen_all(true) end
+        end
+      else
+        creature_dream = false
+      end
     end
   end)
 
@@ -3070,6 +3145,10 @@ function key(n, z)
   end
   if page == 32 then
     if n == 3 then style.on = not style.on end
+    redraw() ; return
+  end
+  if page == 33 then
+    if n == 3 then creature_auto = not creature_auto end   -- la creature AGIT (reve + decide)
     redraw() ; return
   end
   if page == 35 then
