@@ -2001,6 +2001,7 @@ function capture_motif(buf)
   local copy = {} ; for i, ev in ipairs(buf) do copy[i] = ev end
   motifs[#motifs + 1] = { evs = copy, energy = e }
   while #motifs > 4 do table.remove(motifs, 1) end
+  if creature_xp_add then creature_xp_add(5) end   -- motif appris -> XP
 end
 
 MOTIF_SEMIS = { 0, 0, 7, 12, -12, 5, -5 }
@@ -2378,6 +2379,16 @@ face_blink     = 0
 creature_auto  = false   -- AUTO (K3) : la creature AGIT (reve + decide). off = affichage seul.
 creature_dream = false   -- en train de rever (idle profond + auto)
 
+-- #2 XP / NIVEAU : l'agent grandit (reseaux, lieux, motifs, jeu). Persiste.
+creature_xp    = 0
+creature_level = 1
+creature_lvl_t = 0       -- horodatage du dernier level up (pour l'annonce)
+function creature_xp_add(amt)
+  creature_xp = creature_xp + (amt or 0)
+  local nl = 1 + math.floor(creature_xp / 200)
+  if nl > creature_level then creature_level = nl ; creature_lvl_t = util.time() end
+end
+
 -- MEMOIRE DES LIEUX : empreinte WiFi (ensemble des SSID) -> reconnait les endroits
 wifi_places      = {}    -- { { set = {ssid=true,...}, n = vues }, ... }
 wifi_place_state = "--"  -- "CONNU" / "NOUVEAU" / "--"
@@ -2419,7 +2430,7 @@ function wifi_place_update()
       wifi_places[#wifi_places + 1] = { list = curlist, n = 1 }
       while #wifi_places > 12 do table.remove(wifi_places, 1) end
       wifi_unknown_n = 0 ; wifi_place_id = #wifi_places
-      wifi_places_save()
+      wifi_places_save() ; creature_xp_add(20)   -- nouveau lieu decouvert
     end
   end
 end
@@ -2428,32 +2439,36 @@ function face_state()
   local m   = mind
   local sil = sil_sec or 0
   local stress = (metabolik and metabolik.on and metabolik.stressFx) or 0
+  -- #2 LEVEL UP : annonce 4 s
+  if creature_lvl_t > 0 and (util.time() - creature_lvl_t < 4) then
+    return "(^o^)", "niveau " .. creature_level .. " agent!"
+  end
   -- #3 REVE (autonomie + silence profond)
-  if creature_dream then return "(u_u)", "reve..." end
+  if creature_dream then return "(u_u)", "reve... agent" end
   -- #1 LIEUX + reseaux (Pwnagotchi)
   if wifi and wifi.on then
     local nowt = util.time()
     if wifi.last_new and (nowt - (wifi.last_new_t or 0) < 5) then
       return "(O_O)", "new! " .. (((wifi.last_new == "") and "<cache>") or wifi.last_new):sub(1, 12)
     end
-    if wifi_place_state == "NOUVEAU" then return "(o_o)", "nouveau lieu !" end
-    if wifi_place_state == "CONNU"   then return "(^_^)", "je reconnais ici" end
+    if wifi_place_state == "NOUVEAU" then return "(o_o)", "nouveau lieu agent" end
+    if wifi_place_state == "CONNU"   then return "(^_^)", "te revoila agent" end
     if (wifi.count or 0) == 0 then return "(-_-)", "aucun reseau" end
     if (wifi.traffic or 0) > 0.5 then return "(>_<)", "ca trafique !" end
     return "(o_o)", (wifi.count or 0) .. " reseaux"
   end
   -- #4 OPINIONS sur ton jeu
-  if strat_name == "MOTIF" then return "(^_~)", "deja entendu ca" end
-  if count < 4 then return "(o_o)", "j'apprends ton monde" end
+  if strat_name == "MOTIF" then return "(^_~)", "deja entendu, agent" end
+  if count < 4 then return "(o_o)", "j'apprends, agent" end
   if stress > 0.72 then return "(>_<)", "trop repetitif" end
-  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", "respire !" end
+  if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", "respire agent !" end
   if m.energy < 0.04 then
-    if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "j'ecoute" end
+    if sil > 6 then return "(-_-)", "zzZ" else return "(o_o)", "j'ecoute agent" end
   end
-  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "j'aime ca !" end
+  if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", "joli agent !" end
   if m.phrase == "GAP" then return "(o_o)", "a moi !" end
   if style and style.on then return "(^_^)", "je joue comme toi" end
-  return "(^_^)", "je te suis"
+  return "(^_^)", "a vos ordres agent"
 end
 
 function face_redraw()
@@ -2464,8 +2479,9 @@ function face_redraw()
   screen.move(64, 38) ; screen.text_center(f)
   screen.font_size(8)
   screen.level(9) ; screen.move(64, 52) ; screen.text_center(quip)
-  -- entete : autonomie + contexte
+  -- entete : autonomie + niveau de l'agent + contexte
   screen.level(creature_auto and 12 or 3) ; screen.move(2, 8) ; screen.text(creature_auto and "AUTO" or "auto")
+  screen.level(10) ; screen.move(58, 8) ; screen.text("Lv" .. creature_level)
   if wifi and wifi.on then
     screen.level(3) ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. "r")
   else
@@ -2648,6 +2664,7 @@ function state_save()
       os8_mod_on=os8_mod_on, os8_mod=os8_mod, os8_mod_src=os8_mod_src,
       poto_mod_on=poto_mod_on, poto_mod=poto_mod, poto_mod_src=poto_mod_src, poto_src=poto_src,
       mind_on=mind.on, style_on=style.on, wifi_on=wifi.on, creature_auto=creature_auto,
+      creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -2688,6 +2705,7 @@ function state_load()
     if st.style_on ~= nil then style.on = st.style_on end
     if st.wifi_on ~= nil then wifi.on = st.wifi_on end
     if st.creature_auto ~= nil then creature_auto = st.creature_auto end
+    creature_xp=g(st.creature_xp,creature_xp) ; creature_level=g(st.creature_level,creature_level)
     wifi_midi_on=g(st.wifi_midi_on,wifi_midi_on) ; wifi_midi_dev=g(st.wifi_midi_dev,wifi_midi_dev)
     wifi_midi_ch=g(st.wifi_midi_ch,wifi_midi_ch) ; wifi_midi_cc=g(st.wifi_midi_cc,wifi_midi_cc)
     if type(st.wifi_links)=="table" then wifi_links=st.wifi_links end
@@ -2762,7 +2780,7 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(4)
-      if wifi.on then pcall(wifi.poll, util.time()) ; pcall(wifi_place_update) end
+      if wifi.on then pcall(wifi.poll, util.time()) ; pcall(wifi_place_update) ; creature_xp_add((wifi.newcount or 0) * 2) end
     end
   end)
 
@@ -2772,6 +2790,7 @@ function init()
       clock.sleep(2.5)
       local idle = (sil_sec or 0) > 8 and (mind.energy or 0) < 0.04
       creature_dream = creature_auto and idle and (#motifs > 0)
+      if (mind.energy or 0) > 0.1 then creature_xp_add(1) end   -- jouer fait grandir l'agent
       if creature_auto then
         if idle then
           -- #3 REVE : rejoue un de tes motifs, transforme, tout seul
