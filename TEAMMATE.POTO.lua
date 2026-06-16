@@ -2847,7 +2847,12 @@ function init()
   clock.run(function()
     local idx, prevnew, lastnote = 0, 0, nil
     while true do
-      clock.sync(1/2)                              -- 8e de note, CALE sur la grille de l'horloge globale
+      if mclk_active then                          -- clock externe : verrouille sur les pulses (comme MGEN)
+        local tgt = mclk_pulse_count + 12           -- 1/8 = 12 pulses
+        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.001) end
+      else
+        clock.sync(1/2)                             -- interne : cale sur la grille
+      end
       local out = midi_outs[wifi_midi_dev]
       if wifi.on and wifi_midi_on and out and #wifi.nets > 0 then
         if lastnote then out:note_off(lastnote, wifi_midi_ch) ; lastnote = nil end
@@ -2878,7 +2883,12 @@ function init()
       return math.floor(i * k / n) ~= math.floor((i - 1) * k / n)
     end
     while true do
-      clock.sync(1/4)                               -- 1/16 de note, cale sur la grille
+      if mclk_active then                           -- clock externe : verrouille sur les pulses (comme MGEN)
+        local tgt = mclk_pulse_count + 6             -- 1/16 = 6 pulses
+        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.001) end
+      else
+        clock.sync(1/4)                              -- interne : cale sur la grille
+      end
       step = (step + 1) % 16
       for _, p in ipairs(playing) do
         local out = midi_outs[p.dev] ; if out then out:note_off(p.note, p.ch) end
