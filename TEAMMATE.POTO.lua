@@ -2824,12 +2824,12 @@ function init()
     while true do
       clock.sleep(2.5)
       local idle = (sil_sec or 0) > 8 and (mind.energy or 0) < 0.04
-      creature_dream = creature_auto and idle and (#motifs > 0)
+      creature_dream = creature_auto and idle and (#motifs > 0) and comp_on   -- reve = silencieux si IMPRO coupe
       if (mind.energy or 0) > 0.1 then creature_xp_add(1) end   -- jouer fait grandir l'agent
       if creature_auto then
         if idle then
-          -- #3 REVE : rejoue un de tes motifs, transforme, tout seul
-          if #motifs > 0 and math.random() < 0.35 then
+          -- #3 REVE : rejoue un de tes motifs, transforme, tout seul (respecte le mute IMPRO)
+          if comp_on and #motifs > 0 and math.random() < 0.35 then
             clock.run(function() local ok = pcall(play_motif, motifs[math.random(#motifs)]) end)
           end
         elseif metabolik.on and (metabolik.stressFx or 0) > 0.72 and mgen_running then
