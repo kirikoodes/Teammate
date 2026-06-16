@@ -1955,12 +1955,14 @@ function drawTaste(){
 }
 function drawLive(){
   S.font_size(8);S.level(15);S.move(2,8);S.text('LIVE');S.level(4);txtR(126,8,'K3 tgl  K2 panic');
-  const states=[p_poto_on?'ON':'off',os8_mode,mgen_running?'ON':'off',spat.on?'ON':'off',metabolik.on?'ON':'off',niakaby.on?'ON':'off',audio_midi_on?'ON':'off',comp_on?'ON':'off',wifi.on?(wifi.count+'res'):'off'];
+  const mode8=os8_mode==='TRANS'?'T':(os8_mode==='REC'?'R':'-');
+  const states=[p_poto_on?'on':'-',mode8,mgen_running?'on':'-',spat.on?'on':'-',metabolik.on?'on':'-',niakaby.on?'on':'-',audio_midi_on?'on':'-',comp_on?'on':'-',wifi.on?(''+(wifi.count||0)):'-'];
   const ons=[p_poto_on,os8_mode!=='OFF',mgen_running,spat.on,metabolik.on,niakaby.on,audio_midi_on,comp_on,wifi.on];
-  const ys=[13,19,25,31,37,43,49,55,61];
-  for(let i=0;i<LIVE_NAMES.length;i++){const sel=(i+1===live_cursor);
-    S.level(sel?15:(ons[i]?11:4));S.move(2,ys[i]);S.text((sel?'>':' ')+LIVE_NAMES[i]);
-    S.level(ons[i]?15:3);S.move(78,ys[i]);S.text(states[i]);}
+  const ys=[20,30,40,50,60];
+  for(let i=0;i<LIVE_NAMES.length;i++){
+    const left=(i<5),x=left?2:66,xr=left?60:124,y=ys[left?i:(i-5)],sel=(i+1===live_cursor);
+    S.level(sel?15:(ons[i]?11:4));S.move(x,y);S.text((sel?'>':' ')+LIVE_NAMES[i]);
+    S.level(ons[i]?13:3);txtR(xr,y,states[i]);}
 }
 // dispatch plein écran des pages parité (renvoie true si dessinée)
 function drawExtraPage(){

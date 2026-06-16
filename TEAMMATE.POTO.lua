@@ -3403,20 +3403,23 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
     screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 panic")
-    local states = { p_poto_on and "ON" or "off", os8_mode, mgen_running and "ON" or "off",
-                     spat.on and "ON" or "off", metabolik.on and "ON" or "off",
-                     niakaby.on and "ON" or "off", audio_midi_on and "ON" or "off",
-                     comp_on and "ON" or "off",
-                     wifi.on and (wifi.count .. "res") or "off" }
+    local mode8  = (os8_mode == "TRANS" and "T") or (os8_mode == "REC" and "R") or "-"
+    local states = { p_poto_on and "on" or "-", mode8, mgen_running and "on" or "-",
+                     spat.on and "on" or "-", metabolik.on and "on" or "-",
+                     niakaby.on and "on" or "-", audio_midi_on and "on" or "-",
+                     comp_on and "on" or "-", wifi.on and tostring(wifi.count or 0) or "-" }
     local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
                      niakaby.on, audio_midi_on, comp_on, wifi.on }
-    local ys     = { 13, 19, 25, 31, 37, 43, 49, 55, 61 }
+    local ys     = { 20, 30, 40, 50, 60 }
     for i = 1, #LIVE_NAMES do
-      local sel = (i == live_cursor)
+      local left = (i <= 5)
+      local x    = left and 2 or 66
+      local xr   = left and 60 or 124
+      local y    = ys[left and i or (i - 5)]
+      local sel  = (i == live_cursor)
       screen.level(sel and 15 or (ons[i] and 11 or 4))
-      screen.move(2, ys[i]) ; screen.text((sel and ">" or " ") .. LIVE_NAMES[i])
-      screen.level(ons[i] and 15 or 3)
-      screen.move(78, ys[i]) ; screen.text(states[i])
+      screen.move(x, y) ; screen.text((sel and ">" or " ") .. LIVE_NAMES[i])
+      screen.level(ons[i] and 13 or 3) ; screen.move(xr, y) ; screen.text_right(states[i])
     end
     screen.update() ; return
   end
