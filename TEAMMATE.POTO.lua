@@ -2390,10 +2390,13 @@ function creature_xp_add(amt)
 end
 
 -- MEMOIRE DES LIEUX : empreinte WiFi (ensemble des SSID) -> reconnait les endroits
-wifi_places      = {}    -- { { set = {ssid=true,...}, n = vues }, ... }
-wifi_place_state = "--"  -- "CONNU" / "NOUVEAU" / "--"
+wifi_places      = {}    -- { { list = {ssid,...}, n = vues }, ... }
+wifi_place_state = "--"  -- "KNOWN" / "NEW" / "--"
 wifi_place_id    = nil
 wifi_unknown_n   = 0
+wifi_place_back_t= 0     -- horodatage du "welcome back" (salut ponctuel a l'armement)
+wifi_greet       = false -- WiFi vient d'etre (r)allume : saluer au prochain lieu reconnu
+wifi_prev_on     = false
 
 function wifi_places_save()   -- fichier separe, isole : ne touche pas la sauvegarde principale
   pcall(function()
@@ -2433,6 +2436,11 @@ function wifi_place_update()
       wifi_places_save() ; creature_xp_add(20)   -- nouveau lieu decouvert
     end
   end
+  -- salut ponctuel : seulement si on vient de (r)allumer le WiFi ET qu'on reconnait l'endroit
+  if wifi_greet then
+    if wifi_place_state == "KNOWN" then wifi_place_back_t = util.time() end
+    wifi_greet = false
+  end
 end
 
 function face_state()
@@ -2452,7 +2460,9 @@ function face_state()
       return "(O_O)", "new! " .. (((wifi.last_new == "") and "<hidden>") or wifi.last_new):sub(1, 12)
     end
     if wifi_place_state == "NEW"   then return "(o_o)", "new place agent" end
-    if wifi_place_state == "KNOWN" then return "(^_^)", "welcome back agent" end
+    if wifi_place_state == "KNOWN" and (util.time() - (wifi_place_back_t or 0)) < 5 then
+      return "(^_^)", "welcome back agent"
+    end
     if (wifi.count or 0) == 0 then return "(-_-)", "no networks" end
     if (wifi.traffic or 0) > 0.5 then return "(>_<)", "busy traffic!" end
     return "(o_o)", (wifi.count or 0) .. " networks"
@@ -2780,6 +2790,8 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(4)
+      if wifi.on and not wifi_prev_on then wifi_greet = true end   -- WiFi (r)allume -> saluer une fois
+      wifi_prev_on = wifi.on
       if wifi.on then pcall(wifi.poll, util.time()) ; pcall(wifi_place_update) ; creature_xp_add((wifi.newcount or 0) * 2) end
     end
   end)
