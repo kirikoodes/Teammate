@@ -3379,14 +3379,15 @@ function redraw()
   if page == 36 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("WIFI")
-    screen.level(8)  ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. "res")
-    screen.level(3)  ; screen.rect(80, 4, 28, 3) ; screen.stroke()                       -- trafic
-    screen.level(11) ; screen.rect(80, 4, 28 * (wifi.traffic or 0), 3) ; screen.fill()
+    -- trafic : barre au milieu de l'entete (n'empiete pas sur le compteur)
+    screen.level(3)  ; screen.move(34, 8) ; screen.text("t")
+    screen.level(2)  ; screen.rect(42, 3, 44, 4) ; screen.stroke()
+    screen.level(11) ; screen.rect(42, 3, 44 * (wifi.traffic or 0), 4) ; screen.fill()
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. "r")
     local n = #wifi.nets
     if n == 0 then
       screen.level(4) ; screen.move(2, 34) ; screen.text("aucun reseau")
       screen.level(4) ; screen.move(2, 46) ; screen.text("(arme WIFI sur LIVE)")
-      screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3ch K2dev K3lnk")
       screen.update() ; return
     end
     wifi_link_cur = util.clamp(wifi_link_cur, 1, n)
@@ -3397,17 +3398,17 @@ function redraw()
       local link = wifi_links[net.ssid]
       local sel  = (i == wifi_link_cur)
       screen.level(sel and 15 or 6) ; screen.move(2, y)
-      screen.text((sel and ">" or " ") .. (((net.ssid == "") and "<cache>") or net.ssid):sub(1, 7))
-      screen.level(2)  ; screen.rect(56, y - 4, 22, 3) ; screen.stroke()                  -- signal
-      screen.level(sel and 13 or 9) ; screen.rect(56, y - 4, 22 * ((net.sig or 0) / 100), 3) ; screen.fill()
+      screen.text((sel and ">" or " ") .. (((net.ssid == "") and "<hid>") or net.ssid):sub(1, 7))
+      screen.level(2)  ; screen.rect(54, y - 4, 20, 3) ; screen.stroke()                  -- signal
+      screen.level(sel and 13 or 9) ; screen.rect(54, y - 4, 20 * ((net.sig or 0) / 100), 3) ; screen.fill()
       if link and link.on then
-        screen.level(sel and 15 or 10) ; screen.move(84, y) ; screen.text("D" .. link.dev .. "c" .. link.ch)
+        screen.level(sel and 15 or 10) ; screen.move(80, y) ; screen.text("D" .. link.dev .. "c" .. link.ch)
       else
-        screen.level(3) ; screen.move(84, y) ; screen.text("--")
+        screen.level(3) ; screen.move(80, y) ; screen.text("--")
       end
       y = y + 9
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3ch K2dev K3lnk")
+    screen.level(4) ; screen.move(2, 63) ; screen.text("K2 dev  K3 link")
     screen.update() ; return
   end
 
