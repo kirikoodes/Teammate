@@ -1602,6 +1602,7 @@ let os8_src={input:true,metabo:false,comp:false,mgen:false,wifi:false},os8_src_c
 // wifi : sur le Norns, capte les reseaux (lib/wifi.lua) ; dans le navigateur,
 // stub inerte (impossible de scanner le WiFi depuis une page web).
 const wifi={on:false,energy:0,traffic:0,count:0,nets:[],peak:null,newcount:0};
+let wifi_new_flash=0;  // pic de modulation sur nouveau reseau (inerte ici : pas de scan)
 const MOD_SRC_NAMES=['METABO','AUDIO','MGEN','COMP','WIFI'];
 // renvoie [act,tone] : act=energie/mouvement, tone=brillance/tension (0..1)
 function modSignals(src){
@@ -1609,7 +1610,7 @@ function modSignals(src){
   if(src===2){ return [Math.min(1,(cur_rms||0)*8),Math.min(1,(cur_centroid||0)/4000)]; }
   if(src===3){ return [Math.min(1,mgen_nenergy||0),Math.min(1,(mgen_nfreq||0)/1000)]; }
   if(src===4){ return [Math.min(1,(comp_rms||0)*8),Math.min(1,(comp_centroid||0)/4000)]; }
-  return [wifi.energy||0,wifi.traffic||0];
+  const fl=wifi_new_flash||0;return [Math.max(wifi.energy||0,fl),Math.max(wifi.traffic||0,fl)];
 }
 // --- modulation 8OS ---
 let os8_mod_on=false,os8_mod=0.5,os8_mod_src=1;const os8_mod_src_names=MOD_SRC_NAMES;
@@ -1782,6 +1783,7 @@ setInterval(()=>{
   potoRoute();
   mindUpdate(rms_smooth,cur_freq,cur_centroid,cur_flatness,cur_gate,1/30,now());  // ecoute partagee
   metabolik.ext_press=Math.max(mind.on?mind.drive:0, wifi.on?wifi.energy:0);      // coherence : intensite + activite WiFi agitent METABO
+  wifi_new_flash*=0.93;                                                            // decroissance du pic de decouverte
   // feed METABO selon la source choisie (INPUT/COMP/MIX)
   const ce=comp_rms*(0.6+react*1.2),fi=metabolik.feed_idx;
   if(fi===1)metabolik.update(ce,comp_freq,comp_centroid,comp_flatness,1/30);

@@ -570,7 +570,8 @@ function mod_signals(src)
   elseif src == 4 then
     return math.min(1, (comp_rms or 0) * 8), math.min(1, (comp_centroid or 0) / 4000)
   else
-    return (wifi and wifi.energy) or 0, (wifi and wifi.traffic) or 0   -- WIFI : activite reseaux + trafic
+    local fl = wifi_new_flash or 0   -- WIFI : activite reseaux + trafic + PIC sur nouveau reseau
+    return math.max((wifi and wifi.energy) or 0, fl), math.max((wifi and wifi.traffic) or 0, fl)
   end
 end
 
@@ -2363,6 +2364,8 @@ wifi.snap = function(midi)
   return math.max(0, math.min(127, mgen_root + oct * 12 + best))
 end
 
+wifi_new_flash = 0      -- pic de modulation a chaque nouveau reseau decouvert (decroit)
+
 -- ===== ROUTAGE WIFI -> MIDI : les reseaux jouent des notes, le trafic un CC =====
 wifi_midi_on  = false   -- sortie MIDI du WiFi active
 wifi_midi_dev = 1       -- device 1..4
@@ -2809,7 +2812,10 @@ function init()
       clock.sleep(4)
       if wifi.on and not wifi_prev_on then wifi_greet = true end   -- WiFi (r)allume -> saluer une fois
       wifi_prev_on = wifi.on
-      if wifi.on then pcall(wifi.poll, util.time()) ; pcall(wifi_place_update) ; creature_xp_add((wifi.newcount or 0) * 2) end
+      if wifi.on then
+        pcall(wifi.poll, util.time()) ; pcall(wifi_place_update) ; creature_xp_add((wifi.newcount or 0) * 2)
+        if (wifi.newcount or 0) > 0 then wifi_new_flash = 1 end   -- nouveau reseau -> pic de modulation
+      end
     end
   end)
 
@@ -2948,6 +2954,7 @@ function init()
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
       metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0)  -- coherence : intensite (geste/arc) ET activite WiFi agitent METABO (-> tout le cerveau)
+      wifi_new_flash = (wifi_new_flash or 0) * 0.93   -- decroissance du pic de decouverte (~1 s)
       if math.random() < 0.008 then face_blink = 4 end      -- la creature cligne des yeux de temps en temps
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
