@@ -2378,6 +2378,38 @@ wifi.snap = function(midi)
   return math.max(0, math.min(127, mgen_root + oct * 12 + best))
 end
 
+-- ===== CC GEN : 16 CC (1..16) avec une INTELLIGENCE INDEPENDANTE par CC =====
+-- chaque CC choisit sa source (signal interne de TEAMMATE ou mouvement autonome),
+-- est lisse, et envoye sur un device + canal MIDI (pour piloter les CC d'un OP-1).
+cc_dev    = 1          -- device MIDI de sortie (1..4)
+cc_ch     = 1          -- canal MIDI
+cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
+CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK" }
+cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par CC
+
+-- valeur cible 0..1 d'une ligne selon sa source (nil = OFF, ne rien envoyer)
+function cc_target(lane, i)
+  local s = lane.src or 1
+  if s == 1 then return nil end
+  if s == 9 then                                   -- LFO autonome (vitesse propre par CC)
+    lane.phase = (lane.phase or 0) + 0.012 + i * 0.0009
+    return 0.5 + 0.5 * math.sin(lane.phase)
+  elseif s == 10 then                              -- WALK : marche aleatoire (drunk)
+    lane.walk = math.max(0, math.min(1, (lane.walk or 0.5) + (math.random() * 2 - 1) * 0.07))
+    return lane.walk
+  end
+  local v = 0
+  if     s == 2 then v = (mind and mind.energy) or 0
+  elseif s == 3 then v = (mind and mind.tension) or 0
+  elseif s == 4 then v = (mind and mind.arc) or 0
+  elseif s == 5 then v = (mind and mind.density) or 0
+  elseif s == 6 then v = (metabolik and metabolik.on and metabolik.stressFx) or 0
+  elseif s == 7 then v = (wifi and wifi.energy) or 0
+  elseif s == 8 then v = (style and style.density) or 0
+  end
+  return math.max(0, math.min(1, v))
+end
+
 wifi_new_flash = 0      -- pic de modulation a chaque nouveau reseau decouvert (decroit)
 
 -- ===== ROUTAGE WIFI -> MIDI : les reseaux jouent des notes, le trafic un CC =====
@@ -2698,6 +2730,8 @@ function state_save()
     util.make_dir(norns.state.data)
     local mon, mmch = {}, {}
     for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
+    local cc_src, cc_on = {}, {}
+    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_on[i] = cc_lanes[i].on end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -2710,6 +2744,7 @@ function state_save()
       mind_on=mind.on, style_on=style.on, wifi_on=wifi.on, creature_auto=creature_auto,
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
+      cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_on=cc_on,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2753,6 +2788,9 @@ function state_load()
     wifi_midi_on=g(st.wifi_midi_on,wifi_midi_on) ; wifi_midi_dev=g(st.wifi_midi_dev,wifi_midi_dev)
     wifi_midi_ch=g(st.wifi_midi_ch,wifi_midi_ch) ; wifi_midi_cc=g(st.wifi_midi_cc,wifi_midi_cc)
     if type(st.wifi_links)=="table" then wifi_links=st.wifi_links end
+    cc_dev=g(st.cc_dev,cc_dev) ; cc_ch=g(st.cc_ch,cc_ch)
+    if type(st.cc_src)=="table" then for i=1,16 do if st.cc_src[i] then cc_lanes[i].src=st.cc_src[i] end end end
+    if type(st.cc_on)=="table"  then for i=1,16 do cc_lanes[i].on=st.cc_on[i] and true or false end end
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
@@ -2784,6 +2822,7 @@ function init()
   math.randomseed(os.time())
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
+  for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5 } end  -- 16 CC
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
   pcall(function() audio.level_monitor(p_monitor) end)
@@ -2852,6 +2891,28 @@ function init()
         end
       else
         creature_dream = false
+      end
+    end
+  end)
+
+  -- CC GEN : 16 CC pilotes chacun par leur source, lisses, envoyes si la valeur change
+  clock.run(function()
+    local last = {}
+    while true do
+      clock.sleep(0.04)                              -- ~25 Hz
+      local out = midi_outs[cc_dev]
+      if out then
+        for i = 1, 16 do
+          local lane = cc_lanes[i]
+          if lane and lane.on then
+            local tgt = cc_target(lane, i)
+            if tgt then
+              lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2   -- lissage
+              local v = math.floor(lane.val * 127 + 0.5)
+              if v ~= last[i] then out:cc(i, v, cc_ch) ; last[i] = v end    -- CC numero = i
+            end
+          end
+        end
       end
     end
   end)
@@ -3046,7 +3107,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21,25, 22,23,24, 26,27, 36,35, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21,25, 22,23,24, 26,27, 36,35,37, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3117,11 +3178,21 @@ function enc(n, d)
       wifi_midi_dev = util.clamp(wifi_midi_dev + d, 1, 4)
     elseif page == 36 then
       wifi_link_cur = util.clamp(wifi_link_cur + d, 1, math.max(1, #wifi.nets))
+    elseif page == 37 then
+      cc_cursor = util.clamp(cc_cursor + d, 0, 16)
     end
   elseif n == 3 then
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 35 then wifi_midi_ch = util.clamp(wifi_midi_ch + d, 1, 16) end
+    if page == 37 then
+      if cc_cursor == 0 then
+        cc_ch = util.clamp(cc_ch + d, 1, 16)
+      else
+        local lane = cc_lanes[cc_cursor]
+        lane.src = ((lane.src - 1 + d) % #CC_SRC) + 1
+      end
+    end
     if page == 36 then
       local net = wifi.nets[wifi_link_cur]
       if net then
@@ -3251,6 +3322,18 @@ function key(n, z)
       if n == 2 then L.dev = (L.dev % 4) + 1
       elseif n == 3 then L.on = not L.on end
       wifi_links[net.ssid] = L
+    end
+    redraw() ; return
+  end
+  if page == 37 then
+    if n == 2 then cc_dev = (cc_dev % 4) + 1
+    elseif n == 3 then
+      if cc_cursor == 0 then
+        local anyon = false ; for i = 1, 16 do if cc_lanes[i].on then anyon = true end end
+        for i = 1, 16 do cc_lanes[i].on = not anyon end
+      else
+        cc_lanes[cc_cursor].on = not cc_lanes[cc_cursor].on
+      end
     end
     redraw() ; return
   end
@@ -3597,6 +3680,35 @@ function redraw()
       y = y + 9
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("K2 dev  K3 link")
+    screen.update() ; return
+  end
+  if page == 37 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("CC GEN")
+    -- ligne OUT (device + canal global) : curseur 0
+    local osel = (cc_cursor == 0)
+    screen.level(osel and 15 or 6) ; screen.move(2, 8 + 0)   -- repere a droite de l'entete
+    screen.level(osel and 15 or 5) ; screen.move(58, 8)
+    screen.text((osel and ">" or " ") .. "OUT D" .. cc_dev .. " c" .. cc_ch)
+    -- liste des lanes autour du curseur (5 visibles)
+    local cur   = math.max(1, cc_cursor)
+    local start = util.clamp(cur - 2, 1, math.max(1, 16 - 4))
+    local y = 20
+    for i = start, math.min(start + 4, 16) do
+      local lane = cc_lanes[i]
+      local sel  = (i == cc_cursor)
+      screen.level(sel and 15 or 6) ; screen.move(2, y)
+      screen.text((sel and ">" or " ") .. "CC" .. i)
+      screen.level(lane.on and (sel and 15 or 10) or 3) ; screen.move(34, y)
+      screen.text(CC_SRC[lane.src or 1])
+      -- barre de valeur
+      screen.level(2)  ; screen.rect(74, y - 4, 44, 3) ; screen.stroke()
+      if lane.on and (lane.src or 1) > 1 then
+        screen.level(sel and 13 or 9) ; screen.rect(74, y - 4, 44 * (lane.val or 0), 3) ; screen.fill()
+      end
+      y = y + 9
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("K2 dev  K3 on")
     screen.update() ; return
   end
 
