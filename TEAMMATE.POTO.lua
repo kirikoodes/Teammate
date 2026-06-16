@@ -2703,7 +2703,7 @@ function init()
   clock.run(function()
     local idx, prevnew, lastnote = 0, 0, nil
     while true do
-      clock.sleep(60.0 / mgen_bpm / 2)            -- un pas = 8e de note
+      clock.sync(1/2)                              -- 8e de note, CALE sur la grille de l'horloge globale
       local out = midi_outs[wifi_midi_dev]
       if wifi.on and wifi_midi_on and out and #wifi.nets > 0 then
         if lastnote then out:note_off(lastnote, wifi_midi_ch) ; lastnote = nil end
@@ -2729,7 +2729,7 @@ function init()
   clock.run(function()
     local playing = {}   -- notes du pulse precedent a couper
     while true do
-      clock.sleep(60.0 / mgen_bpm)                 -- une noire (suit le BPM global)
+      clock.sync(1)                                -- une noire, CALE sur la grille de l'horloge globale
       for _, p in ipairs(playing) do
         local out = midi_outs[p.dev] ; if out then out:note_off(p.note, p.ch) end
       end
