@@ -2865,7 +2865,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 34,35,36, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21, 22,23,24, 25,26,27, 36,35, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3053,10 +3053,6 @@ function key(n, z)
   end
   if page == 32 then
     if n == 3 then style.on = not style.on end
-    redraw() ; return
-  end
-  if page == 34 then
-    if n == 3 then wifi.on = not wifi.on end
     redraw() ; return
   end
   if page == 35 then
@@ -3368,7 +3364,6 @@ function redraw()
   if page == 33 then face_redraw() ; return end
   if page == 31 then mind.redraw() ; return end
   if page == 32 then style.redraw() ; return end
-  if page == 34 then wifi.redraw() ; return end
   if page == 35 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("WIFI MIDI")
@@ -3383,12 +3378,15 @@ function redraw()
   end
   if page == 36 then
     screen.clear() ; screen.font_size(8)
-    screen.level(15) ; screen.move(2, 8) ; screen.text("WIFI LINK")
-    screen.level(8)  ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. " res")
+    screen.level(15) ; screen.move(2, 8) ; screen.text("WIFI")
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right((wifi.count or 0) .. "res")
+    screen.level(3)  ; screen.rect(80, 4, 28, 3) ; screen.stroke()                       -- trafic
+    screen.level(11) ; screen.rect(80, 4, 28 * (wifi.traffic or 0), 3) ; screen.fill()
     local n = #wifi.nets
     if n == 0 then
-      screen.level(4) ; screen.move(2, 34) ; screen.text("aucun reseau (arme WIFI)")
-      screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel E3 ch K2 dev K3 link")
+      screen.level(4) ; screen.move(2, 34) ; screen.text("aucun reseau")
+      screen.level(4) ; screen.move(2, 46) ; screen.text("(arme WIFI sur LIVE)")
+      screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3ch K2dev K3lnk")
       screen.update() ; return
     end
     wifi_link_cur = util.clamp(wifi_link_cur, 1, n)
@@ -3399,15 +3397,17 @@ function redraw()
       local link = wifi_links[net.ssid]
       local sel  = (i == wifi_link_cur)
       screen.level(sel and 15 or 6) ; screen.move(2, y)
-      screen.text((sel and ">" or " ") .. (((net.ssid == "") and "<cache>") or net.ssid):sub(1, 9))
+      screen.text((sel and ">" or " ") .. (((net.ssid == "") and "<cache>") or net.ssid):sub(1, 7))
+      screen.level(2)  ; screen.rect(56, y - 4, 22, 3) ; screen.stroke()                  -- signal
+      screen.level(sel and 13 or 9) ; screen.rect(56, y - 4, 22 * ((net.sig or 0) / 100), 3) ; screen.fill()
       if link and link.on then
-        screen.level(sel and 15 or 10) ; screen.move(78, y) ; screen.text("D" .. link.dev .. "c" .. link.ch)
+        screen.level(sel and 15 or 10) ; screen.move(84, y) ; screen.text("D" .. link.dev .. "c" .. link.ch)
       else
-        screen.level(3) ; screen.move(78, y) ; screen.text("--")
+        screen.level(3) ; screen.move(84, y) ; screen.text("--")
       end
       y = y + 9
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel E3 ch K2 dev K3 link")
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3ch K2dev K3lnk")
     screen.update() ; return
   end
 
