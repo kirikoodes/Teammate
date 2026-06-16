@@ -672,6 +672,9 @@ function pickStrat(){
   if(count<8){w.IMITATION+=0.15;w.DENSIFICATION=Math.max(0,w.DENSIFICATION-0.06);}
   if(mind.on){const act=Math.max(mind.energy,mind.density,(mind.drive||0)*0.85);
     w.DENSIFICATION+=act*0.5;w.IMITATION+=act*0.2;w.SPARSE+=(1-act)*0.4;w.SILENCE+=(1-act)*0.3;}
+  // identite de la creature -> compagnon (toujours actif, subtil). Niveau = norns-only -> amt fixe ici.
+  {const e=mind.energy||0,b=mind.build||0,stc=(metabolik.on&&metabolik.stressFx)||0,amt=0.225;
+    w.DENSIFICATION+=Math.max(0,b)*amt;w.IMITATION+=e*amt*0.5;w.SPARSE+=(1-e)*amt*0.5;w.CONTRASTE+=stc*amt*0.6;}
   let total=Object.values(w).reduce((a,b)=>a+Math.max(0,b),0);
   if(!total) return 'SILENCE';
   let r=Math.random()*total,acc=0;

@@ -1796,6 +1796,20 @@ local function pick_strat()
     w.SILENCE       = w.SILENCE       + (1 - act) * 0.3
   end
 
+  -- IDENTITE DE LA CREATURE -> compagnon (TOUJOURS actif, subtil) : l'agent et le
+  -- compagnon sont UN seul etre. Son humeur colore le jeu, son niveau lui donne
+  -- de l'aplomb avec le temps. excite -> dense ; repos -> espace ; ennui -> contraste.
+  do
+    local e   = (mind and mind.energy) or 0
+    local b   = (mind and mind.build) or 0
+    local stc = (metabolik and metabolik.on and metabolik.stressFx) or 0
+    local amt = 0.20 + math.min(1, (creature_level or 1) / 10) * 0.25   -- s'affirme avec le niveau
+    w.DENSIFICATION = w.DENSIFICATION + math.max(0, b) * amt
+    w.IMITATION     = w.IMITATION     + e * amt * 0.5
+    w.SPARSE        = w.SPARSE        + (1 - e) * amt * 0.5
+    w.CONTRASTE     = w.CONTRASTE     + stc * amt * 0.6
+  end
+
   local total = 0
   for _, wv in pairs(w) do total = total + math.max(0, wv) end
   if total == 0 then return "SILENCE" end
