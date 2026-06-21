@@ -556,7 +556,7 @@ os8_in_centroid = 0     -- timbre
 
 -- ===== MODULATION INTERNE : une source pilote en continu les parametres d'un mode =====
 -- comme METABO colore NIAKABY / pilote MGEN. Source au choix, profondeur reglable.
-MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN", "COMP", "WIFI" }
+MOD_SRC_NAMES = { "METABO", "AUDIO", "MGEN", "COMP", "WIFI", "LORA" }
 
 -- signaux normalises d'une source (act = energie/mouvement, tone = brillance/tension)
 function mod_signals(src)
@@ -569,9 +569,12 @@ function mod_signals(src)
     return math.min(1, mgen_nenergy or 0), math.min(1, (mgen_nfreq or 0) / 1000)
   elseif src == 4 then
     return math.min(1, (comp_rms or 0) * 8), math.min(1, (comp_centroid or 0) / 4000)
-  else
+  elseif src == 5 then
     local fl = wifi_new_flash or 0   -- WIFI : activite reseaux + trafic + PIC sur nouveau reseau
     return math.max((wifi and wifi.energy) or 0, fl), math.max((wifi and wifi.traffic) or 0, fl)
+  else
+    -- LORA : act = energie radio (pic a chaque message) ; tone = DISTANCE du signal (proche->0, loin->1)
+    return (lora and lora.energy) or 0, (lora and lora.dist) or 0
   end
 end
 
@@ -2389,6 +2392,95 @@ wifi.snap = function(midi)
   return math.max(0, math.min(127, mgen_root + oct * 12 + best))
 end
 
+-- ===== LORA : sonification de l'activite radio (via pont OSC) =====
+lora = nil
+_lora_ok, _lora_mod = pcall(include, 'lib/lora')
+if _lora_ok and type(_lora_mod) == "table" then
+  lora = _lora_mod
+else
+  print("LORA indisponible (lib/lora.lua manquant) : " .. tostring(_lora_mod))
+  lora = {
+    on = false, rssi = -120, dist = 1, energy = 0, count = 0,
+    last_sender = "", last_text = "", senders = {},
+    dev = 1, ch = 1,
+    sig_for = function() return { trans = 0, mch = 1, reg = 48, seen = 0 } end,
+    note_for = function() return 60 end,
+    on_rx = function() end, tick = function() end,
+    redraw = function()
+      screen.clear() ; screen.level(15) ; screen.move(2, 20) ; screen.text("LORA")
+      screen.level(4) ; screen.move(2, 36) ; screen.text("lib/lora.lua absent") ; screen.update()
+    end,
+  }
+end
+_lora_ok = nil ; _lora_mod = nil
+-- les notes LoRa sont calees sur la GAMME et la tonalite de MGEN (comme le WiFi)
+lora.snap = wifi.snap
+
+-- sauvegarde isolee des signatures d'expediteurs (fichier separe, comme les lieux WiFi)
+function lora_senders_save()
+  pcall(function()
+    if norns and norns.state and norns.state.data then
+      tab.save(lora.senders, norns.state.data .. "lora_senders.data")
+    end
+  end)
+end
+
+-- emet une note sur la sortie MIDI LoRa et programme son note_off
+function lora_emit_note(note, vel, ch, dur)
+  local out = midi_outs[lora.dev]
+  if not out then return end
+  out:note_on(note, vel or 90, ch or lora.ch)
+  clock.run(function() clock.sleep(dur or 0.25) ; out:note_off(note, 0, ch or lora.ch) end)
+end
+
+-- contenu du message -> melodie : chaque octet devient une note (gamme MGEN)
+function lora_play_text(text, sig)
+  if not text or #text == 0 then return end
+  clock.run(function()
+    local ch   = (sig and sig.mch) or lora.ch
+    local nmax = math.min(#text, 24)                  -- borne la phrase
+    for i = 1, nmax do
+      local b = text:byte(i)
+      lora_emit_note(lora.note_for(b, sig), 70 + (b % 40), ch, 0.18)
+      clock.sleep(0.12)
+    end
+  end)
+end
+
+-- MESSAGE RECU : geste d'accueil + melodie du contenu + appel-reponse
+function lora_rx(sender, rssi, snr, len, text)
+  local sig = lora.sig_for(sender or "?")
+  lora.on_rx(sender, rssi, snr, len, text)
+  lora_senders_save()
+  if not lora.on then return end
+  lora_emit_note(lora.note_for(60, sig), 112, (sig and sig.mch) or lora.ch, 0.2)   -- accent = on te parle
+  lora_play_text(text, sig)                                                         -- le message se joue
+  if (util.time() - (lora.tx_t or 0)) < 8 then                                      -- c'est une REPONSE a ton envoi
+    clock.run(function() clock.sleep(0.6 + (len or #(text or "")) * 0.12) ; pcall(maybe_recall_motif) end)
+  end
+end
+
+-- TU ENVOIES : petit arpege montant = l'appel (ouvre la fenetre d'appel-reponse)
+function lora_tx(dest, len)
+  lora.tx_t = util.time()
+  if not lora.on then return end
+  local sig = lora.sig_for(dest or "out")
+  clock.run(function()
+    for i = 0, 3 do
+      lora_emit_note(lora.note_for(48 + i * 5, sig), 96, (sig and sig.mch) or lora.ch, 0.16)
+      clock.sleep(0.1)
+    end
+  end)
+end
+
+-- simulateur : declenche un faux message recu (test SANS materiel)
+function lora_test()
+  local names = { "alice", "node-7", "bob", "sensor", "KO" }
+  local msgs  = { "hello", "ping", "ca va ?", "data:42", "<3 du large" }
+  local k     = (lora.count % #names) + 1
+  lora_rx(names[k], -40 - math.random(0, 70), 8, nil, msgs[(lora.count % #msgs) + 1])
+end
+
 -- ===== CC GEN : 16 CC (1..16) avec une INTELLIGENCE INDEPENDANTE par CC =====
 -- chaque CC choisit sa source (signal interne de TEAMMATE ou mouvement autonome),
 -- est lisse, et envoye sur un device + canal MIDI (pour piloter les CC d'un OP-1).
@@ -2764,6 +2856,7 @@ function state_save()
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
+      lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
@@ -2802,6 +2895,8 @@ function state_load()
     if st.mind_on ~= nil then mind.on = st.mind_on end
     if st.style_on ~= nil then style.on = st.style_on end
     if st.wifi_on ~= nil then wifi.on = st.wifi_on end
+    if st.lora_on ~= nil then lora.on = st.lora_on end
+    if st.lora_dev then lora.dev = st.lora_dev end ; if st.lora_ch then lora.ch = st.lora_ch end
     if st.creature_auto ~= nil then creature_auto = st.creature_auto end
     creature_xp=g(st.creature_xp,creature_xp) ; creature_level=g(st.creature_level,creature_level)
     wifi_midi_on=g(st.wifi_midi_on,wifi_midi_on) ; wifi_midi_dev=g(st.wifi_midi_dev,wifi_midi_dev)
@@ -2844,12 +2939,21 @@ function init()
   math.randomseed(os.time())
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
+  pcall(function() local t = tab.load(norns.state.data .. "lora_senders.data") ; if type(t) == "table" then lora.senders = t end end)  -- signatures d'expediteurs LoRa
   for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5, num = i } end  -- 16 CC (num = numero CC envoye)
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
   pcall(function() audio.level_monitor(p_monitor) end)
   clock.run(function() while true do clock.sleep(30) ; state_save() end end)  -- sauvegarde periodique
   last_sound_t = util.time()
+  -- LORA : reception des messages depuis le pont OSC externe (port OSC du norns : 10111)
+  osc.event = function(path, args)
+    if path == "/lora/rx" then
+      lora_rx(args[1], tonumber(args[2]), tonumber(args[3]), tonumber(args[4]), args[5])
+    elseif path == "/lora/tx" then
+      lora_tx(args[1], tonumber(args[2]))
+    end
+  end
   splash_active = true
   clock.run(function() clock.sleep(3.0) ; splash_active = false end)
   clock.run(audio_midi_loop)
@@ -3060,8 +3164,9 @@ function init()
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
-      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0)  -- coherence : intensite (geste/arc) ET activite WiFi agitent METABO (-> tout le cerveau)
+      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0, (lora.on and lora.energy) or 0)  -- coherence : intensite (geste/arc), activite WiFi ET radio LoRa agitent METABO (-> tout le cerveau)
       wifi_new_flash = (wifi_new_flash or 0) * 0.93   -- decroissance du pic de decouverte (~1 s)
+      lora.tick(1/30)                                  -- decroissance de l'energie radio LoRa
       if math.random() < 0.008 then face_blink = 4 end      -- la creature cligne des yeux de temps en temps
       metabolik.bpm_ref = mgen_bpm                     -- METABO cale son tempo sur le BPM global MGEN
       local react = metabolik.react or 0.5
@@ -3129,7 +3234,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21,25, 22,23,24, 26,27, 36,35,37, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21,25, 22,23,24, 26,27, 36,35,37,38, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3215,6 +3320,7 @@ function enc(n, d)
         lane.num = util.clamp((lane.num or cc_cursor) + d, 0, 127)   -- numero CC vise (0..127)
       end
     end
+    if page == 38 then lora.ch = util.clamp(lora.ch + d, 1, 16) end   -- LORA : canal de base
     if page == 36 then
       local net = wifi.nets[wifi_link_cur]
       if net then
@@ -3345,6 +3451,12 @@ function key(n, z)
       elseif n == 3 then L.on = not L.on end
       wifi_links[net.ssid] = L
     end
+    redraw() ; return
+  end
+  if page == 38 then
+    if n == 1 then lora_test()                                     -- simule un message recu (test sans materiel)
+    elseif n == 2 then lora.dev = (lora.dev % 4) + 1               -- device de sortie MIDI
+    elseif n == 3 then lora.on = not lora.on end                   -- arme la sonification LoRa
     redraw() ; return
   end
   if page == 37 then
@@ -3761,6 +3873,9 @@ function redraw()
     if cc_cursor == 0 then screen.text("E3 ch  K2 dev  K3 arm")
     else screen.text("E3 cc#  K2 src  K3 on  K1 learn") end
     screen.update() ; return
+  end
+  if page == 38 then
+    lora.redraw() ; return
   end
 
   if page == 30 then
