@@ -269,6 +269,7 @@ local mgen_mut_idx   = 3
 local MGEN_MUT_RATES = {0, 0.05, 0.12, 0.22, 0.40}
 local mgen_mut_rate  = MGEN_MUT_RATES[mgen_mut_idx]
 mgen_evo_meta        = false   -- Evo pilote par METABO (mode META, global)
+mgen_freeze          = false   -- FREEZE : fige les patterns (stop mutation + regen auto), global
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -1449,6 +1450,7 @@ end
 
 -- taux d'evolution effectif : soit le reglage manuel, soit pilote par METABO (mode META)
 function mgen_eff_mut()
+  if mgen_freeze then return 0 end          -- FREEZE : aucune mutation, patterns figes
   if mgen_evo_meta then
     return (metabolik and metabolik.on) and (metabolik.stressFx or 0) * 0.5 or 0
   end
@@ -2858,7 +2860,7 @@ function state_save()
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
-      mgen_evo_meta=mgen_evo_meta, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
+      mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -2913,6 +2915,7 @@ function state_load()
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
     if st.mgen_mut_idx then mgen_mut_idx=st.mgen_mut_idx ; mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx] or mgen_mut_rate end
     mgen_evo_meta=g(st.mgen_evo_meta,mgen_evo_meta) ; mgen_recall=g(st.mgen_recall,mgen_recall)
+    if st.mgen_freeze ~= nil then mgen_freeze = st.mgen_freeze end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -3011,8 +3014,8 @@ function init()
           if comp_on and #motifs > 0 and math.random() < 0.35 then
             clock.run(function() local ok = pcall(play_motif, motifs[math.random(#motifs)]) end)
           end
-        elseif metabolik.on and (metabolik.stressFx or 0) > 0.72 and mgen_running then
-          -- #5 DECIDE : la monotonie l'ennuie -> il change le theme MGEN
+        elseif metabolik.on and (metabolik.stressFx or 0) > 0.72 and mgen_running and not mgen_freeze then
+          -- #5 DECIDE : la monotonie l'ennuie -> il change le theme MGEN (sauf si FREEZE)
           if math.random() < 0.2 then mgen_gen_all(true) end
         end
       else
@@ -3136,7 +3139,7 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(60.0 / math.max(40, mgen_bpm))   -- ~1 temps
-      if meta_mgen_drive > 0 and mgen_running then
+      if meta_mgen_drive > 0 and mgen_running and not mgen_freeze then
         local st = metabolik.stressFx or 0
         if math.random() < meta_mgen_drive * (0.10 + st * 0.5) then meta_shake_mgen() end
       end
@@ -3234,7 +3237,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15, 16,17, 18,19,20,21,25, 22,23,24, 26,27, 36,35,37,38, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 36,35,37,38, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3498,6 +3501,10 @@ function key(n, z)
   end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
+    redraw() ; return
+  end
+  if n == 1 and (page == 13 or page == 14 or page == 15) then
+    mgen_freeze = not mgen_freeze           -- K1 sur les pages MGEN : fige / defige les patterns
     redraw() ; return
   end
   if n == 2 and page == 4 then
@@ -3999,9 +4006,13 @@ function redraw()
   end
   -- indicateurs de mode sur la meme ligne, a droite
   if page == 14 then
-    screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 9 or 3)
-    screen.move(84, 37)
-    screen.text(mgen_evo_meta and "META K2" or string.format("~%d%% K2", math.floor(mgen_mut_rate * 100)))
+    if mgen_freeze then
+      screen.level(15) ; screen.move(84, 37) ; screen.text("FRZ K1")
+    else
+      screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 9 or 3)
+      screen.move(84, 37)
+      screen.text(mgen_evo_meta and "META K2" or string.format("~%d%% K2", math.floor(mgen_mut_rate * 100)))
+    end
   elseif p_voice or p_deaf then
     screen.level(12)
     screen.move(104, 37)
@@ -4187,9 +4198,13 @@ function redraw()
       screen.text(#mgen_tap_times >= 2 and
         string.format("TAP %d", #mgen_tap_times) or "K2:tap")
     end
-    screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 8 or 3)
-    screen.move(80, 44)
-    screen.text(mgen_evo_meta and "META" or string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
+    if mgen_freeze then
+      screen.level(15) ; screen.move(80, 44) ; screen.text("FRZ")
+    else
+      screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 8 or 3)
+      screen.move(80, 44)
+      screen.text(mgen_evo_meta and "META" or string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
+    end
 
   elseif page == 14 then
     local abbrev = {"TECH","DnB ","JGL ","AMPR","2STP","BRKN","DUMB","TRAP","DRIL","CLUB","KPOP","ORNT","RAVE","TRNC"}
