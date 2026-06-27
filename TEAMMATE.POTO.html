@@ -158,6 +158,7 @@ const S={
   move(x,y){this._x=x;this._y=y;},
   font_size(n){this._fs=n;},
   text(s){ctx.font=`${this._fs}px monospace`;ctx.fillText(s,this._x,this._y);},
+  text_right(s){ctx.font=`${this._fs}px monospace`;ctx.fillText(s,this._x-ctx.measureText(s).width,this._y);},
   rect(x,y,w,h){ctx.beginPath();ctx.rect(x,y,w,h);},
   fill(){ctx.fill();},
   stroke(){ctx.stroke();},
@@ -1065,6 +1066,7 @@ function redraw(){
     S.font_size(16);S.level(15);S.move(2,24);S.text('TEAMMATE');
     S.level(8);S.move(2,44);S.text('.POTO');
     S.level(2);S.font_size(8);S.move(2,58);S.text('norns / nsdos 2026');
+    S.level(4);S.move(126,58);S.text_right('v2026.06.17');
     S.level(3);S.move(0,30);S.line(128,30);S.stroke();
     return;
   }
