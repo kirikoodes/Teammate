@@ -4201,9 +4201,7 @@ function redraw()
     if mgen_freeze then
       screen.level(15) ; screen.move(80, 44) ; screen.text("FRZ")
     else
-      screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 8 or 3)
-      screen.move(80, 44)
-      screen.text(mgen_evo_meta and "META" or string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
+      screen.level(4) ; screen.move(80, 44) ; screen.text("K1 frz")   -- repere toujours visible
     end
 
   elseif page == 14 then

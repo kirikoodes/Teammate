@@ -1192,7 +1192,7 @@ function drawP13(){
     S.level(mclk_active?12:mgen_tap_times.length>=2?12:3);S.move(0,44);
     S.text(mclk_active?'EXT CLK':mgen_tap_times.length>=2?`TAP ${mgen_tap_times.length}`:'K2:tap');
   }
-  if(mgen_freeze){S.level(15);S.move(80,44);S.text('FRZ');}else{S.level(mgen_mut_rate>0?8:3);S.move(80,44);S.text('~'+Math.round(mgen_mut_rate*100)+'%');}
+  if(mgen_freeze){S.level(15);S.move(80,44);S.text('FRZ');}else{S.level(4);S.move(80,44);S.text('K1 frz');}
 }
 function drawP14(){
   const ab=['TECH','DnB ','JGL ','AMPR','2STP','BRKN','DUMB','TRAP','DRIL','CLUB','KPOP','ORNT','RAVE','TRNC'];
