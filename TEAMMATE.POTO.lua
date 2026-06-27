@@ -3491,7 +3491,7 @@ function key(n, z)
   end
   if page == 27 then
     if n == 3 then live_toggle(live_cursor)
-    elseif n == 2 then live_all_off() end
+    elseif n == 2 then mgen_freeze = not mgen_freeze end   -- K2 LIVE = FREEZE des patterns MGEN
     redraw() ; return
   end
   if page == 26 then
@@ -3501,10 +3501,6 @@ function key(n, z)
   end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
-    redraw() ; return
-  end
-  if n == 1 and (page == 13 or page == 14 or page == 15) then
-    mgen_freeze = not mgen_freeze           -- K1 sur les pages MGEN : fige / defige les patterns
     redraw() ; return
   end
   if n == 2 and page == 4 then
@@ -3655,7 +3651,8 @@ function redraw()
   if page == 27 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 panic")
+    if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 frz")
     local mode8  = (os8_mode == "TRANS" and "T") or (os8_mode == "REC" and "R") or "-"
     local states = { p_poto_on and "on" or "-", mode8, mgen_running and "on" or "-",
                      spat.on and "on" or "-", metabolik.on and "on" or "-",
@@ -4007,7 +4004,7 @@ function redraw()
   -- indicateurs de mode sur la meme ligne, a droite
   if page == 14 then
     if mgen_freeze then
-      screen.level(15) ; screen.move(84, 37) ; screen.text("FRZ K1")
+      screen.level(15) ; screen.move(84, 37) ; screen.text("FRZ")
     else
       screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 9 or 3)
       screen.move(84, 37)
@@ -4201,7 +4198,9 @@ function redraw()
     if mgen_freeze then
       screen.level(15) ; screen.move(80, 44) ; screen.text("FRZ")
     else
-      screen.level(4) ; screen.move(80, 44) ; screen.text("K1 frz")   -- repere toujours visible
+      screen.level((mgen_evo_meta or mgen_mut_rate > 0) and 8 or 3)
+      screen.move(80, 44)
+      screen.text(mgen_evo_meta and "META" or string.format("~%d%%", math.floor(mgen_mut_rate * 100)))
     end
 
   elseif page == 14 then
