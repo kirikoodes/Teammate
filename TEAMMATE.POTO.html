@@ -184,7 +184,7 @@ const INTERRUPT_PROB=0.12,POTO_DUR=4.0,OS8_DUR=20.0;
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let page=1,state='LISTEN',corpus={},head=1,count=0,last_slot=0;
 // regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD), puis le reste
-const PAGE_ORDER=[1,2,3,4,5,7,30,29,6,8,28,9,10,11,12,13,14,15,25,26,16,17,18,19,20,21,22,23,24,27,31,32];
+const PAGE_ORDER=[1,2,3,4,5,7,30,29,6,8,28,9,10,11,12,13,14,15,25,26,16,17,18,19,20,21,22,23,24,27,39,31,32];
 let phrase_buf=[],phrase_analysis=null,recent_slots=[];
 let last_strat='---',strat_name='---',consec_sil=0,sil_sec=0;
 let last_sound_t=now();
@@ -202,6 +202,7 @@ let p_poto_poly=0;
 let os8_mode='OFF',os8_sync=false,os8_bank=[],os8_vol=0.7,os8_size=0.15,os8_rec_n=0;
 let os8_recorded_samples=0;
 let cur_rms=0,rms_smooth=0,cur_freq=0,cur_centroid=0,cur_flatness=0,cur_gate=0;
+let impro_energy=0;   // enveloppe d'activite de l'impro (pour PERU src=IMPRO)
 let rec_on=false,rec_slot=0,rec_t0=0,rms_sum=0,rms_n_acc=0,gate_hold=0;
 const GATE_HOLD_N=6;
 let splash_active=true;
@@ -560,7 +561,7 @@ function processGate(ng){
 }
 
 // ─── PLAYBACK ─────────────────────────────────────────────────────────────────
-function playEvent(ev,rm){
+function playEvent(ev,rm,pan){
   if(!audioCtx||!corpusBufs[ev.slot-1]) return 0;
   rm=rm||1;
   // énergie du compagnon (nourrit METABO feed COMP/MIX et NIAKABY source COMP)
@@ -593,13 +594,14 @@ function playEvent(ev,rm){
   src.loopStart=base; src.loopEnd=base+len;
   src.playbackRate.value=Math.abs(rm);
   const improPanner=audioCtx.createStereoPanner();
-  improPanner.pan.value=spat.on?spatEffPan('impro'):0;
+  improPanner.pan.value=(pan!==undefined)?pan:(spat.on?spatEffPan('impro'):0);   // PERU : pan = point de collision
   src.connect(gn); gn.connect(improPanner); improPanner.connect(audioCtx.destination);
   if(potoCompTap) improPanner.connect(potoCompTap); // alimente le buffer POtO si COMP est source
   src.start(0,Math.random()<REV_PROB?base+len-0.001:base);
   plyNodes[vi]=src; plyGains[vi]=gn;
   const note=freqToMidi(ev.freq||cur_freq);
   if(note){let vv=Math.max(1,Math.min(127,Math.floor(ev.rms*800)));if(style.on)vv=styleVel(vv);midiNoteOn(1,note,vv);}   // STYLE : ta dynamique
+  if(pan===undefined) impro_energy=Math.max(impro_energy,Math.min(1,(ev.rms||0)*8));   // PERU src=IMPRO : suivi d'enveloppe (les grains PERU passent un pan, donc exclus)
   setTimeout(()=>{
     if(note) midiNoteOff(1,note);
     try{
@@ -1239,6 +1241,7 @@ function drawP17(){
 // ─── INPUT ────────────────────────────────────────────────────────────────────
 function enc(n,d){
   if(n===1){let i=PAGE_ORDER.indexOf(page);i=(i+d+PAGE_ORDER.length)%PAGE_ORDER.length;page=PAGE_ORDER[i];return;}
+  if(page===39){if(n===2)peru_sel=clamp(peru_sel+d,1,CORPUS_SLOTS);else if(n===3)peru_grav=clamp(peru_grav+d*0.01,0,0.5);return;}
   // ── pages parité Norns 8,18-27 ──
   if(page===8){if(n===2)os8_src_cursor=clamp(os8_src_cursor+d,1,6);else if(n===3){if(os8_src_cursor>5)os8_trans=clamp(os8_trans+d,-24,24);else os8_spread=clamp(os8_spread+d*0.05,0,1);}return;}
   if(page===18){const M=metabolik;if(n===2)M.scale_idx=((M.scale_idx+d)%M.scale_names.length+M.scale_names.length)%M.scale_names.length;else if(n===3)M.octave=clamp(M.octave+d,-2,2);return;}
@@ -1301,6 +1304,7 @@ function key(n,z){
   if(page===24){if(n===3){const k=niakaby.src_keys[niakaby.src_cursor];niakaby.src[k]=!niakaby.src[k];}else if(n===2){let all=true;for(const k of niakaby.src_keys)if(!niakaby.src[k])all=false;for(const k of niakaby.src_keys)niakaby.src[k]=!all;}return;}
   if(page===25){if(n===2)meta_mgen_scope=(meta_mgen_scope===1)?2:1;else if(n===3)metaShakeMgen();return;}
   if(page===26){if(n===3)mgenTaste(true);else if(n===2)mgenTaste(false);return;}
+  if(page===39){if(n===1)peruAdd(peru_sel);else if(n===2)peru_rmode=(peru_rmode+1)%PERU_RMODES.length;else if(n===3){peru_dia=[];peru_on=false;}return;}
   if(page===27){if(n===3)liveToggle(live_cursor);else if(n===2)mgen_freeze=!mgen_freeze;return;}  // K2 LIVE = FREEZE
   if(page===28){if(n===3)os8_mod_on=!os8_mod_on;return;}
   if(page===29){if(n===3)poto_mod_on=!poto_mod_on;return;}
@@ -1657,7 +1661,7 @@ function os8GrainRate(){
 
 // ───────────────────────────────────────── PAGE LIVE
 let live_cursor=1,comp_on=true,audio_midi_on=true;
-const LIVE_NAMES=['POtO','8OS','MGEN','SPAT','METABO','NIAKABY','AUDIO','IMPRO','WIFI'];
+const LIVE_NAMES=['POtO','8OS','MGEN','SPAT','METABO','NIAKABY','AUDIO','IMPRO','WIFI','PERU'];
 function liveToggle(i){
   if(i===1){ensureAudio();actVia(5,3);}
   else if(i===2){ensureAudio();os8_mode=(os8_mode==='OFF')?'TRANS':'OFF';if(os8_mode==='TRANS'&&!os8GrainActive&&os8_recorded_samples>1000){os8GrainActive=true;os8Grain();}}
@@ -1668,6 +1672,7 @@ function liveToggle(i){
   else if(i===7)audio_midi_on=!audio_midi_on;
   else if(i===8)comp_on=!comp_on;
   else if(i===9)wifi.on=!wifi.on;
+  else if(i===10)peru_on=!peru_on;
 }
 function liveAllOff(){
   if(p_poto_on)p_poto_on=false;os8_mode='OFF';
@@ -1676,7 +1681,45 @@ function liveAllOff(){
   metabolik.on=false;if(niakaby.on){niakaby.on=false;niakaby.release();}
   audio_midi_on=false;comp_on=false;wifi.on=false;
   for(let d=0;d<4;d++)if(midi_outs[d])for(let ch=0;ch<16;ch++)midi_outs[d].send([0xB0|ch,123,0]);
+  peru_on=false;
 }
+
+// ───────────────────────────────────────── PERU : bac a grains gravitationnel
+const PERU_BX0=3,PERU_BY0=12,PERU_BX1=125,PERU_BY1=56,PERU_MAX=16;
+let peru_dia=[],peru_on=false,peru_sel=1,peru_grav=0.12,peru_bounce=0.90,peru_rmode=0;
+const PERU_RMODES=[{src:0,amt:0},{src:1,amt:0.5},{src:1,amt:1.0},{src:2,amt:0.5},{src:2,amt:1.0},{src:3,amt:0.5},{src:3,amt:1.0}];
+const PERU_RLBL=['OFF','IN 50%','IN 100%','MB 50%','MB 100%','IM 50%','IM 100%'];
+function peruAdd(slot){
+  if(!corpus[slot])return;
+  ensureAudio(); peru_on=true;
+  if(peru_dia.length>=PERU_MAX)peru_dia.shift();
+  const g=corpus[slot];
+  peru_dia.push({slot,x:PERU_BX0+Math.random()*(PERU_BX1-PERU_BX0),y:PERU_BY0+3,
+    vx:(Math.random()*2-1)*1.5,vy:0,r:2+Math.floor(Math.min(1,(g.duration||0.1)*3)*2),flash:0});
+}
+function peruStep(){
+  const m=PERU_RMODES[peru_rmode];
+  let drive=0;
+  if(m.src===1)drive=Math.min(1,(cur_rms||0)*8)*m.amt;                                   // INPUT
+  else if(m.src===2)drive=(metabolik.on?(metabolik.stressFx||0):0)*m.amt;                 // METABO
+  else if(m.src===3)drive=Math.min(1,impro_energy)*m.amt;                                 // IMPRO
+  for(const d of peru_dia){
+    if(drive>0&&Math.random()<drive){d.vy-=(0.6+Math.random()*0.9);d.vx+=(Math.random()*2-1)*0.9;}
+    d.vy+=peru_grav; d.x+=d.vx; d.y+=d.vy;
+    let hit=false,speed=0;
+    if(d.x<PERU_BX0){d.x=PERU_BX0;d.vx=-d.vx*peru_bounce;hit=true;speed=Math.abs(d.vx);}
+    if(d.x>PERU_BX1){d.x=PERU_BX1;d.vx=-d.vx*peru_bounce;hit=true;speed=Math.abs(d.vx);}
+    if(d.y<PERU_BY0){d.y=PERU_BY0;d.vy=-d.vy*peru_bounce;hit=true;speed=Math.max(speed,Math.abs(d.vy));}
+    if(d.y>PERU_BY1){d.y=PERU_BY1;d.vy=-d.vy*peru_bounce;hit=true;speed=Math.max(speed,Math.abs(d.vy));
+      if(Math.abs(d.vy)<0.6){d.vy=0;d.vx*=0.8;}}
+    if(hit&&speed>0.5){
+      d.flash=3;
+      const pan=Math.max(-1,Math.min(1,(d.x-(PERU_BX0+PERU_BX1)/2)/((PERU_BX1-PERU_BX0)/2)));
+      if(corpus[d.slot])playEvent(corpus[d.slot],1,pan);                                  // choc = joue le grain, spatialise
+    }else if(d.flash>0)d.flash--;
+  }
+}
+setInterval(()=>{impro_energy*=0.90;if(peru_on&&peru_dia.length>0)peruStep();},1000/30);
 
 // ───────────────────────────────────────── MIND : ecoute partagee (parite lib/mind.lua)
 const mind={on:false,energy:0,energy_sl:0,build:0,density:0,tension:0,bright:0,register:0,
@@ -1964,17 +2007,34 @@ function drawLive(){
   if(mgen_freeze){S.level(15);S.move(40,8);S.text('FRZ');}
   S.level(4);txtR(126,8,'K3 tgl  K2 frz');
   const mode8=os8_mode==='TRANS'?'T':(os8_mode==='REC'?'R':'-');
-  const states=[p_poto_on?'on':'-',mode8,mgen_running?'on':'-',spat.on?'on':'-',metabolik.on?'on':'-',niakaby.on?'on':'-',audio_midi_on?'on':'-',comp_on?'on':'-',wifi.on?(''+(wifi.count||0)):'-'];
-  const ons=[p_poto_on,os8_mode!=='OFF',mgen_running,spat.on,metabolik.on,niakaby.on,audio_midi_on,comp_on,wifi.on];
+  const states=[p_poto_on?'on':'-',mode8,mgen_running?'on':'-',spat.on?'on':'-',metabolik.on?'on':'-',niakaby.on?'on':'-',audio_midi_on?'on':'-',comp_on?'on':'-',wifi.on?(''+(wifi.count||0)):'-',peru_on?'on':'-'];
+  const ons=[p_poto_on,os8_mode!=='OFF',mgen_running,spat.on,metabolik.on,niakaby.on,audio_midi_on,comp_on,wifi.on,peru_on];
   const ys=[20,30,40,50,60];
   for(let i=0;i<LIVE_NAMES.length;i++){
     const left=(i<5),x=left?2:66,xr=left?60:124,y=ys[left?i:(i-5)],sel=(i+1===live_cursor);
     S.level(sel?15:(ons[i]?11:4));S.move(x,y);S.text((sel?'>':' ')+LIVE_NAMES[i]);
     S.level(ons[i]?13:3);txtR(xr,y,states[i]);}
 }
+function drawPeru(){
+  S.font_size(8);
+  S.level(peru_on?15:6);S.move(2,8);S.text('PERU');
+  S.level(corpus[peru_sel]?9:3);S.move(32,8);S.text('g'+peru_sel+(corpus[peru_sel]?'':'-'));
+  S.level(4);S.move(58,8);S.text('G'+peru_grav.toFixed(2));
+  S.level(peru_rmode>0?12:4);txtR(126,8,PERU_RLBL[peru_rmode]);
+  S.level(3);S.rect(PERU_BX0,PERU_BY0,PERU_BX1-PERU_BX0,PERU_BY1-PERU_BY0);S.stroke();
+  for(const d of peru_dia){
+    const g=corpus[d.slot];
+    const lv=d.flash>0?15:Math.max(3,Math.min(13,4+Math.floor((g?g.rms:0)*200)));
+    const r=d.r||2;
+    S.level(lv);
+    S.move(d.x,d.y-r);S.line(d.x+r,d.y);S.line(d.x,d.y+r);S.line(d.x-r,d.y);S.line(d.x,d.y-r);S.stroke();
+  }
+  S.level(4);S.move(2,63);S.text('K1 lache  K2 react  K3 vide');
+}
 // dispatch plein écran des pages parité (renvoie true si dessinée)
 function drawExtraPage(){
   if(page===8){drawP8src();return true;}
+  if(page===39){drawPeru();return true;}
   if(page===18){drawMetabo();return true;}
   if(page===19){drawDevRouting('METABO MIDI',5,metabo_cur_dev);return true;}
   if(page===20){drawMetaboPlay();return true;}
