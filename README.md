@@ -81,14 +81,41 @@ Then **SYSTEM > RESTART** to reload the SuperCollider engines.
 
 ## Navigation
 
+Teammate opens on the **MENU** — a hub that lists every mode. Navigation is **two-level**: pick a mode on the menu, dive into its pages, loop back.
+
+**On the MENU (hub):**
 ```
-E1        — previous / next page (loops through all pages)
-K3        — main action for current page (see table)
+E1 / E2   — move the cursor through the modes
+E3 →      — enter the highlighted mode (jumps to its first page)
+K3        — arm / disarm that mode (shows on / -)
+K2        — FREEZE (MGEN patterns)
 ```
 
-> Pages are **grouped by mode** in the display order (POtO · 8OS · MIDI routing · MGEN · Audio→MIDI · SPAT · METABO · NIAKABY · MGEN TASTE · LIVE · **WiFi** · **the agent**). The page numbers in the section titles below are the original **logical IDs** (unchanged); the live display order is regrouped, so e.g. *POtO grain* sits next to *POtO granular*, and the *METABO* block is contiguous.
+**Inside a mode:**
+```
+E1        — scroll this mode's pages; past the last one, loop back to the MENU
+E2/E3/K1-K3 — the page's own controls (unchanged)
+```
 
-> *Les pages sont **regroupées par mode** dans l'ordre d'affichage. Les numéros des titres ci-dessous sont les **IDs logiques** d'origine (inchangés) ; l'ordre affiché, lui, est regroupé.*
+The settings-page header shows the mode + your position, e.g. `POtO 2/4`. Modes: **IMPRO · POtO · 8OS · MGEN · AUDIO · SPAT · METABO · NIAKABY · PERU · WIFI · CC · MIDI** (routing) **· AGENT** (agent/MIND/STYLE). The page numbers in the section titles below are the original **logical IDs** (unchanged).
+
+*Teammate ouvre sur le **MENU** — un hub qui liste tous les modes. Navigation à **deux niveaux** : choisis un mode, entre dans ses pages, reboucle.*
+
+**Sur le MENU (hub) :**
+```
+E1 / E2   — déplacer le curseur dans les modes
+E3 →      — entrer dans le mode surligné (saute à sa 1re page)
+K3        — armer / couper ce mode (affiche on / -)
+K2        — FREEZE (patterns MGEN)
+```
+
+**Dans un mode :**
+```
+E1        — défiler les pages du mode ; après la dernière, retour au MENU
+E2/E3/K1-K3 — les contrôles propres de la page (inchangés)
+```
+
+*L'en-tête des pages de réglages affiche le mode + ta position, ex. `POtO 2/4`.*
 
 ---
 

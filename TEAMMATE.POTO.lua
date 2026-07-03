@@ -40,7 +40,7 @@ local REV_PROB   = 0.05
 local SLICE_MIN  = 0.20
 local SLICE_MAX  = 0.80
 
-local page       = 1       -- page UI courante (1-9)
+local page       = 27      -- page UI courante (demarre sur le MENU / hub)
 
 ---------------------------------------------------------------------
 -- etat
@@ -2876,6 +2876,31 @@ audio_midi_on = true     -- Audio->MIDI actif (si route page 16) ; armable depui
 comp_on = true           -- compagnon (impro corpus) repond ; off = ecoute mais se tait
 live_cursor = 1
 LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO", "WIFI", "CC", "PERU" }
+-- ===== MENU HIERARCHIQUE : la page 27 = HUB. Chaque categorie regroupe ses pages.
+-- HUB : E1/E2 deplacent le curseur, K1 entre, K3 arme (si armable). Dans une
+-- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
+NAV_CATS = {
+  { n = "IMPRO",  pg = {1,2,3,4},        arm = 8  },
+  { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
+  { n = "8OS",    pg = {6,8,28},         arm = 2  },
+  { n = "MGEN",   pg = {13,14,15,25,26}, arm = 3  },
+  { n = "AUDIO",  pg = {16},             arm = 7  },
+  { n = "SPAT",   pg = {17},             arm = 4  },
+  { n = "METABO", pg = {18,19,20,21},    arm = 5  },
+  { n = "NIAKA",  pg = {22,23,24},       arm = 6  },
+  { n = "PERU",   pg = {39,40},          arm = 11 },
+  { n = "WIFI",   pg = {36,35},          arm = 9  },
+  { n = "CC",     pg = {37},             arm = 10 },
+  { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
+  { n = "AGENT",  pg = {33,31,32},       arm = nil },
+}
+home_cursor = 1
+function nav_cat_of(p)
+  for ci, c in ipairs(NAV_CATS) do
+    for _, pg in ipairs(c.pg) do if pg == p then return ci, c end end
+  end
+  return nil
+end
 
 function live_toggle(i)
   if i == 1 then
@@ -3345,8 +3370,17 @@ end
 
 function enc(n, d)
   if n == 1 then
-    local idx = ((page_pos(page) - 1 + d) % #PAGE_ORDER) + 1
-    page = PAGE_ORDER[idx]
+    if page == 27 then
+      home_cursor = ((home_cursor - 1 + d) % #NAV_CATS) + 1        -- HUB : deplace le curseur
+    else
+      local _, c = nav_cat_of(page)
+      if not c then page = 27 else
+        local i = 1
+        for k, pg in ipairs(c.pg) do if pg == page then i = k end end
+        i = i + d
+        if i < 1 or i > #c.pg then page = 27 else page = c.pg[i] end  -- au bout de la zone : retour au HUB
+      end
+    end
   elseif n == 2 then
     if page == 1 then
       p_rec_prob    = util.clamp(p_rec_prob    + d * 0.05, 0.0, 1.0)
@@ -3394,7 +3428,7 @@ function enc(n, d)
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
     elseif page == 27 then
-      live_cursor = ((live_cursor - 1 + d) % #LIVE_NAMES) + 1
+      home_cursor = ((home_cursor - 1 + d) % #NAV_CATS) + 1
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -3416,6 +3450,9 @@ function enc(n, d)
       peru_cur_dev = util.clamp(peru_cur_dev + d, 1, 4)      -- PERU MIDI : device
     end
   elseif n == 3 then
+    if page == 27 then                                        -- HUB : E3 vers la droite = entrer dans la categorie
+      if d > 0 then local c = NAV_CATS[home_cursor] ; if c then page = c.pg[1] end end
+    end
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 35 then wifi_midi_ch = util.clamp(wifi_midi_ch + d, 1, 16) end
@@ -3597,8 +3634,10 @@ function key(n, z)
     redraw() ; return
   end
   if page == 27 then
-    if n == 3 then live_toggle(live_cursor)
-    elseif n == 2 then mgen_freeze = not mgen_freeze end   -- K2 LIVE = FREEZE des patterns MGEN
+    local c = NAV_CATS[home_cursor]
+    if n == 3 then
+      if c and c.arm then live_toggle(c.arm) end            -- K3 = armer / couper (si armable)
+    elseif n == 2 then mgen_freeze = not mgen_freeze end     -- K2 = FREEZE des patterns MGEN ; K1 libre (entree = E3)
     redraw() ; return
   end
   if page == 26 then
@@ -3761,27 +3800,23 @@ function redraw()
   end
   if page == 27 then
     screen.clear() ; screen.font_size(8)
-    screen.level(15) ; screen.move(2, 8) ; screen.text("LIVE")
+    screen.level(15) ; screen.move(2, 8) ; screen.text("MENU")
     if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 tgl  K2 frz")
-    local mode8  = (os8_mode == "TRANS" and "T") or (os8_mode == "REC" and "R") or "-"
-    local states = { p_poto_on and "on" or "-", mode8, mgen_running and "on" or "-",
-                     spat.on and "on" or "-", metabolik.on and "on" or "-",
-                     niakaby.on and "on" or "-", audio_midi_on and "on" or "-",
-                     comp_on and "on" or "-", wifi.on and tostring(wifi.count or 0) or "-",
-                     cc_on and "on" or "-", peru_on and "on" or "-" }
-    local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
-                     niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on }
-    local ys     = { 18, 26, 34, 42, 50, 58 }
-    for i = 1, #LIVE_NAMES do
-      local left = (i <= 6)
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("E3 in  K3 arm")
+    local ons = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
+                  niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on }
+    local ys  = { 16, 23, 30, 37, 44, 51, 58 }
+    for i = 1, #NAV_CATS do
+      local c    = NAV_CATS[i]
+      local left = (i <= 7)
       local x    = left and 2 or 66
-      local xr   = left and 60 or 124
-      local y    = ys[left and i or (i - 6)]
-      local sel  = (i == live_cursor)
-      screen.level(sel and 15 or (ons[i] and 11 or 4))
-      screen.move(x, y) ; screen.text((sel and ">" or " ") .. LIVE_NAMES[i])
-      screen.level(ons[i] and 13 or 3) ; screen.move(xr, y) ; screen.text_right(states[i])
+      local xr   = left and 62 or 126
+      local y    = ys[left and i or (i - 7)]
+      local sel  = (i == home_cursor)
+      local on   = c.arm and ons[c.arm]
+      screen.level(sel and 15 or (on and 11 or 4))
+      screen.move(x, y) ; screen.text((sel and ">" or " ") .. c.n)
+      if c.arm then screen.level(on and 13 or 3) ; screen.move(xr, y) ; screen.text_right(on and "on" or "-") end
     end
     screen.update() ; return
   end
@@ -4084,9 +4119,14 @@ function redraw()
   screen.move(42, 8)
   screen.text(string.format("c:%d/%d", count, CORPUS_SLOTS))
 
-  screen.level(5)
-  screen.move(100, 8)
-  screen.text(page_pos(page) .. "/" .. #PAGE_ORDER)
+  local _, nav_c = nav_cat_of(page)            -- MODE + position dedans (ex. "POtO 2/4")
+  if nav_c then
+    local ni = 1
+    for k, pg in ipairs(nav_c.pg) do if pg == page then ni = k end end
+    screen.level(8) ; screen.move(126, 8) ; screen.text_right(nav_c.n .. " " .. ni .. "/" .. #nav_c.pg)
+  else
+    screen.level(5) ; screen.move(100, 8) ; screen.text(page_pos(page) .. "/" .. #PAGE_ORDER)
+  end
 
   if rec_on then
     screen.level(15)
