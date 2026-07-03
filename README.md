@@ -23,6 +23,8 @@ Seven layers running in parallel:
 - **METABO** — a separate, autonomous mode (it does **not** touch the companion). Incoming sound feeds a living **cell metabolism**; the cell answers in MIDI notes where the notes **are** its active metabolic pathways. Monotonous, repetitive playing raises the cell's **stress** and the tempo races; varied, rich playing keeps it calm — homeostatic regulation. It breathes: phrases alternate with **silences**, longer when calm. Routed through its own matrix stream (stream 6), on its own channel.
 - **NIAKABY** — a harmonizer: it turns a melodic line into **MIDI chords** (diatonic triads/7ths/9ths/sus, snapped to a scale, with a bass note), routed on its own matrix stream (stream 7). Its **source** can be the live **input**, **METABO** (the cell's notes drive the chords) or the **companion** — and when METABO is on it **colours** the chords (tensions under stress, octave doublings on growth).
 
+- **PERU** — a gravity toy: grains from the corpus become **diamonds** in a box that fall, bounce off the walls and **trigger their sound on every collision** (panned by the impact point). Their agitation can be **auto-shaken** by your input, METABO or the impro. Own MIDI stream (8), armable from LIVE.
+
 On top of these, a **living layer** makes it feel like a partner: **MIND** (shared listening — it follows your dynamics, builds a long arc, recalls your motifs), **STYLE** (it learns and plays in your manner), an **agent** with a face that grows, has opinions and recognizes places, and a **WiFi** dimension that turns the networks in the room into a playable source. See the dedicated sections below.
 
 Running on a Monome Norns. Lua + SuperCollider. Ported from a 12,000-line Python original.
@@ -46,6 +48,8 @@ Sept couches en parallèle :
 - **Audio→MIDI** — convertit le pitch audio live en notes MIDI polyphoniques en temps réel, routable sur n'importe lequel des 4 devices MIDI avec canal configurable.
 - **METABO** — un mode **séparé et autonome** (il ne **touche pas** au compagnon). Le son entrant nourrit un **métabolisme cellulaire** vivant ; la cellule répond en notes MIDI où les notes **sont** ses voies métaboliques actives. Un jeu monotone et répétitif fait monter le **stress** de la cellule et le tempo s'emballe ; un jeu varié et riche la garde calme — régulation homéostatique. Elle respire : les phrases alternent avec des **silences**, plus longs quand elle est calme. Routé via son propre stream de matrice (stream 6), sur son propre canal.
 - **NIAKABY** — un harmoniseur : il transforme une ligne mélodique en **accords MIDI** (triades / 7e / 9e / sus diatoniques calés dans une gamme, avec une basse), routés sur son propre stream de matrice (stream 7). Sa **source** peut être l'**entrée** live, **METABO** (les notes de la cellule pilotent les accords) ou le **compagnon** — et quand METABO est actif il **colore** les accords (tensions sous stress, doublures si croissance).
+
+- **PERU** — un jouet gravitationnel : les grains du corpus deviennent des **diamants** dans une boîte qui tombent, rebondissent sur les bords et **déclenchent leur son à chaque choc** (spatialisés selon le point d'impact). Leur agitation peut être **auto-secouée** par ton entrée, METABO ou l'impro. Son propre stream MIDI (8), armable depuis LIVE.
 
 Par-dessus, une **couche vivante** en fait un vrai partenaire : **MIND** (écoute partagée — il suit ta dynamique, construit un arc long, rappelle tes motifs), **STYLE** (il apprend et joue à ta manière), un **agent** à visage qui grandit, a des opinions et reconnaît les lieux, et une dimension **WiFi** qui transforme les réseaux de la salle en source jouable. Voir les sections dédiées plus bas.
 
@@ -796,7 +800,7 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 | K3 | Toggle the highlighted mode (8OS toggles OFF ↔ TRANS only — never re-records) |
 | K2 | **ALL OFF** — panic: stops every mode + all-notes-off on every stream |
 
-- Modes listed: **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (the companion). Each shows its live state (`ON` / `off`, or `OFF/REC/TRANS` for 8OS). Active modes are brighter. (MIDI modes still need their stream routed once — pages 9–12 / 16 / 19 / 23.)
+- Modes listed: **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (the companion), **WIFI**, **CC**, **PERU** (grain gravity box). Each shows its live state (`ON` / `off`, or `OFF/REC/TRANS` for 8OS). Active modes are brighter. (MIDI modes still need their stream routed once — pages 9–12 / 16 / 19 / 23.)
 - **IMPRO** off = the companion keeps **listening and memorizing** but **stops responding** (goes silent); toggle it back on to bring the dialogue back.
 
 *Une seule page pour **armer / couper les modes** en live. Règle les paramètres de chaque mode sur sa page, puis viens ici pour les activer pendant le set.*
@@ -807,8 +811,39 @@ A single page to **arm / disarm the modes** during a set. Dial in each mode's pa
 | K3 | Activer / couper le mode surligné (8OS bascule OFF ↔ TRANS seulement — ne ré-enregistre jamais) |
 | K2 | **ALL OFF** — panic : coupe tous les modes + all-notes-off sur tous les streams |
 
-- Modes listés : **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (le compagnon). Chacun affiche son état live. Les modes actifs sont plus lumineux. (Les modes MIDI doivent rester routés une fois — pages 9–12 / 16 / 19 / 23.)
+- Modes listés : **POtO**, **8OS**, **MGEN**, **SPAT**, **METABO**, **NIAKABY**, **AUDIO** (Audio→MIDI), **IMPRO** (le compagnon), **WIFI**, **CC**, **PERU** (bac à grains). Chacun affiche son état live. Les modes actifs sont plus lumineux. (Les modes MIDI doivent rester routés une fois — pages 9–12 / 16 / 19 / 23.)
 - **IMPRO** off = le compagnon continue d'**écouter et mémoriser** mais **arrête de répondre** (se tait) ; rallume-le pour relancer le dialogue.
+
+---
+
+### Page 39 — PERU
+A gravity toy: drop **grains from the corpus** into a box as little **diamonds**. They fall, bounce off the walls and **trigger their sound on every collision** — panned by where they hit. A physical, playable grain sequencer. Runs continuously while diamonds are in the box.
+
+| Encoder / Key | Function |
+|---|---|
+| E2 | Select the grain (corpus slot) to drop |
+| E3 | Gravity |
+| K1 | Drop the selected grain (a diamond falls in) |
+| K2 | **Auto-shake** source / amount: `OFF → IN 50/100% → MB 50/100% → IM 50/100%` |
+| K3 | Empty the box (clear + stop) |
+
+- **Auto-shake** links the agitation to a signal: **IN** = your input dynamics (continuous), **MB** = METABO (one diamond sings per cell note), **IM** = the impro's activity (continuous). The louder/busier the source, the more the diamonds bounce → more grains fire.
+- Diamond size ∝ grain duration · flashes on impact · max 16 (oldest drops when full).
+- Own MIDI routing on **stream 8** (page PERU MIDI). Armable from **LIVE**. Dropping a grain arms it; clearing stops it.
+
+*Un jouet gravitationnel : dépose des **grains du corpus** dans une boîte sous forme de **diamants**. Ils tombent, rebondissent sur les bords et **déclenchent leur son à chaque choc** — spatialisés selon le point d'impact. Un séquenceur de grains physique et jouable. Tourne en continu tant qu'il y a des diamants.*
+
+| Encodeur / Touche | Fonction |
+|---|---|
+| E2 | Choisir le grain (slot du corpus) à lâcher |
+| E3 | Gravité |
+| K1 | Lâcher le grain sélectionné (un diamant tombe) |
+| K2 | **Auto-secousse** source / dose : `OFF → IN 50/100% → MB 50/100% → IM 50/100%` |
+| K3 | Vider la boîte (clear + stop) |
+
+- L'**auto-secousse** lie l'agitation à un signal : **IN** = ta dynamique d'entrée (continu), **MB** = METABO (un diamant chante par note de cellule), **IM** = l'activité de l'impro (continu). Plus la source est forte/active, plus les diamants rebondissent → plus de grains.
+- Taille du diamant ∝ durée du grain · clignote au choc · max 16 (le plus vieux part quand c'est plein).
+- Routage MIDI propre sur le **stream 8** (page PERU MIDI). Armable depuis **LIVE**. Lâcher un grain l'active ; vider l'arrête.
 
 ---
 
