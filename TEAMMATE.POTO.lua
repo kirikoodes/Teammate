@@ -304,6 +304,9 @@ metabo_cur_dev = 1                              -- device selectionne (page 19 M
 midi_route[7] = {false, false, false, false}   -- NIAKABY = stream 7 (accords MIDI)
 midi_ch[7]    = {7, 7, 7, 7}                    -- canal NIAKABY par device
 niaka_cur_dev = 1                               -- device selectionne (page 23 NIAKABY MIDI ; global)
+midi_route[8] = {false, false, false, false}   -- PERU = stream 8 (grains gravitationnels)
+midi_ch[8]    = {8, 8, 8, 8}                    -- canal PERU par device
+peru_cur_dev  = 1                               -- device selectionne (page PERU MIDI)
 local midi_audio_cur_dev = 1          -- device selectionne sur page 16
 local midi_audio_note    = nil        -- note MIDI audio active courante
 
@@ -451,6 +454,7 @@ local spat_eff_pan     -- forward ref
 -- Variables + fonction en GLOBAL (evite la limite de locals du chunk).
 comp_rms = 0 ; comp_freq = 0 ; comp_centroid = 0 ; comp_flatness = 0
 meta_freq = 0 ; meta_energy = 0   -- derniere note de METABO (pour alimenter NIAKABY)
+impro_energy = 0                  -- enveloppe d'activite de l'impro (pour PERU src=IMPRO, continu)
 mgen_nfreq = 0 ; mgen_nenergy = 0 -- derniere note de MGEN (pour alimenter NIAKABY)
 function companion_feed(rms, freq, centroid, flatness)
   if (rms or 0) > comp_rms then comp_rms = rms end        -- attaque (le decay est dans la boucle metabo)
@@ -459,7 +463,7 @@ function companion_feed(rms, freq, centroid, flatness)
   if flatness then comp_flatness = flatness end
 end
 
-local function play_event(ev, rate_mult)
+local function play_event(ev, rate_mult, mstream, pan)
   local vi  = ply_idx
   local v   = PLY_V[vi]
   ply_idx   = (ply_idx % #PLY_V) + 1
@@ -486,8 +490,11 @@ local function play_event(ev, rate_mult)
 
   if style.on then len = style.artic_len(len) end          -- STYLE : articulation (staccato/legato)
 
+  local fade = math.max(0.010, math.min(0.050, len * 0.3))    -- fondu proportionnel a la taille du grain (plancher anti-clic)
+  softcut.level_slew_time(v, fade)                            -- rampe d'amplitude : fade-IN au depart, fade-OUT a l'arret (anti-clic)
   softcut.level(v, spat.on and spat_depth_mult("impro") or 1.0)
-  if spat.on then softcut.pan(v, spat_eff_pan("impro")) end
+  if pan then softcut.pan(v, pan)                           -- PERU : spatialise selon le point de collision
+  elseif spat.on then softcut.pan(v, spat_eff_pan("impro")) end
   softcut.loop(v, 0)
   softcut.loop_start(v, base)
   softcut.loop_end(v, base + len)
@@ -499,7 +506,7 @@ local function play_event(ev, rate_mult)
     softcut.position(v, base)
   end
 
-  softcut.fade_time(v, math.min(0.050, len * 0.18))
+  softcut.fade_time(v, fade)
   softcut.rate(v, rate * rate_mult)
   softcut.play(v, 1)
 
@@ -507,14 +514,17 @@ local function play_event(ev, rate_mult)
   local imp_note = freq_to_midi(f) or 60
   local imp_vel  = math.max(1, math.min(127, math.floor(ev.rms * 800)))
   if style.on then imp_vel = style.vel_scale(imp_vel) end   -- STYLE : ta dynamique
-  midi_note_on(1, imp_note, imp_vel)
+  midi_note_on(mstream or 1, imp_note, imp_vel)         -- stream 1 = IMPRO ; 8 = PERU
   companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
+  if (mstream or 1) == 1 then impro_energy = math.max(impro_energy, imp_vel / 127) end   -- suivi d'enveloppe de l'impro (pour PERU src=IMPRO, continu)
 
   clock.run(function()
-    clock.sleep(math.max(0.04, len - 0.025))
-    midi_note_off(1, imp_note)
+    clock.sleep(math.max(0.04, len))              -- joue le grain
+    midi_note_off(mstream or 1, imp_note)
     if ply_tokens[vi] == tok then
-      softcut.play(v, 0)
+      softcut.level(v, 0)                          -- fade-OUT via le level slew (rampe douce, pas de coupe seche)
+      clock.sleep(fade + 0.005)
+      if ply_tokens[vi] == tok then softcut.play(v, 0) end   -- coupe seulement apres le fondu, si la voix n'a pas ete reprise
     end
   end)
 
@@ -2533,6 +2543,79 @@ wifi_midi_cc  = 1       -- CC pour le trafic (1 = modwheel)
 wifi_links    = {}      -- ssid -> { dev=1..4, ch=1..16, on=bool }
 wifi_link_cur = 1       -- curseur dans la liste des reseaux scannes
 
+-- ===== PERU : bac a grains gravitationnel =====
+-- On depose des grains du corpus sous forme de diamants dans une boite. Ils tombent
+-- (gravite), rebondissent sur les bords, et DECLENCHENT leur son a chaque choc.
+-- E2 choisit le grain, E3 la gravite. K1 lache, K2 secoue, K3 vide (clear).
+-- La physique tourne en continu tant qu'il y a des diamants (comme les autres modes).
+PERU_PAGE   = 39
+PERU_MAX    = 16              -- nombre max de diamants
+PERU_BX0, PERU_BY0 = 3, 12    -- coin haut-gauche de la boite
+PERU_BX1, PERU_BY1 = 125, 56  -- coin bas-droit
+peru_dia    = {}              -- { slot, x, y, vx, vy, r, flash }
+peru_on     = false           -- actif (armable depuis LIVE ; s'active en lachant un grain)
+peru_sel    = 1              -- grain selectionne (slot) pour l'ajout
+peru_grav   = 0.12          -- gravite (E3)
+peru_bounce = 0.90          -- restitution au rebond
+-- auto-secousse : l'INPUT (ton son) ou METABO agite les diamants, dose en % (K2)
+peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=0.5}, {src=2, amt=1.0}, {src=3, amt=0.5}, {src=3, amt=1.0} }
+peru_rmode  = 1
+PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 100%" }
+
+function peru_add(slot)
+  if not corpus[slot] then return end                        -- slot vide : rien
+  peru_on = true                                             -- lacher un grain active PERU
+  if #peru_dia >= PERU_MAX then table.remove(peru_dia, 1) end -- FIFO si plein
+  local g = corpus[slot]
+  peru_dia[#peru_dia + 1] = {
+    slot = slot,
+    x  = PERU_BX0 + math.random() * (PERU_BX1 - PERU_BX0),
+    y  = PERU_BY0 + 3,
+    vx = (math.random() * 2 - 1) * 1.5,
+    vy = 0,
+    r  = 2 + math.floor(math.min(1, (g.duration or 0.1) * 3) * 2),  -- taille ~ duree
+    flash = 0,
+  }
+end
+
+-- fait "chanter" UN diamant (coup cible) : influence musicale event-driven (METABO ou IMPRO)
+function peru_kick(strength)
+  if #peru_dia == 0 then return end
+  local d = peru_dia[math.random(#peru_dia)]
+  d.vy = d.vy - (1.0 + strength * 3.0)
+  d.vx = d.vx + (math.random() * 2 - 1) * (1.0 + strength * 2.0)
+end
+
+function peru_step()
+  -- INPUT et IMPRO : agitation continue (dynamique). METABO = event-driven (via note_on), pas ici.
+  local m = peru_rmodes[peru_rmode]
+  local drive = 0
+  if     m.src == 1 then drive = math.min(1, (cur_rms or 0) * 8) * m.amt   -- INPUT : ta dynamique de jeu
+  elseif m.src == 3 then drive = math.min(1, impro_energy) * m.amt end      -- IMPRO : dynamique de l'impro
+  for _, d in ipairs(peru_dia) do
+    if drive > 0 and math.random() < drive then          -- auto-secousse : coup de fouet proportionnel au signal
+      d.vy = d.vy - (0.6 + math.random() * 0.9)
+      d.vx = d.vx + (math.random() * 2 - 1) * 0.9
+    end
+    d.vy = d.vy + peru_grav
+    d.x  = d.x + d.vx
+    d.y  = d.y + d.vy
+    local hit, speed = false, 0
+    if d.x < PERU_BX0 then d.x = PERU_BX0 ; d.vx = -d.vx * peru_bounce ; hit = true ; speed = math.abs(d.vx) end
+    if d.x > PERU_BX1 then d.x = PERU_BX1 ; d.vx = -d.vx * peru_bounce ; hit = true ; speed = math.abs(d.vx) end
+    if d.y < PERU_BY0 then d.y = PERU_BY0 ; d.vy = -d.vy * peru_bounce ; hit = true ; speed = math.max(speed, math.abs(d.vy)) end
+    if d.y > PERU_BY1 then
+      d.y = PERU_BY1 ; d.vy = -d.vy * peru_bounce ; hit = true ; speed = math.max(speed, math.abs(d.vy))
+      if math.abs(d.vy) < 0.6 then d.vy = 0 ; d.vx = d.vx * 0.8 end   -- repos au sol (evite le mitraillage)
+    end
+    if hit and speed > 0.5 then
+      d.flash = 3
+      local pan = math.max(-1, math.min(1, (d.x - (PERU_BX0 + PERU_BX1) / 2) / ((PERU_BX1 - PERU_BX0) / 2)))  -- pan = position horizontale du choc
+      clock.run(function() pcall(play_event, corpus[d.slot], nil, 8, pan) end)   -- choc = joue le grain (stream 8 + spatialise) ; coroutine : ne bloque pas la physique
+    elseif d.flash > 0 then d.flash = d.flash - 1 end
+  end
+end
+
 -- ===== FACE : une "creature" a la Pwnagotchi (humeur + lieux WiFi + opinions + autonomie) =====
 face_blink     = 0
 creature_auto  = false   -- AUTO (K3) : la creature AGIT (reve + decide). off = affichage seul.
@@ -2792,7 +2875,7 @@ end
 audio_midi_on = true     -- Audio->MIDI actif (si route page 16) ; armable depuis LIVE
 comp_on = true           -- compagnon (impro corpus) repond ; off = ecoute mais se tait
 live_cursor = 1
-LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO", "WIFI", "CC" }
+LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IMPRO", "WIFI", "CC", "PERU" }
 
 function live_toggle(i)
   if i == 1 then
@@ -2819,6 +2902,8 @@ function live_toggle(i)
     wifi.on = not wifi.on
   elseif i == 10 then
     cc_on = not cc_on
+  elseif i == 11 then
+    peru_on = not peru_on
   end
 end
 
@@ -2833,7 +2918,8 @@ function live_all_off()
   comp_on = false
   wifi.on = false
   cc_on = false
-  for st = 1, 7 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
+  peru_on = false
+  for st = 1, 8 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
 -- ===== MEMOIRE GLOBALE : sauve/recharge TOUS les reglages =====
@@ -2921,9 +3007,9 @@ function state_load()
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
       if st.mgen_mch and st.mgen_mch[i] then mgen_ch[i].midi_ch=st.mgen_mch[i] end
     end end
-    if type(st.midi_route)=="table" then for s=1,7 do if type(st.midi_route[s])=="table" and midi_route[s] then
+    if type(st.midi_route)=="table" then for s=1,8 do if type(st.midi_route[s])=="table" and midi_route[s] then
       for d=1,4 do if st.midi_route[s][d]~=nil then midi_route[s][d]=st.midi_route[s][d] end end end end end
-    if type(st.midi_ch)=="table" then for s=1,7 do if type(st.midi_ch[s])=="table" and midi_ch[s] then
+    if type(st.midi_ch)=="table" then for s=1,8 do if type(st.midi_ch[s])=="table" and midi_ch[s] then
       for d=1,4 do if st.midi_ch[s][d] then midi_ch[s][d]=st.midi_ch[s][d] end end end end end
     if type(st.midi_ch_audio)=="table" then for d=1,4 do if st.midi_ch_audio[d] then midi_ch_audio[d]=st.midi_ch_audio[d] end end end
     meta_mgen_drive=g(st.meta_drive,meta_mgen_drive) ; meta_mgen_scope=g(st.meta_scope,meta_mgen_scope) ; meta_note_inf=g(st.meta_note,meta_note_inf)
@@ -3046,6 +3132,16 @@ function init()
     end
   end)
 
+  -- PERU : boucle physique (~30 Hz). Redessine la page si elle est affichee (anim fluide).
+  clock.run(function()
+    while true do
+      clock.sleep(1/30)
+      impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
+      if peru_on and #peru_dia > 0 then peru_step() end
+      if page == PERU_PAGE then redraw() end
+    end
+  end)
+
   -- WIFI -> MIDI : arpege des reseaux (canal->hauteur, signal->velocite) + accent
   -- sur nouveau reseau + CC continu du trafic. Sort sur device/canal choisis.
   clock.run(function()
@@ -3126,6 +3222,10 @@ function init()
     midi_note_on(6, note, vel)
     meta_freq = 440 * 2 ^ ((note - 69) / 12)        -- capture pour NIAKABY (source METABO)
     if vel / 127 > meta_energy then meta_energy = vel / 127 end
+    if peru_on and #peru_dia > 0 then               -- PERU : chaque note de METABO fait chanter un diamant (musical)
+      local m = peru_rmodes[peru_rmode]
+      if m.src == 2 and m.amt > 0 then peru_kick((vel / 127) * m.amt) end
+    end
   end
   metabolik.note_off = function(note)      midi_note_off(6, note) end
   clock.run(metabolik.player)
@@ -3237,7 +3337,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 36,35,37,38, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3310,6 +3410,10 @@ function enc(n, d)
       wifi_link_cur = util.clamp(wifi_link_cur + d, 1, math.max(1, #wifi.nets))
     elseif page == 37 then
       cc_cursor = util.clamp(cc_cursor + d, 0, 16)
+    elseif page == PERU_PAGE then
+      peru_sel = util.clamp(peru_sel + d, 1, CORPUS_SLOTS)   -- choisit le grain a lacher
+    elseif page == 40 then
+      peru_cur_dev = util.clamp(peru_cur_dev + d, 1, 4)      -- PERU MIDI : device
     end
   elseif n == 3 then
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
@@ -3323,7 +3427,6 @@ function enc(n, d)
         lane.num = util.clamp((lane.num or cc_cursor) + d, 0, 127)   -- numero CC vise (0..127)
       end
     end
-    if page == 38 then lora.ch = util.clamp(lora.ch + d, 1, 16) end   -- LORA : canal de base
     if page == 36 then
       local net = wifi.nets[wifi_link_cur]
       if net then
@@ -3391,6 +3494,10 @@ function enc(n, d)
       midi_ch[7][niaka_cur_dev] = util.clamp(midi_ch[7][niaka_cur_dev] + d, 1, 16)
     elseif page == 24 then
       niakaby.enc_src(3, d)
+    elseif page == PERU_PAGE then
+      peru_grav = util.clamp(peru_grav + d * 0.01, 0.0, 0.5)   -- gravite
+    elseif page == 40 then
+      midi_ch[8][peru_cur_dev] = util.clamp(midi_ch[8][peru_cur_dev] + d, 1, 16)   -- PERU MIDI : canal
     end
   end
   redraw()
@@ -3456,12 +3563,6 @@ function key(n, z)
     end
     redraw() ; return
   end
-  if page == 38 then
-    if n == 1 then lora_test()                                     -- simule un message recu (test sans materiel)
-    elseif n == 2 then lora.dev = (lora.dev % 4) + 1               -- device de sortie MIDI
-    elseif n == 3 then lora.on = not lora.on end                   -- arme la sonification LoRa
-    redraw() ; return
-  end
   if page == 37 then
     if n == 1 then
       cc_learn = (not cc_learn) and cc_cursor >= 1                 -- arme l'apprentissage (lane seulement)
@@ -3489,6 +3590,12 @@ function key(n, z)
     end
     redraw() ; return
   end
+  if page == PERU_PAGE then
+    if n == 1 then peru_add(peru_sel)      -- lache le grain selectionne
+    elseif n == 2 then peru_rmode = (peru_rmode % #peru_rmodes) + 1   -- source/dose de l'auto-secousse
+    elseif n == 3 then peru_dia = {} ; peru_on = false end   -- vide la boite (clear + stop)
+    redraw() ; return
+  end
   if page == 27 then
     if n == 3 then live_toggle(live_cursor)
     elseif n == 2 then mgen_freeze = not mgen_freeze end   -- K2 LIVE = FREEZE des patterns MGEN
@@ -3501,6 +3608,10 @@ function key(n, z)
   end
   if page == 19 then
     if n == 3 then midi_route[6][metabo_cur_dev] = not midi_route[6][metabo_cur_dev] end
+    redraw() ; return
+  end
+  if page == 40 then
+    if n == 3 then midi_route[8][peru_cur_dev] = not midi_route[8][peru_cur_dev] end
     redraw() ; return
   end
   if n == 2 and page == 4 then
@@ -3658,15 +3769,15 @@ function redraw()
                      spat.on and "on" or "-", metabolik.on and "on" or "-",
                      niakaby.on and "on" or "-", audio_midi_on and "on" or "-",
                      comp_on and "on" or "-", wifi.on and tostring(wifi.count or 0) or "-",
-                     cc_on and "on" or "-" }
+                     cc_on and "on" or "-", peru_on and "on" or "-" }
     local ons    = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
-                     niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on }
-    local ys     = { 20, 30, 40, 50, 60 }
+                     niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on }
+    local ys     = { 18, 26, 34, 42, 50, 58 }
     for i = 1, #LIVE_NAMES do
-      local left = (i <= 5)
+      local left = (i <= 6)
       local x    = left and 2 or 66
       local xr   = left and 60 or 124
-      local y    = ys[left and i or (i - 5)]
+      local y    = ys[left and i or (i - 6)]
       local sel  = (i == live_cursor)
       screen.level(sel and 15 or (ons[i] and 11 or 4))
       screen.move(x, y) ; screen.text((sel and ">" or " ") .. LIVE_NAMES[i])
@@ -3713,6 +3824,49 @@ function redraw()
       screen.move(86, ys[d]) ; screen.text(routed and "[X]" or "[ ]")
       screen.level(sel and 12 or 5)
       screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[6][d])
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
+    screen.update() ; return
+  end
+  if page == PERU_PAGE then
+    screen.clear() ; screen.font_size(8)
+    screen.level(peru_on and 15 or 6) ; screen.move(2, 8) ; screen.text("PERU")
+    -- grain selectionne | gravite | auto-secousse
+    screen.level(corpus[peru_sel] and 9 or 3) ; screen.move(32, 8)
+    screen.text("g" .. peru_sel .. (corpus[peru_sel] and "" or "-"))
+    screen.level(4) ; screen.move(58, 8) ; screen.text(string.format("G%.2f", peru_grav))
+    screen.level(peru_rmode > 1 and 12 or 4) ; screen.move(126, 8) ; screen.text_right(PERU_RLBL[peru_rmode])
+    -- la boite
+    screen.level(3) ; screen.rect(PERU_BX0, PERU_BY0, PERU_BX1 - PERU_BX0, PERU_BY1 - PERU_BY0) ; screen.stroke()
+    -- les diamants
+    for _, d in ipairs(peru_dia) do
+      local g  = corpus[d.slot]
+      local lv = d.flash > 0 and 15 or math.max(3, math.min(13, 4 + math.floor((g and g.rms or 0) * 200)))
+      local r  = d.r or 2
+      screen.level(lv)
+      screen.move(d.x, d.y - r) ; screen.line(d.x + r, d.y) ; screen.line(d.x, d.y + r) ; screen.line(d.x - r, d.y) ; screen.line(d.x, d.y - r) ; screen.stroke()
+    end
+    -- aide
+    screen.level(4) ; screen.move(2, 63)
+    screen.text("K1 lache  K2 react  K3 vide")
+    screen.update() ; return
+  end
+  if page == 40 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("PERU MIDI")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("str8")
+    local ys = { 22, 33, 44, 55 }
+    for d = 1, 4 do
+      local sel    = (d == peru_cur_dev)
+      local routed = midi_route[8][d]
+      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+      if #dname > 8 then dname = string.sub(dname, 1, 7) .. "~" end
+      screen.level(sel and 15 or (routed and 9 or 4))
+      screen.move(2, ys[d]) ; screen.text(string.format("%sd%d %s", sel and ">" or " ", d, dname))
+      screen.level(routed and 15 or 3)
+      screen.move(86, ys[d]) ; screen.text(routed and "[X]" or "[ ]")
+      screen.level(sel and 12 or 5)
+      screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[8][d])
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
     screen.update() ; return
@@ -3878,10 +4032,6 @@ function redraw()
     else screen.text("E3 cc#  K2 src  K3 on  K1 learn") end
     screen.update() ; return
   end
-  if page == 38 then
-    lora.redraw() ; return
-  end
-
   if page == 30 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("POtO SRC")
