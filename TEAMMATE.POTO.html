@@ -1784,28 +1784,38 @@ function mindUpdate(rms,freq,centroid,flatness,gate,dt,t){
   mind.drive=cu(mind.tension*0.55+mind.arc*0.6);
 }
 // memoire de motifs : capture tes phrases marquantes, les ramene transformees
-let motifs=[],motif_last_t=0;const MOTIF_SEMIS=[0,0,7,12,-12,5,-5];
+let motifs=[],motif_last_t=0,motif_last_i=-1;const MOTIF_SEMIS=[0,0,7,12,-12,5,-5];
 function captureMotif(buf){
   if(buf.length<2)return;
   let e=0;for(const ev of buf)e+=ev.rms||0;e/=buf.length;
   if(e<0.02)return;
   motifs.push({evs:buf.slice(),energy:e});
-  while(motifs.length>4)motifs.shift();
+  while(motifs.length>10)motifs.shift();   // banque 10 (plus de variete)
+}
+function motifPick(){   // anti-repetition : evite de rejouer le meme deux fois de suite
+  if(motifs.length===0)return null;
+  if(motifs.length===1){motif_last_i=0;return motifs[0];}
+  let i;do{i=rnd(0,motifs.length-1);}while(i===motif_last_i);
+  motif_last_i=i;return motifs[i];
 }
 async function playMotif(m){
+  if(!m)return;
   const semis=MOTIF_SEMIS[rnd(0,MOTIF_SEMIS.length-1)],rate=Math.pow(2,semis/12);
-  const beat=60/mgen_bpm,gap=Math.max(0.05,beat/(Math.random()<0.5?2:4));
   let order=m.evs.map((_,i)=>i);
   if(Math.random()<0.3)order=order.reverse();
+  if(order.length>3&&Math.random()<0.35){const len=2+rnd(0,order.length-2),start=rnd(0,order.length-len);order=order.slice(start,start+len);}  // parfois un fragment
   strat_name='MOTIF';
-  for(let k=0;k<order.length;k++){const ev=m.evs[order[k]];playEvent(ev,rate);markPlayed(ev.slot);last_slot=ev.slot;if(k<order.length-1)await sleep(gap*1000);}
+  for(let k=0;k<order.length;k++){
+    const ev=m.evs[order[k]];playEvent(ev,rate);markPlayed(ev.slot);last_slot=ev.slot;
+    if(k<order.length-1){const gap=Math.max(0.04,Math.min(1.2,ev.duration||0.15));await sleep(gap*(0.9+Math.random()*0.2)*1000);}  // TON rythme (duree de la note)
+  }
 }
 function maybeRecallMotif(){
   if(!comp_on||!mind.on||motifs.length===0)return false;
   const t=now();if(t-motif_last_t<6)return false;
   if(Math.random()>(0.15+(mind.arc||0)*0.5))return false;
   motif_last_t=t;state='THINK';
-  playMotif(motifs[rnd(0,motifs.length-1)]);
+  playMotif(motifPick());
   sleep((0.4+Math.random())*1000).then(()=>{state='LISTEN';});
   return true;
 }

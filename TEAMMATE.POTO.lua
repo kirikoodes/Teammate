@@ -793,6 +793,7 @@ local function os8_set(mode)
   end
 
   os8_mode = mode
+  if mode ~= "OFF" and peru_on then peru_on = false end       -- PERU partage les voix -> exclusif
 
   if mode == "OFF" then
     -- libere V3 pour le corpus (sauf si POtO l'utilise deja)
@@ -1062,6 +1063,7 @@ local function poto_set(on)
   if on == p_poto_on then return end
   -- POtO et 8OS sont mutuellement exclusifs
   if on and os8_mode ~= "OFF" then os8_set("OFF") end
+  if on and peru_on then peru_on = false end                 -- PERU partage les voix 5,6 -> exclusif
   p_poto_on = on
 
   if on then
@@ -2021,8 +2023,9 @@ end
 ---------------------------------------------------------------------
 -- ===== MEMOIRE DE MOTIFS : TEAMMATE se souvient de tes phrases et les ramene, transformees =====
 -- (globals : la limite Lua de 200 locals dans le chunk principal est atteinte)
-motifs = {}                -- banque des phrases marquantes du joueur (max 4)
+motifs = {}                -- banque des phrases marquantes du joueur (max 10)
 motif_last_t = 0
+motif_last_i = 0           -- dernier motif joue (anti-repetition)
 
 function capture_motif(buf)
   if #buf < 2 then return end
@@ -2030,20 +2033,33 @@ function capture_motif(buf)
   if e < 0.02 then return end                       -- ignore les phrases trop faibles
   local copy = {} ; for i, ev in ipairs(buf) do copy[i] = ev end
   motifs[#motifs + 1] = { evs = copy, energy = e }
-  while #motifs > 4 do table.remove(motifs, 1) end
+  while #motifs > 10 do table.remove(motifs, 1) end
   if creature_xp_add then creature_xp_add(5) end   -- motif appris -> XP
+end
+
+-- choisit un motif AU HASARD mais evite de rejouer le meme deux fois de suite
+function motif_pick()
+  if #motifs == 0 then return nil end
+  if #motifs == 1 then motif_last_i = 1 ; return motifs[1] end
+  local i ; repeat i = math.random(#motifs) until i ~= motif_last_i
+  motif_last_i = i ; return motifs[i]
 end
 
 MOTIF_SEMIS = { 0, 0, 7, 12, -12, 5, -5 }
 function play_motif(m)
+  if not m then return end
   local semis = MOTIF_SEMIS[math.random(#MOTIF_SEMIS)]   -- transpose
   local rate  = 2 ^ (semis / 12)
-  local beat  = 60.0 / mgen_bpm
-  local gap   = math.max(0.05, beat / (math.random() < 0.5 and 2 or 4))
   local order = {}
   for i = 1, #m.evs do order[i] = i end
   if math.random() < 0.3 then                            -- parfois renverse (developpe au lieu de copier)
     local r = {} ; for i = #order, 1, -1 do r[#r + 1] = order[i] end ; order = r
+  end
+  if #order > 3 and math.random() < 0.35 then            -- parfois un FRAGMENT (pas toute la phrase)
+    local len   = 2 + math.random(#order - 2)
+    local start = math.random(#order - len + 1)
+    local frag  = {} ; for i = start, start + len - 1 do frag[#frag + 1] = order[i] end
+    order = frag
   end
   strat_name = "MOTIF"
   for k, idx in ipairs(order) do
@@ -2051,7 +2067,11 @@ function play_motif(m)
     play_event(ev, rate)
     mark_played(ev.slot)
     last_slot = ev.slot
-    if k < #order then clock.sleep(gap) end
+    if k < #order then
+      -- TON rythme : l'ecart suit la DUREE de ta note (au lieu d'un metronome fixe), legerement humanise
+      local gap = math.max(0.04, math.min(1.2, (ev.duration or 0.15)))
+      clock.sleep(gap * (0.9 + math.random() * 0.2))
+    end
   end
 end
 
@@ -2065,7 +2085,7 @@ function maybe_recall_motif()
   local arc = (mind.arc or 0)
   if math.random() > (0.15 + arc * 0.5) then return false end
   motif_last_t = now
-  local m = motifs[math.random(#motifs)]
+  local m = motif_pick()
   state = "THINK"
   clock.run(function()
     local ok, err = pcall(play_motif, m)
@@ -2565,6 +2585,8 @@ PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 1
 function peru_add(slot)
   if not corpus[slot] then return end                        -- slot vide : rien
   peru_on = true                                             -- lacher un grain active PERU
+  if p_poto_on then poto_set(false) end                      -- PERU partage les voix 5,6 -> exclusif avec POtO
+  if os8_mode ~= "OFF" then os8_set("OFF") end               --                          -> et avec 8OS
   if #peru_dia >= PERU_MAX then table.remove(peru_dia, 1) end -- FIFO si plein
   local g = corpus[slot]
   peru_dia[#peru_dia + 1] = {
@@ -2584,6 +2606,45 @@ function peru_kick(strength)
   local d = peru_dia[math.random(#peru_dia)]
   d.vy = d.vy - (1.0 + strength * 3.0)
   d.vx = d.vx + (math.random() * 2 - 1) * (1.0 + strength * 2.0)
+end
+
+-- PERU joue sur SES PROPRES voix (5,6), separees de l'impro/reve de l'agent (2,3),
+-- pour ne pas lui voler ses voix. Anti-clic (level slew) + MIDI stream 8 + pan conserves.
+PERU_V = { 5, 6 }
+peru_v_idx = 0
+peru_v_tok = { 0, 0 }
+function peru_play(ev, pan)
+  if not ev then return end
+  peru_v_idx = (peru_v_idx % #PERU_V) + 1
+  local vi   = peru_v_idx
+  local v    = PERU_V[vi]
+  peru_v_tok[vi] = peru_v_tok[vi] + 1
+  local tok  = peru_v_tok[vi]
+  local base = slot_pos(ev.slot)
+  local len  = math.min(ev.duration or 0.15, MAX_DUR)
+  local fade = math.max(0.010, math.min(0.050, len * 0.3))
+  softcut.buffer(v, 1)
+  softcut.level_slew_time(v, fade)
+  softcut.level(v, 1.0)
+  softcut.pan(v, pan or 0)
+  softcut.loop(v, 0)
+  softcut.loop_start(v, base) ; softcut.loop_end(v, base + len)
+  softcut.position(v, base)
+  softcut.fade_time(v, fade) ; softcut.rate(v, 1.0)
+  softcut.play(v, 1)
+  local f    = (ev.freq and ev.freq > 0) and ev.freq or cur_freq
+  local note = freq_to_midi(f) or 60
+  local vel  = math.max(1, math.min(127, math.floor((ev.rms or 0) * 800)))
+  midi_note_on(8, note, vel)                              -- MIDI PERU (stream 8)
+  clock.run(function()
+    clock.sleep(math.max(0.04, len))
+    midi_note_off(8, note)
+    if peru_v_tok[vi] == tok then
+      softcut.level(v, 0)                                 -- fondu de sortie (anti-clic)
+      clock.sleep(fade + 0.005)
+      if peru_v_tok[vi] == tok then softcut.play(v, 0) end
+    end
+  end)
 end
 
 function peru_step()
@@ -2611,7 +2672,7 @@ function peru_step()
     if hit and speed > 0.5 then
       d.flash = 3
       local pan = math.max(-1, math.min(1, (d.x - (PERU_BX0 + PERU_BX1) / 2) / ((PERU_BX1 - PERU_BX0) / 2)))  -- pan = position horizontale du choc
-      clock.run(function() pcall(play_event, corpus[d.slot], nil, 8, pan) end)   -- choc = joue le grain (stream 8 + spatialise) ; coroutine : ne bloque pas la physique
+      pcall(peru_play, corpus[d.slot], pan)   -- choc = joue le grain sur les voix PERU (5,6), spatialise, sans voler l'agent
     elseif d.flash > 0 then d.flash = d.flash - 1 end
   end
 end
@@ -2929,6 +2990,10 @@ function live_toggle(i)
     cc_on = not cc_on
   elseif i == 11 then
     peru_on = not peru_on
+    if peru_on then                                          -- armer PERU desarme POtO/8OS (voix partagees)
+      if p_poto_on then poto_set(false) end
+      if os8_mode ~= "OFF" then os8_set("OFF") end
+    end
   end
 end
 
@@ -3123,7 +3188,7 @@ function init()
         if idle then
           -- #3 REVE : rejoue un de tes motifs, transforme, tout seul (respecte le mute IMPRO)
           if comp_on and #motifs > 0 and math.random() < 0.35 then
-            clock.run(function() local ok = pcall(play_motif, motifs[math.random(#motifs)]) end)
+            clock.run(function() local ok = pcall(play_motif, motif_pick()) end)
           end
         elseif metabolik.on and (metabolik.stressFx or 0) > 0.72 and mgen_running and not mgen_freeze then
           -- #5 DECIDE : la monotonie l'ennuie -> il change le theme MGEN (sauf si FREEZE)

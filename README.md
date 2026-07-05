@@ -857,6 +857,7 @@ A gravity toy: drop **grains from the corpus** into a box as little **diamonds**
 - **Auto-shake** links the agitation to a signal: **IN** = your input dynamics (continuous), **MB** = METABO (one diamond sings per cell note), **IM** = the impro's activity (continuous). The louder/busier the source, the more the diamonds bounce → more grains fire.
 - Diamond size ∝ grain duration · flashes on impact · max 16 (oldest drops when full).
 - Own MIDI routing on **stream 8** (page PERU MIDI). Armable from **LIVE**. Dropping a grain arms it; clearing stops it.
+- Plays on its **own audio voices** (5-6), so the agent / impro keeps sounding alongside it. **Mutually exclusive with POtO / 8OS** (they share the granular voices — arming one auto-disarms the others).
 
 *Un jouet gravitationnel : dépose des **grains du corpus** dans une boîte sous forme de **diamants**. Ils tombent, rebondissent sur les bords et **déclenchent leur son à chaque choc** — spatialisés selon le point d'impact. Un séquenceur de grains physique et jouable. Tourne en continu tant qu'il y a des diamants.*
 
@@ -871,6 +872,7 @@ A gravity toy: drop **grains from the corpus** into a box as little **diamonds**
 - L'**auto-secousse** lie l'agitation à un signal : **IN** = ta dynamique d'entrée (continu), **MB** = METABO (un diamant chante par note de cellule), **IM** = l'activité de l'impro (continu). Plus la source est forte/active, plus les diamants rebondissent → plus de grains.
 - Taille du diamant ∝ durée du grain · clignote au choc · max 16 (le plus vieux part quand c'est plein).
 - Routage MIDI propre sur le **stream 8** (page PERU MIDI). Armable depuis **LIVE**. Lâcher un grain l'active ; vider l'arrête.
+- Joue sur ses **propres voix audio** (5-6), donc l'agent / impro continue de sonner à côté. **Exclusif avec POtO / 8OS** (ils partagent les voix granulaires — armer l'un désarme les autres).
 
 ---
 
@@ -942,9 +944,9 @@ A **creature** with a face (page **FACE**) whose ASCII expression and one-liners
 - **Recognizes places** by their WiFi fingerprint: *"new place agent"*, then *"welcome back agent"* when you re-arm WiFi somewhere it knows (up to 12 places, **persisted across sessions**).
 - **Has opinions** on your playing: *"too repetitive"*, *"breathe agent!"*, *"nice agent!"*, *"my turn!"*.
 - **XP & levels**: it grows from networks discovered, places found, motifs learned and time played — announces *"level N agent!"* and shows **Lv N**. Persisted.
-- **Autonomy** (**K3** = AUTO, off by default): when you stop, it **dreams** — replaying your motifs on its own (*"dreaming…"*); when METABO gets monotonous, it **decides** to change the MGEN theme by itself.
+- **Autonomy** (**K3** = AUTO, off by default): when you stop, it **dreams** — replaying your motifs on its own (*"dreaming…"*), **with your own phrasing** (their real note timing, not a metronome), from a bank of your last **10 phrases**, never the same twice in a row (sometimes just a fragment); when METABO gets monotonous, it **decides** to change the MGEN theme by itself.
 
-*Une **créature** à visage (page FACE), pilotée par tout l'état interne + le **WiFi** autour. Elle parle anglais et t'appelle **agent**. Elle **reconnaît les lieux** par leur empreinte WiFi (« welcome back agent » au rallumage, jusqu'à 12 lieux persistés), a des **opinions** sur ton jeu, gagne de l'**XP / niveaux**, et — sous **AUTO (K3)** — **rêve** tes motifs quand tu t'arrêtes et **décide** de changer le thème MGEN quand c'est monotone.*
+*Une **créature** à visage (page FACE), pilotée par tout l'état interne + le **WiFi** autour. Elle parle anglais et t'appelle **agent**. Elle **reconnaît les lieux** par leur empreinte WiFi (« welcome back agent » au rallumage, jusqu'à 12 lieux persistés), a des **opinions** sur ton jeu, gagne de l'**XP / niveaux**, et — sous **AUTO (K3)** — **rêve** tes motifs quand tu t'arrêtes (avec **ton propre phrasé**, banque de 10 phrases, jamais deux fois le même, parfois un fragment) et **décide** de changer le thème MGEN quand c'est monotone.*
 
 ---
 
