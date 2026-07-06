@@ -2548,6 +2548,7 @@ samt_still  = 0                            -- duree d'immobilite (s)
 samt_pmm    = 0                            -- mouvement du tick precedent (pour la brusquerie)
 samt_mind_on = false                       -- MOVE : l'agent ECOUTE le mouvement (equivalent de MIND pour le geste)
 peru_spawn   = false                       -- MOVE : le mouvement fait APPARAITRE des grains (le grain selectionne) dans PERU
+peru_still   = 0                            -- duree d'immobilite des diamants (pour le clear auto a 4 s)
 function samt_rx(path, args)
   for i = 1, #(args or {}) do
     local x = tonumber(args[i])
@@ -2751,6 +2752,13 @@ function peru_step()
       pcall(peru_play, corpus[d.slot], pan)   -- choc = joue le grain sur les voix PERU (5,6), spatialise, sans voler l'agent
     elseif d.flash > 0 then d.flash = d.flash - 1 end
   end
+  -- CLEAR AUTO (mode capteur) : si tous les diamants sont immobiles depuis 4 s, on vide la boite
+  if samt_on and #peru_dia > 0 then
+    local moving = false
+    for _, d in ipairs(peru_dia) do if math.abs(d.vx) + math.abs(d.vy) > 0.35 then moving = true ; break end end
+    if moving then peru_still = 0
+    else peru_still = peru_still + 1/30 ; if peru_still > 4 then peru_dia = {} ; peru_still = 0 end end
+  else peru_still = 0 end
 end
 
 -- ===== FACE : une "creature" a la Pwnagotchi (humeur + lieux WiFi + opinions + autonomie) =====
@@ -3874,7 +3882,8 @@ function key(n, z)
   end
   if page == 42 then
     if n == 3 then samt_mind_on = not samt_mind_on       -- l'agent ecoute le mouvement
-    elseif n == 2 then peru_spawn = not peru_spawn end    -- le mouvement fait apparaitre des grains dans PERU
+    elseif n == 2 then peru_spawn = not peru_spawn        -- le mouvement fait apparaitre des grains dans PERU
+    elseif n == 1 then samt_move = 1.0 end                -- TEST : injecte une fausse impulsion de mouvement (sans capteur)
     redraw() ; return
   end
   if n == 2 and page == 4 then
@@ -4172,7 +4181,7 @@ function redraw()
     screen.level(10) ; screen.move(2, 52) ; screen.text("> " .. q)
     screen.level(4)  ; screen.move(78, 52) ; screen.text(string.format("%.1fs", samt_still or 0))
     screen.level(peru_spawn and 12 or 3) ; screen.move(126, 52) ; screen.text_right("spwn")   -- apparition de grains
-    screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 ecoute   K2 spawn->PERU")
+    screen.level(4)  ; screen.move(2, 63) ; screen.text("K1 test  K2 spawn  K3 ecoute")
     screen.update() ; return
   end
   if page == 20 then metabolik.redraw_play() ; return end
