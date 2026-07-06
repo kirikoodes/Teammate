@@ -97,7 +97,7 @@ E1        — scroll this mode's pages; past the last one, loop back to the MENU
 E2/E3/K1-K3 — the page's own controls (unchanged)
 ```
 
-The settings-page header shows the mode + your position, e.g. `POtO 2/4`. Modes: **IMPRO · POtO · 8OS · MGEN · AUDIO · SPAT · METABO · NIAKABY · PERU · WIFI · CC · MIDI** (routing) **· AGENT** (agent/MIND/STYLE). The page numbers in the section titles below are the original **logical IDs** (unchanged).
+The settings-page header shows the mode + your position, e.g. `POtO 2/4`. Modes: **IMPRO · POtO · 8OS · MGEN · AUDIO · SPAT · METABO · NIAKABY · PERU · WIFI · CC · SAMT** (motion sensors) **· MIDI** (routing) **· AGENT** (agent/MIND/STYLE). The page numbers in the section titles below are the original **logical IDs** (unchanged).
 
 *Teammate ouvre sur le **MENU** — un hub qui liste tous les modes. Navigation à **deux niveaux** : choisis un mode, entre dans ses pages, reboucle.*
 
@@ -964,6 +964,18 @@ TEAMMATE can listen to the **WiFi activity** around it and make music from it (N
 *TEAMMATE peut écouter l'**activité WiFi** autour de lui et en faire de la musique (Norns seulement). Scan passif : réseaux (signal / canal / apparitions) + débit. Armé depuis la page **LIVE**. Page **WIFI** = moniteur + routage par réseau. Il **nourrit le cerveau** (agite METABO) et sert de source MOD/entrée. **WIFI MIDI** = arpège global des réseaux ; **WiFi LINK** = chaque réseau → son device/canal avec son **rythme euclidien** (signal → densité, canal → décalage) → polyrythme du paysage WiFi. Notes **calées sur l'horloge** et **sur la gamme MGEN**.*
 
 > **Not** included: SSID broadcasting / beacon-flooding (the Norns Wi-Fi chip has no monitor mode) — WiFi here is **read-only** observation.
+
+---
+
+## SAMT (السمت) — motion sensors & dancer interaction
+
+Feed **motion sensors** into Teammate over **OSC** — send to `norns.local:10111` (a stable local name, so there's no IP to chase). The **SAMT** page (arm it from **LIVE**) captures *any* incoming OSC, auto-normalizes each numeric value to an **axis**, and lets you map it.
+
+- **Learn a sensor**: E2 pick a slot **MO1–4**, K3 **learn**, move the sensor → the moving axis binds to the slot (K1 clears). E3 sets the slot's **destination**: `cc` (a CC source) or `TILT` (rolls PERU's box sideways).
+- **MO1–4 are CC sources** (CC page) → motion drives any MIDI CC (synth, choir, DMX…).
+- **Dancer ↔ agent interaction**: motion energy agitates METABO → the whole brain → the agent reacts (mood, *decides*, grows in XP). A **sharp gesture** shakes the grains **you** placed in PERU **and** the agent answers by replaying one of your motifs; while the dancer moves, the agent shows a dedicated face (*"i feel you move"*). A **TILT** axis rolls the PERU diamonds. You choose the grains yourself — nothing is generated randomly.
+
+*SAMT (السمت) — capteurs de mouvement en **OSC** (envoie vers `norns.local:10111`, nom local stable = plus d'IP à chasser). La page **SAMT** (armée depuis **LIVE**) capte n'importe quel OSC, auto-normalise chaque valeur en **axe** mappable. **Learn** : E2 slot **MO1-4**, K3 learn, bouge le capteur → l'axe se lie (K1 efface) ; E3 = destination (`cc` = source CC, `TILT` = incline PERU). **MO1-4 = sources CC** → le mouvement pilote n'importe quel CC MIDI. **Interaction danseur ↔ agent** : le mouvement agite METABO → tout le cerveau → l'agent réagit (humeur, décide, grandit) ; un **geste sec** secoue les grains que TU as placés dans PERU et l'agent répond en rejouant un de tes motifs ; quand le danseur bouge, l'agent affiche un visage dédié ; un axe **TILT** fait rouler les diamants. Tu choisis les grains — rien n'est généré au hasard.*
 
 ---
 

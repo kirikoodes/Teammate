@@ -2524,8 +2524,58 @@ cc_learn  = false      -- si vrai, le prochain CC recu se copie dans la lane sel
 cc_dev    = 1          -- device MIDI de sortie (1..4)
 cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
-CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK" }
+CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK", "MO1", "MO2", "MO3", "MO4" }
 cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par CC
+
+-- ===== SAMT (السمت) : capteurs de mouvement via OSC (port 10111) =====
+-- Capte TOUT OSC numerique -> chaque valeur = un axe auto-normalise 0..1. 4 slots
+-- MO1-4 apprennent un axe (bouge le capteur) et deviennent des sources CC (page CC).
+samt_mon   = {}                            -- key "path#i" -> { lo, hi, val, raw, t }
+samt_last  = { key = "", val = 0, t = 0 }  -- dernier axe recu (moniteur RX)
+samt_slot  = { {dest=1}, {dest=1}, {dest=1}, {dest=1} }   -- 4 slots MO : .key .val + .dest (1=cc 2=TILT 3=GRAIN)
+SAMT_DEST  = { "cc", "TILT" }              -- destination d'un slot : cc seul / inclinaison PERU
+samt_learn = 0                             -- >0 : le prochain axe qui bouge se lie a ce slot
+samt_cur   = 1                             -- slot selectionne sur la page
+samt_on    = false                         -- arme depuis LIVE : ON = les capteurs pilotent les sources MO
+samt_energy = 0                            -- energie de mouvement globale (0..1, decroit) — le danseur
+samt_move   = 0                            -- pic de mouvement instantane (consomme par la boucle 30Hz)
+samt_trig_t = 0                            -- horodatage du dernier trigger (pic de geste)
+function samt_rx(path, args)
+  for i = 1, #(args or {}) do
+    local x = tonumber(args[i])
+    if x then
+      local key = (path or "?") .. "#" .. i
+      local a = samt_mon[key]
+      if not a then a = { lo = x, hi = x, val = 0.5 } ; samt_mon[key] = a end
+      if x < a.lo then a.lo = x end
+      if x > a.hi then a.hi = x end
+      local span = a.hi - a.lo
+      a.val = (span > 1e-6) and ((x - a.lo) / span) or 0.5    -- auto-normalise 0..1
+      a.raw = x ; a.t = util.time()
+      local mv = math.abs(a.val - (a.pv or a.val)) ; a.pv = a.val   -- variation = mouvement
+      if mv > samt_move then samt_move = mv end
+      samt_last = { key = key, val = a.val, t = a.t }
+      if samt_learn >= 1 and span > 0.05 then samt_slot[samt_learn].key = key ; samt_learn = 0 end  -- LEARN
+      for s = 1, 4 do if samt_slot[s].key == key then samt_slot[s].val = a.val end end
+    end
+  end
+end
+
+-- geste sec du danseur = evenement : SECOUE les diamants deja places (ceux que TU as choisis
+-- sur la page PERU) pour qu'ils rebondissent et jouent. Ne CREE aucun grain.
+function samt_trigger()
+  -- l'agent REPOND au geste : joue un de tes motifs (si AUTO + IMPRO + motifs appris)
+  if creature_auto and comp_on and #motifs > 0 and math.random() < 0.4 then
+    clock.run(function() pcall(play_motif, motif_pick()) end)
+  end
+  -- et secoue les diamants deja places dans PERU
+  if peru_on then
+    for _, d in ipairs(peru_dia) do
+      d.vy = d.vy - (1.5 + math.random() * 2.0)
+      d.vx = d.vx + (math.random() * 2 - 1) * 2.0
+    end
+  end
+end
 
 -- valeur cible 0..1 d'une ligne selon sa source (nil = OFF, ne rien envoyer)
 function cc_target(lane, i)
@@ -2546,6 +2596,10 @@ function cc_target(lane, i)
   elseif s == 6 then v = (metabolik and metabolik.on and metabolik.stressFx) or 0
   elseif s == 7 then v = (wifi and wifi.energy) or 0
   elseif s == 8 then v = (style and style.density) or 0
+  elseif s == 11 then v = (samt_on and samt_slot[1].val) or 0   -- capteur SAMT (OSC) ; actif si arme depuis LIVE
+  elseif s == 12 then v = (samt_on and samt_slot[2].val) or 0
+  elseif s == 13 then v = (samt_on and samt_slot[3].val) or 0
+  elseif s == 14 then v = (samt_on and samt_slot[4].val) or 0
   end
   return math.max(0, math.min(1, v))
 end
@@ -2653,12 +2707,18 @@ function peru_step()
   local drive = 0
   if     m.src == 1 then drive = math.min(1, (cur_rms or 0) * 8) * m.amt   -- INPUT : ta dynamique de jeu
   elseif m.src == 3 then drive = math.min(1, impro_energy) * m.amt end      -- IMPRO : dynamique de l'impro
+  if samt_on then drive = math.max(drive, samt_energy) end                  -- le DANSEUR (SAMT) agite PERU
+  local gx = 0
+  if samt_on then for s = 1, 4 do   -- la slot en dest TILT incline la boite (gravite laterale)
+    if (samt_slot[s].dest or 1) == 2 and samt_slot[s].key then gx = ((samt_slot[s].val or 0.5) - 0.5) * peru_grav * 4 ; break end
+  end end
   for _, d in ipairs(peru_dia) do
     if drive > 0 and math.random() < drive then          -- auto-secousse : coup de fouet proportionnel au signal
       d.vy = d.vy - (0.6 + math.random() * 0.9)
       d.vx = d.vx + (math.random() * 2 - 1) * 0.9
     end
     d.vy = d.vy + peru_grav
+    d.vx = d.vx + gx                                    -- le danseur penche -> les diamants roulent
     d.x  = d.x + d.vx
     d.y  = d.y + d.vy
     local hit, speed = false, 0
@@ -2762,6 +2822,10 @@ function face_state()
   -- #2 LEVEL UP : annonce 4 s
   if creature_lvl_t > 0 and (util.time() - creature_lvl_t < 4) then
     return "(^o^)", "level " .. creature_level .. " agent!"
+  end
+  -- reaction AU MOUVEMENT du danseur (SAMT) : prioritaire quand il bouge
+  if samt_on and (samt_energy or 0) > 0.15 then
+    return "(o_o)", face_vary({"i feel you move", "dance agent", "moving...", "with you agent", "keep going"}, 12)
   end
   -- #3 REVE (autonomie + silence profond)
   if creature_dream then
@@ -2952,6 +3016,7 @@ NAV_CATS = {
   { n = "PERU",   pg = {39,40},          arm = 11 },
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37},             arm = 10 },
+  { n = "SAMT",   pg = {41},             arm = 12 },
   { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
   { n = "AGENT",  pg = {33,31,32},       arm = nil },
 }
@@ -2994,6 +3059,8 @@ function live_toggle(i)
       if p_poto_on then poto_set(false) end
       if os8_mode ~= "OFF" then os8_set("OFF") end
     end
+  elseif i == 12 then
+    samt_on = not samt_on                                    -- SAMT : capteurs de mouvement OSC
   end
 end
 
@@ -3009,6 +3076,7 @@ function live_all_off()
   wifi.on = false
   cc_on = false
   peru_on = false
+  samt_on = false
   for st = 1, 8 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
@@ -3131,6 +3199,8 @@ function init()
       lora_rx(args[1], tonumber(args[2]), tonumber(args[3]), tonumber(args[4]), args[5])
     elseif path == "/lora/tx" then
       lora_tx(args[1], tonumber(args[2]))
+    else
+      samt_rx(path, args)   -- SAMT : capteurs de mouvement (tout autre OSC numerique)
     end
   end
   splash_active = true
@@ -3184,6 +3254,7 @@ function init()
       local idle = (sil_sec or 0) > 8 and (mind.energy or 0) < 0.04
       creature_dream = creature_auto and idle and (#motifs > 0) and comp_on   -- reve = silencieux si IMPRO coupe
       if (mind.energy or 0) > 0.1 then creature_xp_add(1) end   -- jouer fait grandir l'agent
+      if samt_on and (samt_energy or 0) > 0.1 then creature_xp_add(1) end   -- le danseur aussi fait grandir l'agent
       if creature_auto then
         if idle then
           -- #3 REVE : rejoue un de tes motifs, transforme, tout seul (respecte le mute IMPRO)
@@ -3218,6 +3289,22 @@ function init()
             end
           end
         end
+      end
+    end
+  end)
+
+  -- SAMT : energie de mouvement du danseur (decroit) + detection de TRIGGER (pic de geste)
+  clock.run(function()
+    while true do
+      clock.sleep(1/30)
+      samt_energy = samt_energy * 0.88
+      if samt_move > 0 then
+        local mm = math.min(1, samt_move * 12)
+        if mm > samt_energy then samt_energy = mm end
+        if samt_on and mm > 0.45 and (util.time() - samt_trig_t) > 0.15 then   -- geste sec = trigger
+          samt_trig_t = util.time() ; pcall(samt_trigger)
+        end
+        samt_move = 0
       end
     end
   end)
@@ -3357,7 +3444,7 @@ function init()
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
-      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0, (lora.on and lora.energy) or 0)  -- coherence : intensite (geste/arc), activite WiFi ET radio LoRa agitent METABO (-> tout le cerveau)
+      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0, (lora.on and lora.energy) or 0, (samt_on and samt_energy) or 0)  -- coherence : geste/arc, WiFi, LoRa ET le DANSEUR (SAMT) agitent METABO -> tout le cerveau de l'agent
       wifi_new_flash = (wifi_new_flash or 0) * 0.93   -- decroissance du pic de decouverte (~1 s)
       lora.tick(1/30)                                  -- decroissance de l'energie radio LoRa
       if math.random() < 0.008 then face_blink = 4 end      -- la creature cligne des yeux de temps en temps
@@ -3427,7 +3514,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41, 33,31,32}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3513,6 +3600,8 @@ function enc(n, d)
       peru_sel = util.clamp(peru_sel + d, 1, CORPUS_SLOTS)   -- choisit le grain a lacher
     elseif page == 40 then
       peru_cur_dev = util.clamp(peru_cur_dev + d, 1, 4)      -- PERU MIDI : device
+    elseif page == 41 then
+      samt_cur = util.clamp(samt_cur + d, 1, 4)              -- SAMT : slot MO selectionne
     end
   elseif n == 3 then
     if page == 27 then                                        -- HUB : E3 vers la droite = entrer dans la categorie
@@ -3600,6 +3689,8 @@ function enc(n, d)
       peru_grav = util.clamp(peru_grav + d * 0.01, 0.0, 0.5)   -- gravite
     elseif page == 40 then
       midi_ch[8][peru_cur_dev] = util.clamp(midi_ch[8][peru_cur_dev] + d, 1, 16)   -- PERU MIDI : canal
+    elseif page == 41 then
+      local sl = samt_slot[samt_cur] ; sl.dest = (((sl.dest or 1) - 1 + d) % #SAMT_DEST) + 1   -- SAMT : destination du slot
     end
   end
   redraw()
@@ -3716,6 +3807,11 @@ function key(n, z)
   end
   if page == 40 then
     if n == 3 then midi_route[8][peru_cur_dev] = not midi_route[8][peru_cur_dev] end
+    redraw() ; return
+  end
+  if page == 41 then
+    if n == 3 then samt_learn = (samt_learn == samt_cur) and 0 or samt_cur   -- arme/desarme LEARN
+    elseif n == 1 then samt_slot[samt_cur].key = nil ; samt_slot[samt_cur].val = 0 end   -- efface le mapping
     redraw() ; return
   end
   if n == 2 and page == 4 then
@@ -3869,7 +3965,7 @@ function redraw()
     if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
     screen.level(4)  ; screen.move(126, 8) ; screen.text_right("E3 in  K3 arm")
     local ons = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
-                  niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on }
+                  niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on, samt_on }
     local ys  = { 16, 23, 30, 37, 44, 51, 58 }
     for i = 1, #NAV_CATS do
       local c    = NAV_CATS[i]
@@ -3969,6 +4065,28 @@ function redraw()
       screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[8][d])
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
+    screen.update() ; return
+  end
+  if page == 41 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(samt_on and 15 or 6) ; screen.move(2, 8) ; screen.text("SAMT")   -- brillant = arme (LIVE)
+    local live = (util.time() - (samt_last.t or 0)) < 0.5
+    screen.level(live and 12 or 3) ; screen.move(126, 8) ; screen.text_right(live and "RX" or "no rx")
+    local ys = { 20, 30, 40, 50 }
+    for s = 1, 4 do
+      local sl  = samt_slot[s]
+      local sel = (s == samt_cur)
+      screen.level(sel and 15 or 6) ; screen.move(2, ys[s]) ; screen.text((sel and ">" or " ") .. "MO" .. s)
+      local nm = (sl.key and sl.key:gsub("^/", ""):sub(1, 8)) or ((samt_learn == s) and "learn.." or "--")
+      screen.level(sl.key and 9 or 4) ; screen.move(22, ys[s]) ; screen.text(nm)
+      local dest = sl.dest or 1
+      if dest > 1 then screen.level(11) ; screen.move(64, ys[s]) ; screen.text(SAMT_DEST[dest]) end   -- destination -> PERU
+      if sl.key then
+        screen.level(4)  ; screen.rect(96, ys[s] - 4, 28, 3) ; screen.stroke()
+        screen.level(12) ; screen.rect(96, ys[s] - 4, 28 * math.max(0, math.min(1, sl.val or 0)), 3) ; screen.fill()
+      end
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel  E3 dest  K3 lrn  K1 clr")
     screen.update() ; return
   end
   if page == 20 then metabolik.redraw_play() ; return end
