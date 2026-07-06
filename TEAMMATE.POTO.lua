@@ -2533,7 +2533,7 @@ cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par C
 samt_mon   = {}                            -- key "path#i" -> { lo, hi, val, raw, t }
 samt_last  = { key = "", val = 0, t = 0 }  -- dernier axe recu (moniteur RX)
 samt_slot  = { {dest=1}, {dest=1}, {dest=1}, {dest=1} }   -- 4 slots MO : .key .val + .dest (1=cc 2=TILT 3=GRAIN)
-SAMT_DEST  = { "cc", "TILT" }              -- destination d'un slot : cc seul / inclinaison PERU
+SAMT_DEST  = { "cc", "X", "Y" }            -- destination : cc seul / axe X de PERU / axe Y de PERU
 samt_learn = 0                             -- >0 : le prochain axe qui bouge se lie a ce slot
 samt_cur   = 1                             -- slot selectionne sur la page
 samt_on    = false                         -- arme depuis LIVE : ON = les capteurs pilotent les sources MO
@@ -2708,17 +2708,21 @@ function peru_step()
   if     m.src == 1 then drive = math.min(1, (cur_rms or 0) * 8) * m.amt   -- INPUT : ta dynamique de jeu
   elseif m.src == 3 then drive = math.min(1, impro_energy) * m.amt end      -- IMPRO : dynamique de l'impro
   if samt_on then drive = math.max(drive, samt_energy) end                  -- le DANSEUR (SAMT) agite PERU
-  local gx = 0
-  if samt_on then for s = 1, 4 do   -- la slot en dest TILT incline la boite (gravite laterale)
-    if (samt_slot[s].dest or 1) == 2 and samt_slot[s].key then gx = ((samt_slot[s].val or 0.5) - 0.5) * peru_grav * 4 ; break end
+  local gx, gy = 0, 0
+  if samt_on then for s = 1, 4 do   -- axes X/Y du capteur -> pilotent la trajectoire des diamants
+    local sl = samt_slot[s]
+    if sl.key then
+      if     (sl.dest or 1) == 2 then gx = ((sl.val or 0.5) - 0.5) * 0.6   -- axe X (horizontal)
+      elseif (sl.dest or 1) == 3 then gy = ((sl.val or 0.5) - 0.5) * 0.6 end  -- axe Y (vertical)
+    end
   end end
   for _, d in ipairs(peru_dia) do
     if drive > 0 and math.random() < drive then          -- auto-secousse : coup de fouet proportionnel au signal
       d.vy = d.vy - (0.6 + math.random() * 0.9)
       d.vx = d.vx + (math.random() * 2 - 1) * 0.9
     end
-    d.vy = d.vy + peru_grav
-    d.vx = d.vx + gx                                    -- le danseur penche -> les diamants roulent
+    d.vy = d.vy + peru_grav + gy                        -- gravite + axe Y du capteur
+    d.vx = d.vx + gx                                    -- axe X du capteur : le danseur pilote la trajectoire
     d.x  = d.x + d.vx
     d.y  = d.y + d.vy
     local hit, speed = false, 0
