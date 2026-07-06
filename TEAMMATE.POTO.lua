@@ -4056,9 +4056,9 @@ function redraw()
       screen.level(lv)
       screen.move(d.x, d.y - r) ; screen.line(d.x + r, d.y) ; screen.line(d.x, d.y + r) ; screen.line(d.x - r, d.y) ; screen.line(d.x, d.y - r) ; screen.stroke()
     end
-    -- aide
-    screen.level(4) ; screen.move(2, 63)
-    screen.text("K1 lache  K2 react  K3 vide")
+    -- aide + threshold SAMT (quand le capteur est arme)
+    screen.level(4) ; screen.move(2, 63) ; screen.text("K1lch K2react K3vide")
+    if samt_on then screen.level(8) ; screen.move(126, 63) ; screen.text_right("thr" .. math.floor(samt_thr * 100)) end
     screen.update() ; return
   end
   if page == 40 then
