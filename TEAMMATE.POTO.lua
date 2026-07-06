@@ -2754,13 +2754,14 @@ function peru_step()
       pcall(peru_play, corpus[d.slot], pan)   -- choc = joue le grain sur les voix PERU (5,6), spatialise, sans voler l'agent
     elseif d.flash > 0 then d.flash = d.flash - 1 end
   end
-  -- CLEAR AUTO (mode capteur) : si tous les diamants sont immobiles depuis 4 s, on vide la boite
-  if samt_on and #peru_dia > 0 then
-    local moving = false
-    for _, d in ipairs(peru_dia) do if math.abs(d.vx) + math.abs(d.vy) > 0.35 then moving = true ; break end end
-    if moving then peru_still = 0
-    else peru_still = peru_still + 1/30 ; if peru_still > 1 then peru_dia = {} ; peru_still = 0 end end
-  else peru_still = 0 end
+  -- CLEAR AUTO (mode capteur) : CHAQUE diamant immobile depuis 1 s disparait individuellement
+  if samt_on then
+    for i = #peru_dia, 1, -1 do
+      local d = peru_dia[i]
+      if math.abs(d.vx) + math.abs(d.vy) > 0.35 then d.still = 0
+      else d.still = (d.still or 0) + 1/30 ; if d.still > 1 then table.remove(peru_dia, i) end end
+    end
+  end
 end
 
 -- ===== FACE : une "creature" a la Pwnagotchi (humeur + lieux WiFi + opinions + autonomie) =====
