@@ -2541,6 +2541,11 @@ samt_energy = 0                            -- energie de mouvement globale (0..1
 samt_move   = 0                            -- pic de mouvement instantane (consomme par la boucle 30Hz)
 samt_trig_t = 0                            -- horodatage du dernier trigger (pic de geste)
 samt_thr    = 0.08                         -- threshold / deadzone : ignore le bruit du capteur au repos (E3 sur la page)
+-- ANALYSE du mouvement (comme MIND pour le son) : arc long, brusquerie, immobilite
+samt_build  = 0                            -- niveau soutenu / arc (mouvement dans la duree)
+samt_jerk   = 0                            -- brusquerie (geste sec/staccato vs fluide)
+samt_still  = 0                            -- duree d'immobilite (s)
+samt_pmm    = 0                            -- mouvement du tick precedent (pour la brusquerie)
 function samt_rx(path, args)
   for i = 1, #(args or {}) do
     local x = tonumber(args[i])
@@ -2832,8 +2837,10 @@ function face_state()
     return "(^o^)", "level " .. creature_level .. " agent!"
   end
   -- reaction AU MOUVEMENT du danseur (SAMT) : prioritaire quand il bouge
-  if samt_on and (samt_energy or 0) > 0.15 then
-    return "(o_o)", face_vary({"i feel you move", "dance agent", "moving...", "with you agent", "keep going"}, 12)
+  if samt_on and (samt_energy or 0) > 0.15 then      -- l'agent LIT la qualite du mouvement du danseur
+    if     (samt_jerk or 0) > 0.35 then return "(>_<)", face_vary({"sharp!", "staccato agent", "hit me"}, 12)
+    elseif (samt_build or 0) > 0.45 then return "(O_O)", face_vary({"building...", "here it comes", "rising agent"}, 13)
+    else                                 return "(o_o)", face_vary({"flowing", "so smooth", "with you agent", "i feel you move"}, 14) end
   end
   -- #3 REVE (autonomie + silence profond)
   if creature_dream then
@@ -3312,14 +3319,19 @@ function init()
     while true do
       clock.sleep(1/30)
       samt_energy = samt_energy * 0.88
+      local mm = 0
       if samt_move > samt_thr then   -- deadzone : ignore le bruit du capteur au repos
-        local mm = math.min(1, (samt_move - samt_thr) * 14)
+        mm = math.min(1, (samt_move - samt_thr) * 14)
         if mm > samt_energy then samt_energy = mm end
         if samt_on and mm > 0.45 and (util.time() - samt_trig_t) > 0.15 then   -- geste sec = trigger
           samt_trig_t = util.time() ; pcall(samt_trigger)
         end
       end
       samt_move = 0
+      -- ANALYSE : arc long, brusquerie, immobilite
+      samt_build = samt_build + (samt_energy - samt_build) * 0.03
+      samt_jerk  = samt_jerk + (math.abs(mm - samt_pmm) - samt_jerk) * 0.25 ; samt_pmm = mm
+      if samt_energy > 0.12 then samt_still = 0 else samt_still = math.min(20, samt_still + 1/30) end
     end
   end)
 
