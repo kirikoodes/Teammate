@@ -2549,6 +2549,8 @@ samt_pmm    = 0                            -- mouvement du tick precedent (pour 
 samt_mind_on = false                       -- MOVE : l'agent ECOUTE le mouvement (equivalent de MIND pour le geste)
 peru_spawn   = false                       -- MOVE : le mouvement fait APPARAITRE des grains (le grain selectionne) dans PERU
 peru_still   = 0                            -- duree d'immobilite des diamants (pour le clear auto a 4 s)
+samt_penergy = 0                            -- energie du tick precedent (detection de CHANGEMENT -> spawn)
+peru_spawn_t = 0                            -- horodatage du dernier spawn (anti-rafale)
 function samt_rx(path, args)
   for i = 1, #(args or {}) do
     local x = tonumber(args[i])
@@ -3345,15 +3347,18 @@ function init()
       samt_build = samt_build + (samt_energy - samt_build) * 0.03
       samt_jerk  = samt_jerk + (math.abs(mm - samt_pmm) - samt_jerk) * 0.25 ; samt_pmm = mm
       if samt_energy > 0.12 then samt_still = 0 else samt_still = math.min(20, samt_still + 1/30) end
-      -- MOVE : le danseur fait APPARAITRE des grains dans PERU (sans toi) selon l'energie de son geste
-      if peru_spawn and samt_mind_on and peru_on and #peru_dia < PERU_MAX and math.random() < (samt_build or 0) * 0.04 then
+      -- MOVE : un CHANGEMENT d'energie (le danseur accelere/bouge d'un coup) fait APPARAITRE un grain
+      if peru_spawn and samt_mind_on and peru_on and #peru_dia < PERU_MAX
+         and (samt_energy - samt_penergy) > 0.15 and (util.time() - peru_spawn_t) > 0.12 then
+        peru_spawn_t = util.time()
         local has_rot = false
         for s = 1, 4 do if samt_slot[s].key and (samt_slot[s].dest or 1) == 4 then has_rot = true ; break end end
-        if not has_rot then   -- pas d'axe ROT -> le spawn cycle tout seul vers le prochain grain rempli (varie sans toi)
+        if not has_rot then   -- pas d'axe ROT -> cycle tout seul vers le prochain grain rempli (varie sans toi)
           for _ = 1, CORPUS_SLOTS do peru_sel = (peru_sel % CORPUS_SLOTS) + 1 ; if corpus[peru_sel] then break end end
         end
         peru_add(peru_sel)   -- avec ROT : le grain choisi par la rotation du danseur ; sinon : cycle auto
       end
+      samt_penergy = samt_energy
       -- ROT : la rotation du danseur change le grain selectionne (jog suivant / precedent)
       if samt_on then for s = 1, 4 do
         local sl = samt_slot[s]
