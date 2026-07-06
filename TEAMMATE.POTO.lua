@@ -2540,6 +2540,7 @@ samt_on    = false                         -- arme depuis LIVE : ON = les capteu
 samt_energy = 0                            -- energie de mouvement globale (0..1, decroit) — le danseur
 samt_move   = 0                            -- pic de mouvement instantane (consomme par la boucle 30Hz)
 samt_trig_t = 0                            -- horodatage du dernier trigger (pic de geste)
+samt_thr    = 0.08                         -- threshold / deadzone : ignore le bruit du capteur au repos (E3 sur la page)
 function samt_rx(path, args)
   for i = 1, #(args or {}) do
     local x = tonumber(args[i])
@@ -2550,7 +2551,8 @@ function samt_rx(path, args)
       if x < a.lo then a.lo = x end
       if x > a.hi then a.hi = x end
       local span = a.hi - a.lo
-      a.val = (span > 1e-6) and ((x - a.lo) / span) or 0.5    -- auto-normalise 0..1
+      local norm = (span > 1e-6) and ((x - a.lo) / span) or 0.5    -- auto-normalise 0..1
+      a.val = (a.val or 0.5) + (norm - (a.val or 0.5)) * 0.3        -- lissage anti-jitter (repos)
       a.raw = x ; a.t = util.time()
       local mv = math.abs(a.val - (a.pv or a.val)) ; a.pv = a.val   -- variation = mouvement
       if mv > samt_move then samt_move = mv end
@@ -2711,9 +2713,10 @@ function peru_step()
   local gx, gy = 0, 0
   if samt_on then for s = 1, 4 do   -- axes X/Y du capteur -> pilotent la trajectoire des diamants
     local sl = samt_slot[s]
-    if sl.key then
-      if     (sl.dest or 1) == 2 then gx = ((sl.val or 0.5) - 0.5) * 0.6   -- axe X (horizontal)
-      elseif (sl.dest or 1) == 3 then gy = ((sl.val or 0.5) - 0.5) * 0.6 end  -- axe Y (vertical)
+    if sl.key and (sl.dest or 1) >= 2 then
+      local dd = (sl.val or 0.5) - 0.5
+      if math.abs(dd) < samt_thr then dd = 0 end                 -- deadzone : repos = neutre
+      if sl.dest == 2 then gx = dd * 0.6 else gy = dd * 0.6 end
     end
   end end
   for _, d in ipairs(peru_dia) do
@@ -3108,7 +3111,7 @@ function state_save()
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
-      samt=samt, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
+      samt=samt, samt_thr=samt_thr, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3162,7 +3165,7 @@ function state_load()
     if lon then for i=1,16 do cc_lanes[i].on=lon[i] and true or false end end
     if type(st.cc_num)=="table" then for i=1,16 do if st.cc_num[i] then cc_lanes[i].num=st.cc_num[i] end end end
     if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
-    peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel)
+    peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel) ; samt_thr=g(st.samt_thr,samt_thr)
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
@@ -3308,14 +3311,14 @@ function init()
     while true do
       clock.sleep(1/30)
       samt_energy = samt_energy * 0.88
-      if samt_move > 0 then
-        local mm = math.min(1, samt_move * 12)
+      if samt_move > samt_thr then   -- deadzone : ignore le bruit du capteur au repos
+        local mm = math.min(1, (samt_move - samt_thr) * 14)
         if mm > samt_energy then samt_energy = mm end
         if samt_on and mm > 0.45 and (util.time() - samt_trig_t) > 0.15 then   -- geste sec = trigger
           samt_trig_t = util.time() ; pcall(samt_trigger)
         end
-        samt_move = 0
       end
+      samt_move = 0
     end
   end)
 
@@ -3700,7 +3703,7 @@ function enc(n, d)
     elseif page == 40 then
       midi_ch[8][peru_cur_dev] = util.clamp(midi_ch[8][peru_cur_dev] + d, 1, 16)   -- PERU MIDI : canal
     elseif page == 41 then
-      local sl = samt_slot[samt_cur] ; sl.dest = (((sl.dest or 1) - 1 + d) % #SAMT_DEST) + 1   -- SAMT : destination du slot
+      samt_thr = util.clamp(samt_thr + d * 0.01, 0, 0.4)   -- SAMT : threshold / deadzone (anti-bruit)
     end
   end
   redraw()
@@ -3821,6 +3824,7 @@ function key(n, z)
   end
   if page == 41 then
     if n == 3 then samt_learn = (samt_learn == samt_cur) and 0 or samt_cur   -- arme/desarme LEARN
+    elseif n == 2 then local sl = samt_slot[samt_cur] ; sl.dest = ((sl.dest or 1) % #SAMT_DEST) + 1   -- destination cc/X/Y
     elseif n == 1 then samt_slot[samt_cur].key = nil ; samt_slot[samt_cur].val = 0 end   -- efface le mapping
     redraw() ; return
   end
@@ -4080,6 +4084,7 @@ function redraw()
   if page == 41 then
     screen.clear() ; screen.font_size(8)
     screen.level(samt_on and 15 or 6) ; screen.move(2, 8) ; screen.text("SAMT")   -- brillant = arme (LIVE)
+    screen.level(6) ; screen.move(40, 8) ; screen.text("thr" .. math.floor(samt_thr * 100))   -- deadzone (E3)
     local live = (util.time() - (samt_last.t or 0)) < 0.5
     screen.level(live and 12 or 3) ; screen.move(126, 8) ; screen.text_right(live and "RX" or "no rx")
     local ys = { 20, 30, 40, 50 }
@@ -4096,7 +4101,7 @@ function redraw()
         screen.level(12) ; screen.rect(96, ys[s] - 4, 28 * math.max(0, math.min(1, sl.val or 0)), 3) ; screen.fill()
       end
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel  E3 dest  K3 lrn  K1 clr")
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3thr K2dst K3lrn K1clr")
     screen.update() ; return
   end
   if page == 20 then metabolik.redraw_play() ; return end
