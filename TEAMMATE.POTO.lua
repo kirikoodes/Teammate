@@ -3089,6 +3089,8 @@ function state_save()
     for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
     local cc_src, cc_lon, cc_num = {}, {}, {}
     for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on ; cc_num[i] = cc_lanes[i].num end
+    local samt = {}
+    for s = 1, 4 do samt[s] = { key = samt_slot[s].key, dest = samt_slot[s].dest } end   -- mappings capteurs
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -3102,6 +3104,7 @@ function state_save()
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
+      samt=samt, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3154,6 +3157,9 @@ function state_load()
     local lon = (type(st.cc_lon)=="table" and st.cc_lon) or (type(st.cc_on)=="table" and st.cc_on) or nil
     if lon then for i=1,16 do cc_lanes[i].on=lon[i] and true or false end end
     if type(st.cc_num)=="table" then for i=1,16 do if st.cc_num[i] then cc_lanes[i].num=st.cc_num[i] end end end
+    if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
+    peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel)
+    peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
