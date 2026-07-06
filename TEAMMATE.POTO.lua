@@ -2759,7 +2759,7 @@ function peru_step()
     local moving = false
     for _, d in ipairs(peru_dia) do if math.abs(d.vx) + math.abs(d.vy) > 0.35 then moving = true ; break end end
     if moving then peru_still = 0
-    else peru_still = peru_still + 1/30 ; if peru_still > 4 then peru_dia = {} ; peru_still = 0 end end
+    else peru_still = peru_still + 1/30 ; if peru_still > 1 then peru_dia = {} ; peru_still = 0 end end
   else peru_still = 0 end
 end
 
