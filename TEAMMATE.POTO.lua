@@ -2547,6 +2547,7 @@ samt_jerk   = 0                            -- brusquerie (geste sec/staccato vs 
 samt_still  = 0                            -- duree d'immobilite (s)
 samt_pmm    = 0                            -- mouvement du tick precedent (pour la brusquerie)
 samt_mind_on = false                       -- MOVE : l'agent ECOUTE le mouvement (equivalent de MIND pour le geste)
+peru_spawn   = false                       -- MOVE : le mouvement fait APPARAITRE des grains (le grain selectionne) dans PERU
 function samt_rx(path, args)
   for i = 1, #(args or {}) do
     local x = tonumber(args[i])
@@ -3120,7 +3121,7 @@ function state_save()
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
-      samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
+      samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3176,6 +3177,7 @@ function state_load()
     if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
     peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel) ; samt_thr=g(st.samt_thr,samt_thr)
     if st.samt_mind_on ~= nil then samt_mind_on = st.samt_mind_on end
+    if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
@@ -3334,6 +3336,10 @@ function init()
       samt_build = samt_build + (samt_energy - samt_build) * 0.03
       samt_jerk  = samt_jerk + (math.abs(mm - samt_pmm) - samt_jerk) * 0.25 ; samt_pmm = mm
       if samt_energy > 0.12 then samt_still = 0 else samt_still = math.min(20, samt_still + 1/30) end
+      -- MOVE : le danseur fait APPARAITRE des grains dans PERU selon l'energie soutenue de son geste
+      if peru_spawn and samt_mind_on and peru_on and #peru_dia < PERU_MAX and math.random() < (samt_build or 0) * 0.04 then
+        peru_add(peru_sel)                 -- le grain que TU as choisi ; le danseur decide quand/combien
+      end
     end
   end)
 
@@ -3849,7 +3855,8 @@ function key(n, z)
     redraw() ; return
   end
   if page == 42 then
-    if n == 3 then samt_mind_on = not samt_mind_on end   -- MOVE : l'agent ecoute le mouvement
+    if n == 3 then samt_mind_on = not samt_mind_on       -- l'agent ecoute le mouvement
+    elseif n == 2 then peru_spawn = not peru_spawn end    -- le mouvement fait apparaitre des grains dans PERU
     redraw() ; return
   end
   if n == 2 and page == 4 then
@@ -4145,8 +4152,9 @@ function redraw()
     elseif (samt_jerk or 0)  > 0.35   then q = "sharp"
     elseif (samt_build or 0) > 0.45   then q = "building" end
     screen.level(10) ; screen.move(2, 52) ; screen.text("> " .. q)
-    screen.level(4)  ; screen.move(96, 52) ; screen.text(string.format("%.1fs", samt_still or 0))
-    screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 = l'agent lit le mouvement")
+    screen.level(4)  ; screen.move(78, 52) ; screen.text(string.format("%.1fs", samt_still or 0))
+    screen.level(peru_spawn and 12 or 3) ; screen.move(126, 52) ; screen.text_right("spwn")   -- apparition de grains
+    screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 ecoute   K2 spawn->PERU")
     screen.update() ; return
   end
   if page == 20 then metabolik.redraw_play() ; return end
