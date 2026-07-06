@@ -2754,13 +2754,11 @@ function peru_step()
       pcall(peru_play, corpus[d.slot], pan)   -- choc = joue le grain sur les voix PERU (5,6), spatialise, sans voler l'agent
     elseif d.flash > 0 then d.flash = d.flash - 1 end
   end
-  -- CLEAR AUTO (mode capteur) : CHAQUE diamant immobile depuis 1 s disparait individuellement
-  if samt_on then
-    for i = #peru_dia, 1, -1 do
-      local d = peru_dia[i]
-      if math.abs(d.vx) + math.abs(d.vy) > 0.35 then d.still = 0
-      else d.still = (d.still or 0) + 1/30 ; if d.still > 1 then table.remove(peru_dia, i) end end
-    end
+  -- CHAQUE diamant immobile depuis 1 s disparait (propriete du diamant, independant du capteur)
+  for i = #peru_dia, 1, -1 do
+    local d = peru_dia[i]
+    if math.abs(d.vx) + math.abs(d.vy) > 0.35 then d.still = 0
+    else d.still = (d.still or 0) + 1/30 ; if d.still > 1 then table.remove(peru_dia, i) end end
   end
 end
 
