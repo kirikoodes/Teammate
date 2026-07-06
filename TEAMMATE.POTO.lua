@@ -3337,9 +3337,14 @@ function init()
       samt_build = samt_build + (samt_energy - samt_build) * 0.03
       samt_jerk  = samt_jerk + (math.abs(mm - samt_pmm) - samt_jerk) * 0.25 ; samt_pmm = mm
       if samt_energy > 0.12 then samt_still = 0 else samt_still = math.min(20, samt_still + 1/30) end
-      -- MOVE : le danseur fait APPARAITRE des grains dans PERU selon l'energie soutenue de son geste
+      -- MOVE : le danseur fait APPARAITRE des grains dans PERU (sans toi) selon l'energie de son geste
       if peru_spawn and samt_mind_on and peru_on and #peru_dia < PERU_MAX and math.random() < (samt_build or 0) * 0.04 then
-        peru_add(peru_sel)                 -- le grain que TU as choisi ; le danseur decide quand/combien
+        local has_rot = false
+        for s = 1, 4 do if samt_slot[s].key and (samt_slot[s].dest or 1) == 4 then has_rot = true ; break end end
+        if not has_rot then   -- pas d'axe ROT -> le spawn cycle tout seul vers le prochain grain rempli (varie sans toi)
+          for _ = 1, CORPUS_SLOTS do peru_sel = (peru_sel % CORPUS_SLOTS) + 1 ; if corpus[peru_sel] then break end end
+        end
+        peru_add(peru_sel)   -- avec ROT : le grain choisi par la rotation du danseur ; sinon : cycle auto
       end
       -- ROT : la rotation du danseur change le grain selectionne (jog suivant / precedent)
       if samt_on then for s = 1, 4 do
