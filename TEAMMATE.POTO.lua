@@ -2533,7 +2533,7 @@ cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par C
 samt_mon   = {}                            -- key "path#i" -> { lo, hi, val, raw, t }
 samt_last  = { key = "", val = 0, t = 0 }  -- dernier axe recu (moniteur RX)
 samt_slot  = { {dest=1}, {dest=1}, {dest=1}, {dest=1} }   -- 4 slots MO : .key .val + .dest (1=cc 2=TILT 3=GRAIN)
-SAMT_DEST  = { "cc", "X", "Y" }            -- destination : cc seul / axe X de PERU / axe Y de PERU
+SAMT_DEST  = { "cc", "X", "Y", "ROT" }     -- destination : cc / axe X PERU / axe Y PERU / ROTATION -> grain suivant-precedent
 samt_learn = 0                             -- >0 : le prochain axe qui bouge se lie a ce slot
 samt_cur   = 1                             -- slot selectionne sur la page
 samt_on    = false                         -- arme depuis LIVE : ON = les capteurs pilotent les sources MO
@@ -2721,10 +2721,11 @@ function peru_step()
   local gx, gy = 0, 0
   if samt_on then for s = 1, 4 do   -- axes X/Y du capteur -> pilotent la trajectoire des diamants
     local sl = samt_slot[s]
-    if sl.key and (sl.dest or 1) >= 2 then
+    local dst = sl.dest or 1
+    if sl.key and (dst == 2 or dst == 3) then
       local dd = (sl.val or 0.5) - 0.5
       if math.abs(dd) < samt_thr then dd = 0 end                 -- deadzone : repos = neutre
-      if sl.dest == 2 then gx = dd * 0.6 else gy = dd * 0.6 end
+      if dst == 2 then gx = dd * 0.6 else gy = dd * 0.6 end
     end
   end end
   for _, d in ipairs(peru_dia) do
@@ -3340,6 +3341,18 @@ function init()
       if peru_spawn and samt_mind_on and peru_on and #peru_dia < PERU_MAX and math.random() < (samt_build or 0) * 0.04 then
         peru_add(peru_sel)                 -- le grain que TU as choisi ; le danseur decide quand/combien
       end
+      -- ROT : la rotation du danseur change le grain selectionne (jog suivant / precedent)
+      if samt_on then for s = 1, 4 do
+        local sl = samt_slot[s]
+        if sl.key and (sl.dest or 1) == 4 then
+          local rd = (sl.val or 0.5) - 0.5
+          if math.abs(rd) > samt_thr then
+            sl.rot_acc = (sl.rot_acc or 0) + rd
+            while sl.rot_acc >  6.0 do peru_sel = (peru_sel % CORPUS_SLOTS) + 1        ; sl.rot_acc = sl.rot_acc - 6.0 end  -- grain suivant
+            while sl.rot_acc < -6.0 do peru_sel = ((peru_sel - 2) % CORPUS_SLOTS) + 1  ; sl.rot_acc = sl.rot_acc + 6.0 end  -- grain precedent
+          else sl.rot_acc = 0 end
+        end
+      end end
     end
   end)
 
