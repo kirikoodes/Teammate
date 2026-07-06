@@ -2636,6 +2636,7 @@ peru_bounce = 0.90          -- restitution au rebond
 -- auto-secousse : l'INPUT (ton son) ou METABO agite les diamants, dose en % (K2)
 peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=0.5}, {src=2, amt=1.0}, {src=3, amt=0.5}, {src=3, amt=1.0}, {src=4, amt=0.5}, {src=4, amt=1.0} }
 peru_rmode  = 1
+peru_k2_down = false ; peru_k2_moved = false   -- K2 maintenu sur PERU = shift (E3 -> threshold SAMT)
 PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 100%", "SM 50%", "SM 100%" }
 
 function peru_add(slot)
@@ -3699,7 +3700,8 @@ function enc(n, d)
     elseif page == 24 then
       niakaby.enc_src(3, d)
     elseif page == PERU_PAGE then
-      peru_grav = util.clamp(peru_grav + d * 0.01, 0.0, 0.5)   -- gravite
+      if peru_k2_down then samt_thr = util.clamp(samt_thr + d * 0.01, 0, 0.4) ; peru_k2_moved = true   -- K2 maintenu : threshold SAMT
+      else peru_grav = util.clamp(peru_grav + d * 0.01, 0.0, 0.5) end                                  -- sinon : gravite
     elseif page == 40 then
       midi_ch[8][peru_cur_dev] = util.clamp(midi_ch[8][peru_cur_dev] + d, 1, 16)   -- PERU MIDI : canal
     elseif page == 41 then
@@ -3710,6 +3712,11 @@ function enc(n, d)
 end
 
 function key(n, z)
+  if page == PERU_PAGE and n == 2 then      -- K2 : tap = react ; maintenu + E3 = threshold SAMT
+    if z == 1 then peru_k2_down = true ; peru_k2_moved = false
+    else peru_k2_down = false ; if not peru_k2_moved then peru_rmode = (peru_rmode % #peru_rmodes) + 1 end end
+    redraw() ; return
+  end
   if z == 0 then return end
   if page == 18 then metabolik.key(n) ; redraw() ; return end
   if page == 20 then metabolik.key_play(n) ; redraw() ; return end
@@ -3797,8 +3804,7 @@ function key(n, z)
     redraw() ; return
   end
   if page == PERU_PAGE then
-    if n == 1 then peru_add(peru_sel)      -- lache le grain selectionne
-    elseif n == 2 then peru_rmode = (peru_rmode % #peru_rmodes) + 1   -- source/dose de l'auto-secousse
+    if n == 1 then peru_add(peru_sel)      -- lache le grain selectionne (K2 = react/threshold, gere plus haut)
     elseif n == 3 then peru_dia = {} ; peru_on = false end   -- vide la boite (clear + stop)
     redraw() ; return
   end
