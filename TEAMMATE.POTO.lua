@@ -2546,6 +2546,7 @@ samt_build  = 0                            -- niveau soutenu / arc (mouvement da
 samt_jerk   = 0                            -- brusquerie (geste sec/staccato vs fluide)
 samt_still  = 0                            -- duree d'immobilite (s)
 samt_pmm    = 0                            -- mouvement du tick precedent (pour la brusquerie)
+samt_mind_on = false                       -- MOVE : l'agent ECOUTE le mouvement (equivalent de MIND pour le geste)
 function samt_rx(path, args)
   for i = 1, #(args or {}) do
     local x = tonumber(args[i])
@@ -2571,8 +2572,8 @@ end
 -- geste sec du danseur = evenement : SECOUE les diamants deja places (ceux que TU as choisis
 -- sur la page PERU) pour qu'ils rebondissent et jouent. Ne CREE aucun grain.
 function samt_trigger()
-  -- l'agent REPOND au geste : joue un de tes motifs (si AUTO + IMPRO + motifs appris)
-  if creature_auto and comp_on and #motifs > 0 and math.random() < 0.4 then
+  -- l'agent REPOND au geste : joue un de tes motifs (si il ECOUTE le mouvement : MOVE + AUTO + motifs)
+  if samt_mind_on and creature_auto and comp_on and #motifs > 0 and math.random() < 0.4 then
     clock.run(function() pcall(play_motif, motif_pick()) end)
   end
   -- et secoue les diamants deja places dans PERU
@@ -2837,7 +2838,7 @@ function face_state()
     return "(^o^)", "level " .. creature_level .. " agent!"
   end
   -- reaction AU MOUVEMENT du danseur (SAMT) : prioritaire quand il bouge
-  if samt_on and (samt_energy or 0) > 0.15 then      -- l'agent LIT la qualite du mouvement du danseur
+  if samt_mind_on and (samt_energy or 0) > 0.15 then      -- l'agent LIT la qualite du mouvement du danseur (MOVE)
     if     (samt_jerk or 0) > 0.35 then return "(>_<)", face_vary({"sharp!", "staccato agent", "hit me"}, 12)
     elseif (samt_build or 0) > 0.45 then return "(O_O)", face_vary({"building...", "here it comes", "rising agent"}, 13)
     else                                 return "(o_o)", face_vary({"flowing", "so smooth", "with you agent", "i feel you move"}, 14) end
@@ -3033,7 +3034,7 @@ NAV_CATS = {
   { n = "CC",     pg = {37},             arm = 10 },
   { n = "SAMT",   pg = {41},             arm = 12 },
   { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
-  { n = "AGENT",  pg = {33,31,32},       arm = nil },
+  { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
 function nav_cat_of(p)
@@ -3119,7 +3120,7 @@ function state_save()
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
-      samt=samt, samt_thr=samt_thr, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
+      samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3174,6 +3175,7 @@ function state_load()
     if type(st.cc_num)=="table" then for i=1,16 do if st.cc_num[i] then cc_lanes[i].num=st.cc_num[i] end end end
     if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
     peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel) ; samt_thr=g(st.samt_thr,samt_thr)
+    if st.samt_mind_on ~= nil then samt_mind_on = st.samt_mind_on end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
@@ -3275,7 +3277,7 @@ function init()
       local idle = (sil_sec or 0) > 8 and (mind.energy or 0) < 0.04
       creature_dream = creature_auto and idle and (#motifs > 0) and comp_on   -- reve = silencieux si IMPRO coupe
       if (mind.energy or 0) > 0.1 then creature_xp_add(1) end   -- jouer fait grandir l'agent
-      if samt_on and (samt_energy or 0) > 0.1 then creature_xp_add(1) end   -- le danseur aussi fait grandir l'agent
+      if samt_mind_on and (samt_energy or 0) > 0.1 then creature_xp_add(1) end   -- le danseur fait grandir l'agent (si MOVE)
       if creature_auto then
         if idle then
           -- #3 REVE : rejoue un de tes motifs, transforme, tout seul (respecte le mute IMPRO)
@@ -3470,7 +3472,7 @@ function init()
       poto_route() ; poto_rec_route()                  -- source POtO : suivi de hauteur + routage d'enregistrement
       poto_live_update()                               -- POtO : rate/spread appliques mid-grain (immediat)
       mind.update(rms_smooth, cur_freq, cur_centroid, cur_flatness, cur_gate, 1/30, util.time())  -- ecoute partagee (observation)
-      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0, (lora.on and lora.energy) or 0, (samt_on and samt_energy) or 0)  -- coherence : geste/arc, WiFi, LoRa ET le DANSEUR (SAMT) agitent METABO -> tout le cerveau de l'agent
+      metabolik.ext_press = math.max((mind.on and mind.drive) or 0, (wifi.on and wifi.energy) or 0, (lora.on and lora.energy) or 0, (samt_mind_on and samt_energy) or 0)  -- coherence : geste/arc, WiFi, LoRa ET le DANSEUR (MOVE) agitent METABO -> tout le cerveau de l'agent
       wifi_new_flash = (wifi_new_flash or 0) * 0.93   -- decroissance du pic de decouverte (~1 s)
       lora.tick(1/30)                                  -- decroissance de l'energie radio LoRa
       if math.random() < 0.008 then face_blink = 4 end      -- la creature cligne des yeux de temps en temps
@@ -3540,7 +3542,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41, 33,31,32}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41, 33,31,32,42}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3846,6 +3848,10 @@ function key(n, z)
     elseif n == 1 then samt_slot[samt_cur].key = nil ; samt_slot[samt_cur].val = 0 end   -- efface le mapping
     redraw() ; return
   end
+  if page == 42 then
+    if n == 3 then samt_mind_on = not samt_mind_on end   -- MOVE : l'agent ecoute le mouvement
+    redraw() ; return
+  end
   if n == 2 and page == 4 then
     p_rhythm_idx = (p_rhythm_idx % #RHYTHM_RATES) + 1
     p_rhythm     = RHYTHM_RATES[p_rhythm_idx]
@@ -4120,6 +4126,27 @@ function redraw()
       end
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3thr K2dst K3lrn K1clr")
+    screen.update() ; return
+  end
+  if page == 42 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(samt_mind_on and 15 or 6) ; screen.move(2, 8) ; screen.text("MOVE")
+    screen.level(4) ; screen.move(126, 8) ; screen.text_right(samt_mind_on and "on" or "off")
+    local function bar(y, lbl, v, lv)
+      screen.level(6) ; screen.move(2, y) ; screen.text(lbl)
+      screen.level(3) ; screen.rect(44, y - 4, 78, 3) ; screen.stroke()
+      screen.level(lv) ; screen.rect(44, y - 4, 78 * math.max(0, math.min(1, v)), 3) ; screen.fill()
+    end
+    bar(20, "ENRG", samt_energy or 0,               13)   -- energie instantanee
+    bar(30, "ARC",  samt_build or 0,                11)   -- arc / soutenu
+    bar(40, "SHRP", math.min(1, (samt_jerk or 0) * 3), 12) -- brusquerie
+    local q = "flowing"
+    if     (samt_energy or 0) < 0.12  then q = "still"
+    elseif (samt_jerk or 0)  > 0.35   then q = "sharp"
+    elseif (samt_build or 0) > 0.45   then q = "building" end
+    screen.level(10) ; screen.move(2, 52) ; screen.text("> " .. q)
+    screen.level(4)  ; screen.move(96, 52) ; screen.text(string.format("%.1fs", samt_still or 0))
+    screen.level(4)  ; screen.move(2, 63) ; screen.text("K3 = l'agent lit le mouvement")
     screen.update() ; return
   end
   if page == 20 then metabolik.redraw_play() ; return end
