@@ -2634,9 +2634,9 @@ peru_sel    = 1              -- grain selectionne (slot) pour l'ajout
 peru_grav   = 0.12          -- gravite (E3)
 peru_bounce = 0.90          -- restitution au rebond
 -- auto-secousse : l'INPUT (ton son) ou METABO agite les diamants, dose en % (K2)
-peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=0.5}, {src=2, amt=1.0}, {src=3, amt=0.5}, {src=3, amt=1.0} }
+peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=0.5}, {src=2, amt=1.0}, {src=3, amt=0.5}, {src=3, amt=1.0}, {src=4, amt=0.5}, {src=4, amt=1.0} }
 peru_rmode  = 1
-PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 100%" }
+PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 100%", "SM 50%", "SM 100%" }
 
 function peru_add(slot)
   if not corpus[slot] then return end                        -- slot vide : rien
@@ -2708,8 +2708,8 @@ function peru_step()
   local m = peru_rmodes[peru_rmode]
   local drive = 0
   if     m.src == 1 then drive = math.min(1, (cur_rms or 0) * 8) * m.amt   -- INPUT : ta dynamique de jeu
-  elseif m.src == 3 then drive = math.min(1, impro_energy) * m.amt end      -- IMPRO : dynamique de l'impro
-  if samt_on then drive = math.max(drive, samt_energy) end                  -- le DANSEUR (SAMT) agite PERU
+  elseif m.src == 3 then drive = math.min(1, impro_energy) * m.amt         -- IMPRO : dynamique de l'impro
+  elseif m.src == 4 then drive = math.min(1, samt_energy) * m.amt end       -- SM : le DANSEUR (capteur SAMT)
   local gx, gy = 0, 0
   if samt_on then for s = 1, 4 do   -- axes X/Y du capteur -> pilotent la trajectoire des diamants
     local sl = samt_slot[s]
