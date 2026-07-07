@@ -3395,7 +3395,7 @@ function init()
           if samt_note.pitch and samt_mon[samt_note.pitch] then pv = samt_mon[samt_note.pitch].val or 0.5 end
           local lo, hi = samt_note.lo, samt_note.hi ; if hi < lo then lo, hi = hi, lo end
           local note = math.floor(lo + pv * (hi - lo) + 0.5)
-          local vel  = math.floor(util.clamp(dv * 180, 30, 127))
+          local vel  = math.floor(util.clamp(dv * 260, 64, 127))   -- velocite montee : plancher 64, plus reactif
           local out  = midi_outs[samt_note.dev]
           if out then
             if samt_note.playing then out:note_off(samt_note.playing, 0, samt_note.ch) end
