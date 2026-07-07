@@ -2537,10 +2537,16 @@ SAMT_DEST  = { "cc", "X", "Y", "ROT" }     -- destination : cc / axe X PERU / ax
 samt_learn = 0                             -- >0 : le prochain axe qui bouge se lie a ce slot
 samt_cur   = 1                             -- slot selectionne sur la page
 samt_mon_off = 0                           -- MONITOR (page 43) : offset de defilement de la liste des axes
--- SNOT (page 44) : instrument gestuel -> 1 axe declenche une note, 1 axe donne la hauteur, vers un device/canal MIDI
-samt_note = { trig = nil, pitch = nil, dev = 1, ch = 1, lo = 36, hi = 84, thr = 0.30,
-              on = false, cur = 1, learn = 0, pv = 0, last_t = 0, playing = nil, play_t = 0 }
-SNOT_FIELDS = { "TRIG", "PITCH", "DEV", "CH", "LO", "HI", "THR" }   -- champs (curseur E2)
+-- SNOT (page 44) : instrument gestuel -> 1 axe declenche une note, 1 axe donne la hauteur, vers un device/canal MIDI.
+-- 4 SNOT INDEPENDANTS = un par capteur/danseur (chacun son axe trigger, son axe hauteur, son device/canal, sa plage).
+samt_notes = {
+  { trig = nil, pitch = nil, dev = 1, ch = 1, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
+  { trig = nil, pitch = nil, dev = 1, ch = 2, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
+  { trig = nil, pitch = nil, dev = 1, ch = 3, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
+  { trig = nil, pitch = nil, dev = 1, ch = 4, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
+}
+samt_note_cur = 1   -- SNOT selectionne (1..4)
+samt_note_fld = 1   -- champ : 1=SNOT# 2=TRIG 3=PITCH 4=DEV 5=CH 6=LO 7=HI 8=THR
 samt_on    = false                         -- arme depuis LIVE : ON = les capteurs pilotent les sources MO
 samt_energy = 0                            -- energie de mouvement globale (0..1, decroit) — le danseur
 samt_move   = 0                            -- pic de mouvement instantane (consomme par la boucle 30Hz)
@@ -2573,9 +2579,11 @@ function samt_rx(path, args)
       if mv > samt_move then samt_move = mv end
       samt_last = { key = key, val = a.val, t = a.t }
       if samt_learn >= 1 and span > 0.05 then samt_slot[samt_learn].key = key ; samt_learn = 0 end  -- LEARN slot MO
-      if span > 0.05 then   -- LEARN SNOT : lie l'axe qui bouge au champ TRIG (1) ou PITCH (2)
-        if samt_note.learn == 1 then samt_note.trig = key ; samt_note.learn = 0
-        elseif samt_note.learn == 2 then samt_note.pitch = key ; samt_note.learn = 0 end
+      if span > 0.05 then   -- LEARN SNOT : lie l'axe qui bouge au TRIG (1) ou PITCH (2) du SNOT en apprentissage
+        for ni = 1, 4 do local sn = samt_notes[ni]
+          if sn.learn == 1 then sn.trig = key ; sn.learn = 0
+          elseif sn.learn == 2 then sn.pitch = key ; sn.learn = 0 end
+        end
       end
       for s = 1, 4 do if samt_slot[s].key == key then samt_slot[s].val = a.val end end
     end
@@ -3127,6 +3135,9 @@ function state_save()
     for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on ; cc_num[i] = cc_lanes[i].num end
     local samt = {}
     for s = 1, 4 do samt[s] = { key = samt_slot[s].key, dest = samt_slot[s].dest } end   -- mappings capteurs
+    local snots = {}
+    for s = 1, 4 do local sn = samt_notes[s]                                              -- 4 instruments SNOT
+      snots[s] = { trig = sn.trig, pitch = sn.pitch, dev = sn.dev, ch = sn.ch, lo = sn.lo, hi = sn.hi, thr = sn.thr } end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -3141,7 +3152,7 @@ function state_save()
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
       samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
-      samt_note={ trig=samt_note.trig, pitch=samt_note.pitch, dev=samt_note.dev, ch=samt_note.ch, lo=samt_note.lo, hi=samt_note.hi, thr=samt_note.thr },
+      samt_notes=snots,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3197,10 +3208,10 @@ function state_load()
     if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
     peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel) ; samt_thr=g(st.samt_thr,samt_thr)
     if st.samt_mind_on ~= nil then samt_mind_on = st.samt_mind_on end
-    if type(st.samt_note)=="table" then local sn=st.samt_note
-      samt_note.trig=sn.trig ; samt_note.pitch=sn.pitch
-      samt_note.dev=g(sn.dev,samt_note.dev) ; samt_note.ch=g(sn.ch,samt_note.ch)
-      samt_note.lo=g(sn.lo,samt_note.lo) ; samt_note.hi=g(sn.hi,samt_note.hi) ; samt_note.thr=g(sn.thr,samt_note.thr) end
+    if type(st.samt_notes)=="table" then for s=1,4 do local d=st.samt_notes[s] ; local sn=samt_notes[s]
+      if d then sn.trig=d.trig ; sn.pitch=d.pitch
+        sn.dev=g(d.dev,sn.dev) ; sn.ch=g(d.ch,sn.ch)
+        sn.lo=g(d.lo,sn.lo) ; sn.hi=g(d.hi,sn.hi) ; sn.thr=g(d.thr,sn.thr) end end end
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
@@ -3384,29 +3395,32 @@ function init()
           else sl.rot_acc = 0 end
         end
       end end
-      -- SNOT : geste sur l'axe TRIG -> note MIDI ; hauteur depuis l'axe PITCH ; device/canal choisis
-      if samt_note.on and samt_note.trig and samt_mon[samt_note.trig] then
-        local ta = samt_mon[samt_note.trig]
-        local dv = math.abs((ta.val or 0) - (samt_note.pv or 0)) ; samt_note.pv = ta.val or 0
-        local now = util.time()
-        if dv > samt_note.thr and (now - (samt_note.last_t or 0)) > 0.12 then
-          samt_note.last_t = now
-          local pv = 0.5
-          if samt_note.pitch and samt_mon[samt_note.pitch] then pv = samt_mon[samt_note.pitch].val or 0.5 end
-          local lo, hi = samt_note.lo, samt_note.hi ; if hi < lo then lo, hi = hi, lo end
-          local note = math.floor(lo + pv * (hi - lo) + 0.5)
-          local vel  = math.floor(util.clamp(dv * 260, 64, 127))   -- velocite montee : plancher 64, plus reactif
-          local out  = midi_outs[samt_note.dev]
-          if out then
-            if samt_note.playing then out:note_off(samt_note.playing, 0, samt_note.ch) end
-            out:note_on(note, vel, samt_note.ch)
-            samt_note.playing = note ; samt_note.play_t = now
+      -- SNOT x4 : pour chaque instrument, geste sur son axe TRIG -> note MIDI ; hauteur depuis son axe PITCH
+      for ni = 1, 4 do
+        local sn = samt_notes[ni]
+        if sn.on and sn.trig and samt_mon[sn.trig] then
+          local ta = samt_mon[sn.trig]
+          local dv = math.abs((ta.val or 0) - (sn.pv or 0)) ; sn.pv = ta.val or 0
+          local now = util.time()
+          if dv > sn.thr and (now - (sn.last_t or 0)) > 0.12 then
+            sn.last_t = now
+            local pv = 0.5
+            if sn.pitch and samt_mon[sn.pitch] then pv = samt_mon[sn.pitch].val or 0.5 end
+            local lo, hi = sn.lo, sn.hi ; if hi < lo then lo, hi = hi, lo end
+            local note = math.floor(lo + pv * (hi - lo) + 0.5)
+            local vel  = math.floor(util.clamp(dv * 260, 64, 127))   -- velocite : plancher 64
+            local out  = midi_outs[sn.dev]
+            if out then
+              if sn.playing then out:note_off(sn.playing, 0, sn.ch) end
+              out:note_on(note, vel, sn.ch)
+              sn.playing = note ; sn.play_t = now
+            end
           end
-        end
-        if samt_note.playing and (util.time() - (samt_note.play_t or 0)) > 0.30 then   -- gate court
-          local out = midi_outs[samt_note.dev]
-          if out then out:note_off(samt_note.playing, 0, samt_note.ch) end
-          samt_note.playing = nil
+          if sn.playing and (util.time() - (sn.play_t or 0)) > 0.30 then   -- gate court
+            local out = midi_outs[sn.dev]
+            if out then out:note_off(sn.playing, 0, sn.ch) end
+            sn.playing = nil
+          end
         end
       end
     end
@@ -3708,7 +3722,7 @@ function enc(n, d)
     elseif page == 43 then
       samt_mon_off = math.max(0, samt_mon_off + d)          -- MONITOR : defiler la liste des axes
     elseif page == 44 then
-      samt_note.cur = util.clamp(samt_note.cur + d, 1, 7)   -- SNOT : champ selectionne
+      samt_note_fld = util.clamp(samt_note_fld + d, 1, 8)   -- SNOT : champ selectionne (1=SNOT# ...)
     end
   elseif n == 3 then
     if page == 27 then                                        -- HUB : E3 vers la droite = entrer dans la categorie
@@ -3799,13 +3813,14 @@ function enc(n, d)
       midi_ch[8][peru_cur_dev] = util.clamp(midi_ch[8][peru_cur_dev] + d, 1, 16)   -- PERU MIDI : canal
     elseif page == 41 then
       samt_thr = util.clamp(samt_thr + d * 0.01, 0, 0.4)   -- SAMT : threshold / deadzone (anti-bruit)
-    elseif page == 44 then                                 -- SNOT : regle le champ selectionne
-      local c = samt_note.cur
-      if     c == 3 then samt_note.dev = util.clamp(samt_note.dev + d, 1, 4)
-      elseif c == 4 then samt_note.ch  = util.clamp(samt_note.ch  + d, 1, 16)
-      elseif c == 5 then samt_note.lo  = util.clamp(samt_note.lo  + d, 0, 127)
-      elseif c == 6 then samt_note.hi  = util.clamp(samt_note.hi  + d, 0, 127)
-      elseif c == 7 then samt_note.thr = util.clamp(samt_note.thr + d * 0.01, 0.02, 0.6) end
+    elseif page == 44 then                                 -- SNOT : regle le champ du SNOT selectionne
+      local c = samt_note_fld ; local sn = samt_notes[samt_note_cur]
+      if     c == 1 then samt_note_cur = util.clamp(samt_note_cur + d, 1, 4)   -- choisit le SNOT (1..4)
+      elseif c == 4 then sn.dev = util.clamp(sn.dev + d, 1, 4)
+      elseif c == 5 then sn.ch  = util.clamp(sn.ch  + d, 1, 16)
+      elseif c == 6 then sn.lo  = util.clamp(sn.lo  + d, 0, 127)
+      elseif c == 7 then sn.hi  = util.clamp(sn.hi  + d, 0, 127)
+      elseif c == 8 then sn.thr = util.clamp(sn.thr + d * 0.01, 0.02, 0.6) end
     end
   end
   redraw()
@@ -3940,26 +3955,27 @@ function key(n, z)
     elseif n == 1 then samt_move = 1.0 end                -- TEST : injecte une fausse impulsion de mouvement (sans capteur)
     redraw() ; return
   end
-  if page == 44 then                                      -- SNOT : instrument gestuel -> note MIDI
-    if n == 3 then                                        -- K3 : learn (TRIG / PITCH) ou reset device/canal
-      if samt_note.cur == 1 then samt_note.learn = (samt_note.learn == 1) and 0 or 1
-      elseif samt_note.cur == 2 then samt_note.learn = (samt_note.learn == 2) and 0 or 2 end
-    elseif n == 2 then                                    -- K2 : arme l'envoi
-      samt_note.on = not samt_note.on
-      if not samt_note.on and samt_note.playing then
-        local out = midi_outs[samt_note.dev]
-        if out then out:note_off(samt_note.playing, 0, samt_note.ch) end
-        samt_note.playing = nil
+  if page == 44 then                                      -- SNOT : 4 instruments gestuels -> notes MIDI
+    local sn = samt_notes[samt_note_cur]
+    if n == 3 then                                        -- K3 : learn TRIG (champ 2) ou PITCH (champ 3) du SNOT courant
+      if samt_note_fld == 2 then sn.learn = (sn.learn == 1) and 0 or 1
+      elseif samt_note_fld == 3 then sn.learn = (sn.learn == 2) and 0 or 2 end
+    elseif n == 2 then                                    -- K2 : arme/desarme CE SNOT
+      sn.on = not sn.on
+      if not sn.on and sn.playing then
+        local out = midi_outs[sn.dev]
+        if out then out:note_off(sn.playing, 0, sn.ch) end
+        sn.playing = nil
       end
-    elseif n == 1 then                                    -- K1 : TEST -> joue une note (sans capteur)
+    elseif n == 1 then                                    -- K1 : TEST -> joue une note de CE SNOT (sans capteur)
       local pv = 0.5
-      if samt_note.pitch and samt_mon[samt_note.pitch] then pv = samt_mon[samt_note.pitch].val or 0.5 end
-      local lo, hi = samt_note.lo, samt_note.hi ; if hi < lo then lo, hi = hi, lo end
+      if sn.pitch and samt_mon[sn.pitch] then pv = samt_mon[sn.pitch].val or 0.5 end
+      local lo, hi = sn.lo, sn.hi ; if hi < lo then lo, hi = hi, lo end
       local note = math.floor(lo + pv * (hi - lo) + 0.5)
-      local out  = midi_outs[samt_note.dev]
+      local out, ch = midi_outs[sn.dev], sn.ch
       if out then
-        out:note_on(note, 100, samt_note.ch)
-        clock.run(function() clock.sleep(0.3) ; if out then out:note_off(note, 0, samt_note.ch) end end)
+        out:note_on(note, 110, ch)
+        clock.run(function() clock.sleep(0.3) ; if out then out:note_off(note, 0, ch) end end)
       end
     end
     redraw() ; return
@@ -4289,29 +4305,35 @@ function redraw()
     screen.update() ; return
   end
   if page == 44 then
-    -- SNOT : 1 axe DECLENCHE une note, 1 axe donne la HAUTEUR, vers un device/canal MIDI choisis
+    -- SNOT x4 : un instrument gestuel par capteur/danseur (axe trigger + axe hauteur -> note MIDI)
     screen.clear() ; screen.font_size(8)
-    screen.level(samt_note.on and 15 or 6) ; screen.move(2, 8) ; screen.text("SNOT")
-    -- pastille : clignote quand une note vient d'etre jouee
-    if samt_note.playing then screen.level(15) ; screen.circle(52, 5, 3) ; screen.fill() end
-    screen.level(samt_note.on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(samt_note.on and "ARME" or "off")
-    local cur = samt_note.cur
-    local function fld(i) return (cur == i) and 15 or 5 end
-    -- TRIG (champ 1)
-    screen.level(fld(1)) ; screen.move(2, 20) ; screen.text((cur == 1 and ">" or " ") .. "TRIG")
-    local tn = (samt_note.trig and samt_note.trig:gsub("^/", ""):sub(1, 12)) or ((samt_note.learn == 1) and "bouge l'axe.." or "--")
-    screen.level(samt_note.trig and 12 or 4) ; screen.move(40, 20) ; screen.text(tn)
-    -- PITCH (champ 2)
-    screen.level(fld(2)) ; screen.move(2, 30) ; screen.text((cur == 2 and ">" or " ") .. "PITCH")
-    local pn = (samt_note.pitch and samt_note.pitch:gsub("^/", ""):sub(1, 12)) or ((samt_note.learn == 2) and "bouge l'axe.." or "--")
-    screen.level(samt_note.pitch and 12 or 4) ; screen.move(40, 30) ; screen.text(pn)
-    -- DEV / CH (champs 3,4)
-    screen.level(fld(3)) ; screen.move(2, 42)  ; screen.text("DEV " .. samt_note.dev)
-    screen.level(fld(4)) ; screen.move(46, 42) ; screen.text("CH " .. samt_note.ch)
-    -- LO / HI / THR (champs 5,6,7)
-    screen.level(fld(5)) ; screen.move(2, 52)  ; screen.text("LO " .. samt_note.lo)
-    screen.level(fld(6)) ; screen.move(40, 52) ; screen.text("HI " .. samt_note.hi)
-    screen.level(fld(7)) ; screen.move(80, 52) ; screen.text("THR " .. math.floor(samt_note.thr * 100))
+    local sn = samt_notes[samt_note_cur]
+    local f = samt_note_fld
+    local function fld(i) return (f == i) and 15 or 5 end
+    -- en-tete : SNOT# (champ 1) + etat des 4 (pastille = arme, pleine = joue)
+    screen.level(fld(1)) ; screen.move(2, 8) ; screen.text((f == 1 and ">" or " ") .. "SNOT" .. samt_note_cur)
+    for i = 1, 4 do
+      local s = samt_notes[i] ; local x = 44 + i * 9
+      if s.playing then screen.level(15) ; screen.circle(x, 5, 3) ; screen.fill()
+      elseif s.on then screen.level(10) ; screen.circle(x, 5, 3) ; screen.stroke()
+      else screen.level(3) ; screen.circle(x, 5, 2) ; screen.stroke() end
+    end
+    screen.level(sn.on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(sn.on and "ARME" or "off")
+    -- TRIG (champ 2)
+    screen.level(fld(2)) ; screen.move(2, 20) ; screen.text((f == 2 and ">" or " ") .. "TRIG")
+    local tn = (sn.trig and sn.trig:gsub("^/", ""):sub(1, 12)) or ((sn.learn == 1) and "bouge l'axe.." or "--")
+    screen.level(sn.trig and 12 or 4) ; screen.move(40, 20) ; screen.text(tn)
+    -- PITCH (champ 3)
+    screen.level(fld(3)) ; screen.move(2, 30) ; screen.text((f == 3 and ">" or " ") .. "PITCH")
+    local pn = (sn.pitch and sn.pitch:gsub("^/", ""):sub(1, 12)) or ((sn.learn == 2) and "bouge l'axe.." or "--")
+    screen.level(sn.pitch and 12 or 4) ; screen.move(40, 30) ; screen.text(pn)
+    -- DEV / CH (champs 4,5)
+    screen.level(fld(4)) ; screen.move(2, 42)  ; screen.text("DEV " .. sn.dev)
+    screen.level(fld(5)) ; screen.move(46, 42) ; screen.text("CH " .. sn.ch)
+    -- LO / HI / THR (champs 6,7,8)
+    screen.level(fld(6)) ; screen.move(2, 52)  ; screen.text("LO " .. sn.lo)
+    screen.level(fld(7)) ; screen.move(40, 52) ; screen.text("HI " .. sn.hi)
+    screen.level(fld(8)) ; screen.move(80, 52) ; screen.text("THR " .. math.floor(sn.thr * 100))
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2 champ E3 val K3 learn K2 arm K1 test")
     screen.update() ; return
   end
