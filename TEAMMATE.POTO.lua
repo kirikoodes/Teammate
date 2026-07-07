@@ -4147,8 +4147,9 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(samt_on and 15 or 6) ; screen.move(2, 8) ; screen.text("SAMT")   -- brillant = arme (LIVE)
     screen.level(6) ; screen.move(40, 8) ; screen.text("thr" .. math.floor(samt_thr * 100))   -- deadzone (E3)
+    local nax = 0 ; for _ in pairs(samt_mon) do nax = nax + 1 end   -- nb d'axes/capteurs distincts detectes
     local live = (util.time() - (samt_last.t or 0)) < 0.5
-    screen.level(live and 12 or 3) ; screen.move(126, 8) ; screen.text_right(live and "RX" or "no rx")
+    screen.level(live and 12 or 4) ; screen.move(126, 8) ; screen.text_right(nax .. " ax")
     local ys = { 20, 30, 40, 50 }
     for s = 1, 4 do
       local sl  = samt_slot[s]
@@ -4162,6 +4163,11 @@ function redraw()
         screen.level(4)  ; screen.rect(96, ys[s] - 4, 28, 3) ; screen.stroke()
         screen.level(12) ; screen.rect(96, ys[s] - 4, 28 * math.max(0, math.min(1, sl.val or 0)), 3) ; screen.fill()
       end
+    end
+    if live then   -- dernier axe recu : bouge UN capteur pour voir SON chemin s'afficher (= reconnu)
+      screen.level(9) ; screen.move(2, 58)
+      local lk = (samt_last.key or ""):gsub("^/", ""):sub(1, 16)
+      screen.text("rx " .. lk .. " " .. math.floor((samt_last.val or 0) * 100))
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3thr K2dst K3lrn K1clr")
     screen.update() ; return
