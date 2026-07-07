@@ -2536,6 +2536,7 @@ samt_slot  = { {dest=1}, {dest=1}, {dest=1}, {dest=1} }   -- 4 slots MO : .key .
 SAMT_DEST  = { "cc", "X", "Y", "ROT" }     -- destination : cc / axe X PERU / axe Y PERU / ROTATION -> grain suivant-precedent
 samt_learn = 0                             -- >0 : le prochain axe qui bouge se lie a ce slot
 samt_cur   = 1                             -- slot selectionne sur la page
+samt_mon_off = 0                           -- MONITOR (page 43) : offset de defilement de la liste des axes
 samt_on    = false                         -- arme depuis LIVE : ON = les capteurs pilotent les sources MO
 samt_energy = 0                            -- energie de mouvement globale (0..1, decroit) — le danseur
 samt_move   = 0                            -- pic de mouvement instantane (consomme par la boucle 30Hz)
@@ -3043,7 +3044,7 @@ NAV_CATS = {
   { n = "PERU",   pg = {39,40},          arm = 11 },
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37},             arm = 10 },
-  { n = "SAMT",   pg = {41},             arm = 12 },
+  { n = "SAMT",   pg = {41,43},          arm = 12 },
   { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
@@ -3578,7 +3579,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41, 33,31,32,42}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41,43, 33,31,32,42}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3666,6 +3667,8 @@ function enc(n, d)
       peru_cur_dev = util.clamp(peru_cur_dev + d, 1, 4)      -- PERU MIDI : device
     elseif page == 41 then
       samt_cur = util.clamp(samt_cur + d, 1, 4)              -- SAMT : slot MO selectionne
+    elseif page == 43 then
+      samt_mon_off = math.max(0, samt_mon_off + d)          -- MONITOR : defiler la liste des axes
     end
   elseif n == 3 then
     if page == 27 then                                        -- HUB : E3 vers la droite = entrer dans la categorie
@@ -4170,6 +4173,48 @@ function redraw()
       screen.text("rx " .. lk .. " " .. math.floor((samt_last.val or 0) * 100))
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2sel E3thr K2dst K3lrn K1clr")
+    screen.update() ; return
+  end
+  if page == 43 then
+    -- MONITOR : TOUS les axes de TOUS les capteurs en direct (defilable, pas juste les 4 slots)
+    screen.clear() ; screen.font_size(8)
+    local keys = {}
+    for k in pairs(samt_mon) do keys[#keys + 1] = k end
+    table.sort(keys)
+    local nax = #keys
+    screen.level(15) ; screen.move(2, 8) ; screen.text("MON")
+    screen.level(6)  ; screen.move(30, 8) ; screen.text(nax .. " ax")
+    local live = (util.time() - (samt_last.t or 0)) < 0.5
+    screen.level(samt_on and 15 or (live and 12 or 4)) ; screen.move(126, 8)
+    screen.text_right(samt_on and "arme" or (live and "rx" or "no rx"))
+    local rows = 6
+    if samt_mon_off > math.max(0, nax - rows) then samt_mon_off = math.max(0, nax - rows) end
+    if nax == 0 then
+      screen.level(5) ; screen.move(2, 34) ; screen.text("aucun capteur.")
+      screen.level(4) ; screen.move(2, 44) ; screen.text("envoie OSC -> norns.local:10111")
+    else
+      for r = 1, rows do
+        local k = keys[samt_mon_off + r]
+        if k then
+          local a = samt_mon[k]
+          local y = 8 + r * 8
+          local fresh = a and (util.time() - (a.t or 0)) < 0.3
+          local tag = "" ; for s = 1, 4 do if samt_slot[s].key == k then tag = "M" .. s end end
+          if tag ~= "" then screen.level(15) ; screen.move(2, y) ; screen.text(tag)   -- axe deja mappe -> MOn
+          else screen.level(3) ; screen.move(2, y) ; screen.text("-") end
+          screen.level(fresh and 15 or 7) ; screen.move(20, y) ; screen.text(k:gsub("^/", ""):sub(1, 12))
+          local v = a and a.val or 0
+          screen.level(6) ; screen.move(92, y) ; screen.text_right(math.floor(v * 100))
+          screen.level(4) ; screen.rect(96, y - 4, 28, 3) ; screen.stroke()
+          screen.level(fresh and 12 or 8) ; screen.rect(96, y - 4, 28 * math.max(0, math.min(1, v)), 3) ; screen.fill()
+        end
+      end
+      if nax > rows then   -- indicateur de position dans la liste
+        screen.level(5) ; screen.move(126, 63)
+        screen.text_right((samt_mon_off + 1) .. "-" .. math.min(nax, samt_mon_off + rows) .. "/" .. nax)
+      end
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 defiler  Mn=mappe")
     screen.update() ; return
   end
   if page == 42 then
