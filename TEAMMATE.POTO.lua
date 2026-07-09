@@ -2533,7 +2533,7 @@ OSCO_PAGE   = 45
 OSCO_N      = 8
 osco_lanes  = {}                    -- rempli dans init : { src, on, val, phase, walk } par sortie CV
 osco_on     = false                 -- arme depuis LIVE : envoie l'OSC (sinon la page anime mais n'envoie rien)
-osco_host   = "raspberrypi.local"   -- hote du module externe (ip ou nom .local)
+osco_host   = "pigeons.local"       -- hote du module externe (ip ou nom .local)
 osco_port   = 9000                  -- port OSC d'ecoute du module
 osco_cursor = 0                     -- 0 = ligne destination (host:port), 1..8 = les sorties CV
 
