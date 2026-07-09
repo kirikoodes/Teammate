@@ -393,6 +393,9 @@ local function midi_note_on(stream, note, vel)
       midi_outs[d]:note_on(note, vel, midi_ch[stream][d])
     end
   end
+  if stream_energy and stream_energy[stream] then   -- suit l'activite du mode (meme sans device MIDI) -> source CC/OSC
+    stream_energy[stream] = math.max(stream_energy[stream], (vel or 0) / 127)
+  end
 end
 local function midi_note_off(stream, note)
   for d = 1, 4 do
@@ -455,6 +458,7 @@ local spat_eff_pan     -- forward ref
 comp_rms = 0 ; comp_freq = 0 ; comp_centroid = 0 ; comp_flatness = 0
 meta_freq = 0 ; meta_energy = 0   -- derniere note de METABO (pour alimenter NIAKABY)
 impro_energy = 0                  -- enveloppe d'activite de l'impro (pour PERU src=IMPRO, continu)
+stream_energy = {0,0,0,0,0,0,0,0} -- enveloppe d'activite par stream MIDI (POtO=2, 8OS=3, NIAKA=7...) -> sources CC/OSC
 mgen_nfreq = 0 ; mgen_nenergy = 0 -- derniere note de MGEN (pour alimenter NIAKABY)
 function companion_feed(rms, freq, centroid, flatness)
   if (rms or 0) > comp_rms then comp_rms = rms end        -- attaque (le decay est dans la boucle metabo)
@@ -2524,7 +2528,8 @@ cc_learn  = false      -- si vrai, le prochain CC recu se copie dans la lane sel
 cc_dev    = 1          -- device MIDI de sortie (1..4)
 cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
-CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK", "MO1", "MO2", "MO3", "MO4" }
+CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK", "MO1", "MO2", "MO3", "MO4",
+              "IMPR", "POTO", "8OS", "MGEN", "AUD", "PERU", "NIAK", "MOVE" }   -- tous les modes comme sources
 cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par CC
 
 -- ===== OSC OUT (page 45) : pilote un module externe en OSC (ex. HAT CV/Gate sur un Pi separe) =====
@@ -2639,6 +2644,14 @@ function cc_target(lane, i)
   elseif s == 12 then v = (samt_on and samt_slot[2].val) or 0
   elseif s == 13 then v = (samt_on and samt_slot[3].val) or 0
   elseif s == 14 then v = (samt_on and samt_slot[4].val) or 0
+  elseif s == 15 then v = impro_energy or 0                            -- IMPRO : l'agent qui joue
+  elseif s == 16 then v = stream_energy[2] or 0                        -- POtO : activite
+  elseif s == 17 then v = stream_energy[3] or 0                        -- 8OS : activite
+  elseif s == 18 then v = math.min(1, mgen_nenergy or 0)               -- MGEN : energie des notes generees
+  elseif s == 19 then v = math.min(1, (rms_smooth or 0) * 8)           -- AUDIO : niveau de l'entree
+  elseif s == 20 then v = peru_dia and math.min(1, #peru_dia / PERU_MAX) or 0   -- PERU : grains vivants
+  elseif s == 21 then v = stream_energy[7] or 0                        -- NIAKABY : activite des accords
+  elseif s == 22 then v = samt_energy or 0                             -- MOVE : mouvement global du danseur
   end
   return math.max(0, math.min(1, v))
 end
@@ -3477,6 +3490,7 @@ function init()
     while true do
       clock.sleep(1/30)
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
+      for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       if peru_on and #peru_dia > 0 then peru_step() end
       if page == PERU_PAGE then redraw() end
     end
