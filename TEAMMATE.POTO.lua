@@ -3386,10 +3386,11 @@ function init()
           local v
           if tm == 2 then                                        -- GATE : 127 tant que la source depasse le seuil
             lane.val = ((tgt or 0) > 0.25) and 1 or 0 ; v = lane.val * 127
-          elseif tm == 1 then                                    -- TRIGGER : pic de CC sur front montant
-            local hi = (tgt or 0) > 0.25
-            if hi and not lane.armed_hi then lane.pulse = 2 end
-            lane.armed_hi = hi
+          elseif tm == 1 then                                    -- TRIGGER : pic de CC sur front montant OU nouvelle attaque (tout BPM)
+            local src = tgt or 0
+            local hi  = src > 0.25
+            if (hi and not lane.armed_hi) or (src - (lane.psrc or 0)) > 0.08 then lane.pulse = 2 end
+            lane.armed_hi = hi ; lane.psrc = src
             if (lane.pulse or 0) > 0 then lane.val = 1 ; lane.pulse = lane.pulse - 1 else lane.val = 0 end
             v = lane.val * 127
           elseif tgt then                                        -- CC continu lisse
@@ -3415,10 +3416,11 @@ function init()
           local tm = lane.tmode or 0
           if tm == 2 then                               -- GATE : haut (1) tant que la source depasse le seuil
             lane.val = ((tgt or 0) > 0.25) and 1 or 0 ; outv = lane.val
-          elseif tm == 1 then                           -- TRIGGER : impulsion (~80 ms) sur FRONT MONTANT de la source
-            local hi = (tgt or 0) > 0.25
-            if hi and not lane.armed_hi then lane.pulse = 2 end   -- front montant -> declenche
-            lane.armed_hi = hi
+          elseif tm == 1 then                           -- TRIGGER : impulsion sur front montant OU nouvelle attaque (marche a tout BPM)
+            local src = tgt or 0
+            local hi  = src > 0.25
+            if (hi and not lane.armed_hi) or (src - (lane.psrc or 0)) > 0.08 then lane.pulse = 2 end   -- seuil OU re-attaque
+            lane.armed_hi = hi ; lane.psrc = src
             if (lane.pulse or 0) > 0 then lane.val = 1 ; lane.pulse = lane.pulse - 1 else lane.val = 0 end
             outv = lane.val
           elseif tgt then                               -- CV : valeur continue lissee
