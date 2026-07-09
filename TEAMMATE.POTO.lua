@@ -3512,11 +3512,11 @@ function init()
       end
       local out = midi_outs[wifi_midi_dev]
       if wifi.on and wifi_midi_on and out and #wifi.nets > 0 then
-        if lastnote then out:note_off(lastnote, wifi_midi_ch) ; lastnote = nil end
+        if lastnote then out:note_off(lastnote, 0, wifi_midi_ch) ; lastnote = nil end
         if (wifi.last_new_t or 0) > prevnew then    -- accent : nouveau reseau apparu
           prevnew = wifi.last_new_t
           out:note_on(84, 110, wifi_midi_ch)
-          clock.run(function() clock.sleep(0.12) ; out:note_off(84, wifi_midi_ch) end)
+          clock.run(function() clock.sleep(0.12) ; out:note_off(84, 0, wifi_midi_ch) end)
         end
         idx = (idx % #wifi.nets) + 1                 -- arpege un reseau a la fois
         local n    = wifi.nets[idx]
@@ -3525,7 +3525,7 @@ function init()
         out:note_on(note, vel, wifi_midi_ch)
         lastnote = note
       elseif lastnote and out then
-        out:note_off(lastnote, wifi_midi_ch) ; lastnote = nil
+        out:note_off(lastnote, 0, wifi_midi_ch) ; lastnote = nil
       end
     end
   end)
@@ -3548,7 +3548,7 @@ function init()
       end
       step = (step + 1) % 16
       for _, p in ipairs(playing) do
-        local out = midi_outs[p.dev] ; if out then out:note_off(p.note, p.ch) end
+        local out = midi_outs[p.dev] ; if out then out:note_off(p.note, 0, p.ch) end
       end
       playing = {}
       if wifi.on then
