@@ -2527,6 +2527,16 @@ cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
 CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK", "MO1", "MO2", "MO3", "MO4" }
 cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par CC
 
+-- ===== OSC OUT (page 45) : pilote un module externe en OSC (ex. HAT CV/Gate sur un Pi separe) =====
+-- 8 sorties, chacune = une adresse /cv/N + une source (memes que la CC). Envoie float 0..1 vers host:port.
+OSCO_PAGE   = 45
+OSCO_N      = 8
+osco_lanes  = {}                    -- rempli dans init : { src, on, val, phase, walk } par sortie CV
+osco_on     = false                 -- arme depuis LIVE : envoie l'OSC (sinon la page anime mais n'envoie rien)
+osco_host   = "raspberrypi.local"   -- hote du module externe (ip ou nom .local)
+osco_port   = 9000                  -- port OSC d'ecoute du module
+osco_cursor = 0                     -- 0 = ligne destination (host:port), 1..8 = les sorties CV
+
 -- ===== SAMT (السمت) : capteurs de mouvement via OSC (port 10111) =====
 -- Capte TOUT OSC numerique -> chaque valeur = un axe auto-normalise 0..1. 4 slots
 -- MO1-4 apprennent un axe (bouge le capteur) et deviennent des sources CC (page CC).
@@ -3061,6 +3071,7 @@ NAV_CATS = {
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37},             arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
+  { n = "OSCOUT", pg = {45},             arm = 13 },
   { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
@@ -3105,6 +3116,8 @@ function live_toggle(i)
     end
   elseif i == 12 then
     samt_on = not samt_on                                    -- SAMT : capteurs de mouvement OSC
+  elseif i == 13 then
+    osco_on = not osco_on                                    -- OSC OUT : envoi vers un module externe
   end
 end
 
@@ -3121,6 +3134,7 @@ function live_all_off()
   cc_on = false
   peru_on = false
   samt_on = false
+  osco_on = false
   for st = 1, 8 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
@@ -3138,6 +3152,8 @@ function state_save()
     local snots = {}
     for s = 1, 4 do local sn = samt_notes[s]                                              -- 4 instruments SNOT
       snots[s] = { trig = sn.trig, pitch = sn.pitch, dev = sn.dev, ch = sn.ch, lo = sn.lo, hi = sn.hi, thr = sn.thr } end
+    local osco = { host = osco_host, port = osco_port, src = {}, on = {} }                 -- config OSC OUT
+    for i = 1, OSCO_N do osco.src[i] = osco_lanes[i].src ; osco.on[i] = osco_lanes[i].on end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -3152,7 +3168,7 @@ function state_save()
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
       samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
-      samt_notes=snots,
+      samt_notes=snots, osco=osco,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3212,6 +3228,11 @@ function state_load()
       if d then sn.trig=d.trig ; sn.pitch=d.pitch
         sn.dev=g(d.dev,sn.dev) ; sn.ch=g(d.ch,sn.ch)
         sn.lo=g(d.lo,sn.lo) ; sn.hi=g(d.hi,sn.hi) ; sn.thr=g(d.thr,sn.thr) end end end
+    if type(st.osco)=="table" then
+      if st.osco.host then osco_host = st.osco.host end ; osco_port = g(st.osco.port, osco_port)
+      if type(st.osco.src)=="table" then for i=1,OSCO_N do if st.osco.src[i] then osco_lanes[i].src=st.osco.src[i] end end end
+      if type(st.osco.on)=="table"  then for i=1,OSCO_N do osco_lanes[i].on = st.osco.on[i] and true or false end end
+    end
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
@@ -3248,6 +3269,7 @@ function init()
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
   pcall(function() local t = tab.load(norns.state.data .. "lora_senders.data") ; if type(t) == "table" then lora.senders = t end end)  -- signatures d'expediteurs LoRa
   for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5, num = i } end  -- 16 CC (num = numero CC envoye)
+  for i = 1, OSCO_N do osco_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.5, walk = 0.5 } end     -- 8 sorties OSC /cv/N
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
   pcall(function() audio.level_monitor(p_monitor) end)
@@ -3347,6 +3369,30 @@ function init()
               local v = math.floor(lane.val * 127 + 0.5)
               if v ~= last[i] then out:cc(lane.num or i, v, cc_ch) ; last[i] = v end
             end
+          end
+        end
+      end
+    end
+  end)
+
+  -- OSC OUT : 8 sorties pilotees par leur source -> envoi OSC /cv/1..8 vers un module externe (ex. HAT CV/Gate)
+  clock.run(function()
+    local last = {}
+    while true do
+      clock.sleep(0.04)                                 -- ~25 Hz
+      local dest = osco_on and { osco_host, osco_port } or nil
+      for i = 1, OSCO_N do
+        local lane = osco_lanes[i]
+        if lane then
+          local tgt = cc_target(lane, i)                -- meme calcul de source que la CC
+          if tgt then
+            lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2   -- lissage (anime la page meme desarme)
+            if dest and lane.on then
+              local v = math.floor(lane.val * 1000 + 0.5) / 1000         -- float 0..1, 3 decimales
+              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
+            end
+          else
+            lane.val = (lane.val or 0) * 0.9            -- source OFF : retombe doucement a 0
           end
         end
       end
@@ -3631,7 +3677,7 @@ end
 -- regroupe par mode : POtO (granular/grain/SRC/MOD), puis 8OS (looper/SRC/MOD),
 -- puis MIDI, MGEN, audio, SPAT, METABO, NIAKABY, META>MGEN, TASTE, LIVE, MIND.
 -- (les IDs logiques ne changent pas : seul l'ordre d'affichage est regroupe)
-PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41,43,44, 33,31,32,42}
+PAGE_ORDER = {1,2,3,4, 5,7,30,29, 6,8,28, 9,10,11,12, 13,14,15,25,26, 16,17, 18,19,20,21, 22,23,24, 27, 39,40, 36,35,37,41,43,44,45, 33,31,32,42}
 function page_pos(p)
   for i, q in ipairs(PAGE_ORDER) do if q == p then return i end end
   return 1
@@ -3723,6 +3769,8 @@ function enc(n, d)
       samt_mon_off = math.max(0, samt_mon_off + d)          -- MONITOR : defiler la liste des axes
     elseif page == 44 then
       samt_note_fld = util.clamp(samt_note_fld + d, 1, 8)   -- SNOT : champ selectionne (1=SNOT# ...)
+    elseif page == 45 then
+      osco_cursor = util.clamp(osco_cursor + d, 0, OSCO_N)  -- OSC OUT : 0=dest, 1..8=sorties
     end
   elseif n == 3 then
     if page == 27 then                                        -- HUB : E3 vers la droite = entrer dans la categorie
@@ -3821,6 +3869,8 @@ function enc(n, d)
       elseif c == 6 then sn.lo  = util.clamp(sn.lo  + d, 0, 127)
       elseif c == 7 then sn.hi  = util.clamp(sn.hi  + d, 0, 127)
       elseif c == 8 then sn.thr = util.clamp(sn.thr + d * 0.01, 0.02, 0.6) end
+    elseif page == 45 then
+      if osco_cursor == 0 then osco_port = util.clamp(osco_port + d, 1, 65535) end   -- OSC OUT : port destination
     end
   end
   redraw()
@@ -3953,6 +4003,29 @@ function key(n, z)
     if n == 3 then samt_mind_on = not samt_mind_on       -- l'agent ecoute le mouvement
     elseif n == 2 then peru_spawn = not peru_spawn        -- le mouvement fait apparaitre des grains dans PERU
     elseif n == 1 then samt_move = 1.0 end                -- TEST : injecte une fausse impulsion de mouvement (sans capteur)
+    redraw() ; return
+  end
+  if page == 45 then                                      -- OSC OUT : envoi vers un module externe (/cv/1..8)
+    if osco_cursor == 0 then                              -- ligne destination
+      if n == 3 then                                      -- K3 : editer l'hote (clavier a l'ecran)
+        local te = require('textentry')
+        te.enter(function(txt) if txt and txt ~= "" then osco_host = txt end ; redraw() end,
+                 osco_host, "HOTE OSC (ip ou .local)")
+        return
+      elseif n == 2 then osco_on = not osco_on            -- K2 : arme/desarme l'envoi
+      elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
+        local dest = { osco_host, osco_port }
+        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 end
+      end
+    else                                                  -- une sortie CV
+      local lane = osco_lanes[osco_cursor]
+      if n == 3 then lane.src = (lane.src % #CC_SRC) + 1  -- K3 : cycle la source
+      elseif n == 2 then lane.on = not lane.on ; if lane.on then osco_on = true end   -- K2 : on/off (arme le master)
+      elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
+        local dest = { osco_host, osco_port }
+        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 end
+      end
+    end
     redraw() ; return
   end
   if page == 44 then                                      -- SNOT : 4 instruments gestuels -> notes MIDI
@@ -4335,6 +4408,33 @@ function redraw()
     screen.level(fld(7)) ; screen.move(40, 52) ; screen.text("HI " .. sn.hi)
     screen.level(fld(8)) ; screen.move(80, 52) ; screen.text("THR " .. math.floor(sn.thr * 100))
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2 champ E3 val K3 learn K2 arm K1 test")
+    screen.update() ; return
+  end
+  if page == 45 then
+    -- OSC OUT : 8 sorties /cv/N pilotees par leur source, envoyees vers un module externe
+    screen.clear() ; screen.font_size(8)
+    screen.level(osco_on and 15 or 6) ; screen.move(2, 8) ; screen.text("OSC OUT")
+    screen.level(osco_on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(osco_on and "ARME" or "off")
+    -- ligne destination (curseur 0)
+    local dsel = (osco_cursor == 0)
+    screen.level(dsel and 15 or 7) ; screen.move(2, 17)
+    screen.text((dsel and ">" or " ") .. osco_host .. ":" .. osco_port)
+    -- 8 sorties en 2 colonnes de 4
+    local ys = { 28, 37, 46, 55 }
+    for i = 1, OSCO_N do
+      local lane = osco_lanes[i]
+      local col  = (i <= 4) and 0 or 1
+      local row  = ((i - 1) % 4) + 1
+      local x    = 2 + col * 64
+      local y    = ys[row]
+      local sel  = (osco_cursor == i)
+      screen.level(sel and 15 or (lane.on and 9 or 3)) ; screen.move(x, y)
+      screen.text((sel and ">" or " ") .. i .. (lane.on and ":" or " ") .. CC_SRC[lane.src or 1])
+      local bx = x + 44
+      screen.level(3) ; screen.rect(bx, y - 4, 16, 3) ; screen.stroke()
+      screen.level(lane.on and 12 or 5) ; screen.rect(bx, y - 4, 16 * math.max(0, math.min(1, lane.val or 0)), 3) ; screen.fill()
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text(dsel and "E3 port K3 hote K2 arm K1 0V" or "K3 src K2 on/off K1 0V")
     screen.update() ; return
   end
   if page == 42 then
