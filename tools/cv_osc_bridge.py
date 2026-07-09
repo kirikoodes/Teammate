@@ -77,9 +77,27 @@ class DacOut:
         if not self.no_hw:
             try:
                 self.bus = SMBus(I2C_BUS)
+            except PermissionError:
+                print("[DAC] I2C refuse (permission). Lance avec 'sudo python3 cv_osc_bridge.py'")
+                print("      ou ajoute ton user au groupe i2c : sudo usermod -aG i2c $USER puis reboot.")
+                self.no_hw = True
             except Exception as e:
                 print(f"[DAC] I2C indisponible ({e}) -> mode sans materiel")
                 self.no_hw = True
+
+    def selftest(self):
+        """Rampe 0->10V sur les 8 sorties, puis retour a 0 : preuve visuelle que le materiel repond."""
+        if self.no_hw or self.bus is None:
+            print("[AUTO-TEST] saute (pas de materiel).")
+            return
+        print("[AUTO-TEST] rampe 0 -> 10V sur les 8 sorties (2s). REGARDE TES CV...")
+        for step in range(0, 101):
+            for i in range(8):
+                self.set_cv(i, step / 100.0)
+            time.sleep(0.02)
+        for i in range(8):
+            self.set_cv(i, 0.0)
+        print("[AUTO-TEST] fini (sorties a 0). Si tes CV ont MONTE puis sont retombees -> le materiel MARCHE.")
 
     def set_cv(self, out_index, value01):
         """out_index 0..7, value01 float 0..1 -> tension CV sur la sortie."""
@@ -155,6 +173,7 @@ def main():
     ap.add_argument("--rate", type=float, default=200.0, help="Hz de lecture des 16 entrees (defaut 200)")
     ap.add_argument("--send-eps", type=float, default=0.004, help="seuil de changement pour re-emettre un /in")
     ap.add_argument("--no-hw", action="store_true", help="mode test sans le HAT (OSC seul)")
+    ap.add_argument("--no-selftest", action="store_true", help="ne pas faire la rampe de test des sorties au demarrage")
     args = ap.parse_args()
 
     no_hw = args.no_hw or not HW_LIBS
@@ -193,6 +212,9 @@ def main():
     print(f"  Envoie /in/1..16  vers {args.norns_host}:{args.norns_port}   ({args.rate:.0f} Hz)")
     print(f"  Materiel : {'NON (mode test)' if no_hw else 'MCP4728 x2 (DAC) + MCP3008 x2 (ADC)'}")
     print("  Ctrl+C pour quitter.\n")
+
+    if not args.no_selftest:
+        dac.selftest()          # preuve immediate que les sorties CV repondent (sans OSC)
 
     period = 1.0 / max(1.0, args.rate)
     last_sent = [None] * ADC_CHANNELS
