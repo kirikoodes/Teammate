@@ -3069,9 +3069,8 @@ NAV_CATS = {
   { n = "NIAKA",  pg = {22,23,24},       arm = 6  },
   { n = "PERU",   pg = {39,40},          arm = 11 },
   { n = "WIFI",   pg = {36,35},          arm = 9  },
-  { n = "CC",     pg = {37},             arm = 10 },
+  { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
-  { n = "OSCOUT", pg = {45},             arm = 13 },
   { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
@@ -4212,11 +4211,13 @@ function redraw()
       local x    = left and 2 or 66
       local xr   = left and 62 or 126
       local y    = ys[left and i or (i - 7)]
-      local sel  = (i == home_cursor)
-      local on   = c.arm and ons[c.arm]
-      screen.level(sel and 15 or (on and 11 or 4))
-      screen.move(x, y) ; screen.text((sel and ">" or " ") .. c.n)
-      if c.arm then screen.level(on and 13 or 3) ; screen.move(xr, y) ; screen.text_right(on and "on" or "-") end
+      if y then                                    -- garde-fou : pas de slot d'affichage -> on saute (evite tout crash)
+        local sel  = (i == home_cursor)
+        local on   = c.arm and ons[c.arm]
+        screen.level(sel and 15 or (on and 11 or 4))
+        screen.move(x, y) ; screen.text((sel and ">" or " ") .. c.n)
+        if c.arm then screen.level(on and 13 or 3) ; screen.move(xr, y) ; screen.text_right(on and "on" or "-") end
+      end
     end
     screen.update() ; return
   end
