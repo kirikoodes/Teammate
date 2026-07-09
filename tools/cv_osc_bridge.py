@@ -189,7 +189,7 @@ def main():
     def on_cv(address, *osc_args):
         # address ex "/cv/3" ; 1 argument float 0..1
         try:
-            idx = int(address.rsplit("/", 1)[1]) - 1     # /cv/1 -> index 0
+            idx = int(address.rsplit("/", 1)[1])         # /cv/0..7 -> sortie 0..7 (= sortie physique du HAT)
         except (ValueError, IndexError):
             return
         if osc_args:
@@ -204,7 +204,7 @@ def main():
     trig_s = max(0.0005, args.trig_ms / 1000.0)
     def on_trig(address, *osc_args):
         try:
-            idx = int(address.rsplit("/", 1)[1]) - 1
+            idx = int(address.rsplit("/", 1)[1])
         except (ValueError, IndexError):
             return
         level = float(osc_args[0]) if osc_args else 1.0   # 1.0 = 10V (plein), 0.5 = 5V
@@ -217,7 +217,7 @@ def main():
     # --- OSC : /gate/N v -> tient la tension (haut tant que v>0.5, sinon 0) ---
     def on_gate(address, *osc_args):
         try:
-            idx = int(address.rsplit("/", 1)[1]) - 1
+            idx = int(address.rsplit("/", 1)[1])
         except (ValueError, IndexError):
             return
         v = float(osc_args[0]) if osc_args else 0.0

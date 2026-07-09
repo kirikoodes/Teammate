@@ -3422,25 +3422,25 @@ function init()
             local fire = (hi and not lane.armed_hi) or (src - (lane.psrc or 0)) > 0.08   -- seuil OU re-attaque (tout BPM)
             lane.armed_hi = hi ; lane.psrc = src
             lane.val = fire and 1 or (lane.val or 0) * 0.4        -- affichage : flash a chaque trig
-            if dest and lane.on and fire then pcall(osc.send, dest, "/trig/" .. i, { 1.0 }) end
+            if dest and lane.on and fire then pcall(osc.send, dest, "/trig/" .. (i - 1), { 1.0 }) end
           elseif tm == 2 then                           -- GATE : /gate/N sur les FRONTS -> le Pi tient la tension
             local hi = (tgt or 0) > 0.25
             lane.val = hi and 1 or 0
             if hi ~= lane.ghi then                       -- n'envoie qu'aux changements d'etat
               lane.ghi = hi
-              if dest and lane.on then pcall(osc.send, dest, "/gate/" .. i, { hi and 1.0 or 0.0 }) end
+              if dest and lane.on then pcall(osc.send, dest, "/gate/" .. (i - 1), { hi and 1.0 or 0.0 }) end
             end
           elseif tgt then                               -- CV continu : /cv/N lisse
             lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2
             if dest and lane.on then
               local v = math.floor(lane.val * 1000 + 0.5) / 1000
-              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
+              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. (i - 1), { v }) ; last[i] = v end
             end
           else                                          -- source OFF : retombe a 0
             lane.val = (lane.val or 0) * 0.9
             if dest and lane.on then
               local v = math.floor(lane.val * 1000 + 0.5) / 1000
-              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
+              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. (i - 1), { v }) ; last[i] = v end
             end
           end
         end
@@ -4076,7 +4076,7 @@ function key(n, z)
       elseif n == 2 then osco_on = not osco_on            -- K2 : arme/desarme l'envoi
       elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
         local dest = { osco_host, osco_port }
-        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
+        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
     else                                                  -- une sortie CV
       local lane = osco_lanes[osco_cursor]
@@ -4084,7 +4084,7 @@ function key(n, z)
       elseif n == 2 then lane.on = not lane.on ; if lane.on then osco_on = true end   -- K2 : on/off (arme le master)
       elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
         local dest = { osco_host, osco_port }
-        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
+        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
     end
     redraw() ; return
@@ -4494,7 +4494,7 @@ function redraw()
       screen.level(sel and 15 or (lane.on and 9 or 3)) ; screen.move(x, y)
       local tm = lane.tmode or 0
       local sep = lane.on and ":" or " " ; if tm == 1 then sep = "!" elseif tm == 2 then sep = "=" end  -- : CV, ! TRIG, = GATE
-      screen.text((sel and ">" or " ") .. i .. sep .. CC_SRC[lane.src or 1])
+      screen.text((sel and ">" or " ") .. (i - 1) .. sep .. CC_SRC[lane.src or 1])   -- sortie 0-7 (= sortie physique du HAT)
       local bx = x + 44
       screen.level(3) ; screen.rect(bx, y - 4, 16, 3) ; screen.stroke()
       screen.level(lane.on and 12 or 5) ; screen.rect(bx, y - 4, 16 * math.max(0, math.min(1, lane.val or 0)), 3) ; screen.fill()
