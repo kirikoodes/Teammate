@@ -2525,6 +2525,7 @@ cc_rx_cc  = -1         -- moniteur : dernier numero de CC recu en entree
 cc_rx_ch  = 0          -- canal de ce CC
 cc_rx_t   = 0          -- horodatage (pour l'affichage "recent")
 cc_learn  = false      -- si vrai, le prochain CC recu se copie dans la lane selectionnee
+cc_k1_down = false ; cc_k1_moved = false   -- K1 maintenu + E3 = mode CC/TRIG/GATE (tap = learn)
 cc_dev    = 1          -- device MIDI de sortie (1..4)
 cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
@@ -3159,8 +3160,8 @@ function state_save()
     util.make_dir(norns.state.data)
     local mon, mmch = {}, {}
     for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
-    local cc_src, cc_lon, cc_num = {}, {}, {}
-    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on ; cc_num[i] = cc_lanes[i].num end
+    local cc_src, cc_lon, cc_num, cc_tmd = {}, {}, {}, {}
+    for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on ; cc_num[i] = cc_lanes[i].num ; cc_tmd[i] = cc_lanes[i].tmode end
     local samt = {}
     for s = 1, 4 do samt[s] = { key = samt_slot[s].key, dest = samt_slot[s].dest } end   -- mappings capteurs
     local snots = {}
@@ -3180,7 +3181,7 @@ function state_save()
       mind_on=mind.on, style_on=style.on, wifi_on=wifi.on, creature_auto=creature_auto,
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
-      cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num,
+      cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num, cc_tmd=cc_tmd,
       samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
       samt_notes=snots, osco=osco,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
@@ -3235,6 +3236,7 @@ function state_load()
     local lon = (type(st.cc_lon)=="table" and st.cc_lon) or (type(st.cc_on)=="table" and st.cc_on) or nil
     if lon then for i=1,16 do cc_lanes[i].on=lon[i] and true or false end end
     if type(st.cc_num)=="table" then for i=1,16 do if st.cc_num[i] then cc_lanes[i].num=st.cc_num[i] end end end
+    if type(st.cc_tmd)=="table" then for i=1,16 do cc_lanes[i].tmode=st.cc_tmd[i] or 0 end end
     if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
     peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel) ; samt_thr=g(st.samt_thr,samt_thr)
     if st.samt_mind_on ~= nil then samt_mind_on = st.samt_mind_on end
@@ -3285,7 +3287,7 @@ function init()
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
   pcall(function() local t = tab.load(norns.state.data .. "lora_senders.data") ; if type(t) == "table" then lora.senders = t end end)  -- signatures d'expediteurs LoRa
-  for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5, num = i } end  -- 16 CC (num = numero CC envoye)
+  for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5, num = i, tmode = 0 } end  -- 16 CC (num, tmode 0=CC 1=TRIG 2=GATE)
   for i = 1, OSCO_N do osco_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.5, walk = 0.5, tmode = 0 } end  -- 8 sorties OSC /cv/N (tmode 0=CV 1=TRIG 2=GATE)
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
@@ -3375,18 +3377,25 @@ function init()
     local last = {}
     while true do
       clock.sleep(0.04)                              -- ~25 Hz
-      local out = cc_on and midi_outs[cc_dev] or nil  -- arme depuis LIVE
-      if out then
-        for i = 1, 16 do
-          local lane = cc_lanes[i]
-          if lane and lane.on then
-            local tgt = cc_target(lane, i)
-            if tgt then
-              lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2   -- lissage
-              local v = math.floor(lane.val * 127 + 0.5)
-              if v ~= last[i] then out:cc(lane.num or i, v, cc_ch) ; last[i] = v end
-            end
+      local out = cc_on and midi_outs[cc_dev] or nil  -- arme depuis LIVE (mais on calcule tjrs -> page vivante)
+      for i = 1, 16 do
+        local lane = cc_lanes[i]
+        if lane and lane.on then
+          local tgt = cc_target(lane, i)
+          local tm  = lane.tmode or 0
+          local v
+          if tm == 2 then                                        -- GATE : 127 tant que la source depasse le seuil
+            lane.val = ((tgt or 0) > 0.25) and 1 or 0 ; v = lane.val * 127
+          elseif tm == 1 then                                    -- TRIGGER : pic de CC sur front montant
+            local hi = (tgt or 0) > 0.25
+            if hi and not lane.armed_hi then lane.pulse = 2 end
+            lane.armed_hi = hi
+            if (lane.pulse or 0) > 0 then lane.val = 1 ; lane.pulse = lane.pulse - 1 else lane.val = 0 end
+            v = lane.val * 127
+          elseif tgt then                                        -- CC continu lisse
+            lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2 ; v = math.floor(lane.val * 127 + 0.5)
           end
+          if out and v and v ~= last[i] then out:cc(lane.num or i, v, cc_ch) ; last[i] = v end
         end
       end
     end
@@ -3810,7 +3819,10 @@ function enc(n, d)
     if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 35 then wifi_midi_ch = util.clamp(wifi_midi_ch + d, 1, 16) end
     if page == 37 then
-      if cc_cursor == 0 then
+      if cc_k1_down and cc_cursor >= 1 then
+        local lane = cc_lanes[cc_cursor]
+        lane.tmode = util.clamp((lane.tmode or 0) + d, 0, 2) ; cc_k1_moved = true   -- K1+E3 : CC/TRIG/GATE
+      elseif cc_cursor == 0 then
         cc_ch = util.clamp(cc_ch + d, 1, 16)
       else
         local lane = cc_lanes[cc_cursor]
@@ -3911,6 +3923,11 @@ function key(n, z)
   if page == PERU_PAGE and n == 2 then      -- K2 : tap = react ; maintenu + E3 = threshold SAMT
     if z == 1 then peru_k2_down = true ; peru_k2_moved = false
     else peru_k2_down = false ; if not peru_k2_moved then peru_rmode = (peru_rmode % #peru_rmodes) + 1 end end
+    redraw() ; return
+  end
+  if page == 37 and n == 1 then             -- CC : K1 tap = learn ; maintenu + E3 = mode CC/TRIG/GATE
+    if z == 1 then cc_k1_down = true ; cc_k1_moved = false
+    else cc_k1_down = false ; if not cc_k1_moved and cc_cursor >= 1 then cc_learn = not cc_learn end end
     redraw() ; return
   end
   if z == 0 then return end
@@ -4632,6 +4649,8 @@ function redraw()
       local sel  = (i == cc_cursor)
       screen.level(sel and 15 or (lane.on and 8 or 4)) ; screen.move(2, y)
       screen.text((sel and ">" or " ") .. "CC" .. (lane.num or i))
+      local tm = lane.tmode or 0                                   -- ! = TRIG, = : GATE (a cote du n)
+      if tm > 0 then screen.level(lane.on and 12 or 4) ; screen.move(34, y) ; screen.text(tm == 1 and "!" or "=") end
       screen.level(lane.on and (sel and 15 or 10) or 3) ; screen.move(40, y)
       screen.text(CC_SRC[lane.src or 1])
       -- barre de valeur
@@ -4652,7 +4671,7 @@ function redraw()
     end
     screen.level(3) ; screen.move(2, 62)
     if cc_cursor == 0 then screen.text("E3 ch  K2 dev  K3 arm")
-    else screen.text("E3 cc#  K2 src  K3 on  K1 learn") end
+    else screen.text("E3cc# K2src K3on K1+E3=mode") end
     screen.update() ; return
   end
   if page == 30 then
