@@ -165,6 +165,7 @@ def main():
     adc = AdcIn(no_hw=no_hw)
 
     # --- OSC : reception des /cv/1..8 depuis Teammate ---------------------
+    rx_stat = {"n": 0, "last": "-"}
     def on_cv(address, *osc_args):
         # address ex "/cv/3" ; 1 argument float 0..1
         try:
@@ -172,7 +173,12 @@ def main():
         except (ValueError, IndexError):
             return
         if osc_args:
-            dac.set_cv(idx, float(osc_args[0]))
+            val = float(osc_args[0])
+            dac.set_cv(idx, val)
+            rx_stat["n"] += 1
+            rx_stat["last"] = f"{address}={val:.3f}"
+            if rx_stat["n"] == 1:
+                print(f"\n[RX] PREMIER paquet recu ! {rx_stat['last']}  <-- le signal arrive.")
 
     disp = Dispatcher()
     disp.map("/cv/*", on_cv)                              # /cv/1 .. /cv/8
@@ -190,6 +196,8 @@ def main():
 
     period = 1.0 / max(1.0, args.rate)
     last_sent = [None] * ADC_CHANNELS
+    last_status = time.monotonic()
+    prev_n = 0
     try:
         while True:
             t0 = time.monotonic()
@@ -201,6 +209,15 @@ def main():
                 if prev is None or abs(v - prev) >= args.send_eps:
                     last_sent[ch] = v
                     client.send_message(f"/in/{ch + 1}", v)   # -> SAMT : axe "/in/N#1"
+            # ligne d'etat une fois par seconde : combien de /cv recus (= y a-t-il du signal ?)
+            if t0 - last_status >= 1.0:
+                rate = rx_stat["n"] - prev_n
+                prev_n = rx_stat["n"]
+                last_status = t0
+                if rx_stat["n"] == 0:
+                    print(f"[etat] AUCUN /cv recu (total 0). En attente de Teammate sur :{args.listen_port} ...")
+                else:
+                    print(f"[etat] /cv recus : {rx_stat['n']} total, {rate}/s | dernier {rx_stat['last']}")
             dt = period - (time.monotonic() - t0)
             if dt > 0:
                 time.sleep(dt)
