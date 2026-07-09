@@ -3166,8 +3166,8 @@ function state_save()
     local snots = {}
     for s = 1, 4 do local sn = samt_notes[s]                                              -- 4 instruments SNOT
       snots[s] = { trig = sn.trig, pitch = sn.pitch, dev = sn.dev, ch = sn.ch, lo = sn.lo, hi = sn.hi, thr = sn.thr } end
-    local osco = { host = osco_host, port = osco_port, armed = osco_on, src = {}, on = {} } -- config OSC OUT (armed persiste)
-    for i = 1, OSCO_N do osco.src[i] = osco_lanes[i].src ; osco.on[i] = osco_lanes[i].on end
+    local osco = { host = osco_host, port = osco_port, armed = osco_on, src = {}, on = {}, trig = {} } -- config OSC OUT (armed persiste)
+    for i = 1, OSCO_N do osco.src[i] = osco_lanes[i].src ; osco.on[i] = osco_lanes[i].on ; osco.trig[i] = osco_lanes[i].trig end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -3246,6 +3246,7 @@ function state_load()
       if st.osco.host then osco_host = st.osco.host end ; osco_port = g(st.osco.port, osco_port)
       if type(st.osco.src)=="table" then for i=1,OSCO_N do if st.osco.src[i] then osco_lanes[i].src=st.osco.src[i] end end end
       if type(st.osco.on)=="table"  then for i=1,OSCO_N do osco_lanes[i].on = st.osco.on[i] and true or false end end
+      if type(st.osco.trig)=="table" then for i=1,OSCO_N do osco_lanes[i].trig = st.osco.trig[i] and true or false end end
       if st.osco.armed ~= nil then osco_on = st.osco.armed end   -- l'armement OSC OUT est restaure au demarrage
     end
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
@@ -3284,7 +3285,7 @@ function init()
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
   pcall(function() local t = tab.load(norns.state.data .. "lora_senders.data") ; if type(t) == "table" then lora.senders = t end end)  -- signatures d'expediteurs LoRa
   for i = 1, 16 do cc_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.4, walk = 0.5, num = i } end  -- 16 CC (num = numero CC envoye)
-  for i = 1, OSCO_N do osco_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.5, walk = 0.5 } end     -- 8 sorties OSC /cv/N
+  for i = 1, OSCO_N do osco_lanes[i] = { src = 1, on = false, val = 0, phase = i * 0.5, walk = 0.5, trig = false } end  -- 8 sorties OSC /cv/N (trig = mode gachette)
   mgen_gen_all()
   state_load()             -- recharge TOUS les reglages sauvegardes
   pcall(function() audio.level_monitor(p_monitor) end)
@@ -3400,14 +3401,22 @@ function init()
         local lane = osco_lanes[i]
         if lane then
           local tgt = cc_target(lane, i)                -- meme calcul de source que la CC
-          if tgt then
-            lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2   -- lissage (anime la page meme desarme)
-            if dest and lane.on then
-              local v = math.floor(lane.val * 1000 + 0.5) / 1000         -- float 0..1, 3 decimales
-              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
-            end
+          local outv
+          if lane.trig then                             -- MODE TRIGGER : impulsion (~80 ms) sur FRONT MONTANT de la source
+            local hi = (tgt or 0) > 0.25
+            if hi and not lane.armed_hi then lane.pulse = 2 end   -- front montant -> declenche
+            lane.armed_hi = hi
+            if (lane.pulse or 0) > 0 then lane.val = 1 ; lane.pulse = lane.pulse - 1 else lane.val = 0 end
+            outv = lane.val
+          elseif tgt then                               -- MODE CV : valeur continue lissee
+            lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2
+            outv = lane.val
           else
-            lane.val = (lane.val or 0) * 0.9            -- source OFF : retombe doucement a 0
+            lane.val = (lane.val or 0) * 0.9 ; outv = lane.val   -- source OFF : retombe a 0
+          end
+          if dest and lane.on then
+            local v = math.floor(outv * 1000 + 0.5) / 1000       -- float 0..1
+            if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
           end
         end
       end
@@ -3887,7 +3896,8 @@ function enc(n, d)
       elseif c == 7 then sn.hi  = util.clamp(sn.hi  + d, 0, 127)
       elseif c == 8 then sn.thr = util.clamp(sn.thr + d * 0.01, 0.02, 0.6) end
     elseif page == 45 then
-      if osco_cursor == 0 then osco_port = util.clamp(osco_port + d, 1, 65535) end   -- OSC OUT : port destination
+      if osco_cursor == 0 then osco_port = util.clamp(osco_port + d, 1, 65535)       -- OSC OUT dest : port
+      else osco_lanes[osco_cursor].trig = (d > 0) end                                -- sortie : E3 droite=TRIG, gauche=CV
     end
   end
   redraw()
@@ -4448,12 +4458,13 @@ function redraw()
       local y    = ys[row]
       local sel  = (osco_cursor == i)
       screen.level(sel and 15 or (lane.on and 9 or 3)) ; screen.move(x, y)
-      screen.text((sel and ">" or " ") .. i .. (lane.on and ":" or " ") .. CC_SRC[lane.src or 1])
+      local sep = lane.trig and "!" or (lane.on and ":" or " ")   -- ! = mode trigger, : = CV continu
+      screen.text((sel and ">" or " ") .. i .. sep .. CC_SRC[lane.src or 1])
       local bx = x + 44
       screen.level(3) ; screen.rect(bx, y - 4, 16, 3) ; screen.stroke()
       screen.level(lane.on and 12 or 5) ; screen.rect(bx, y - 4, 16 * math.max(0, math.min(1, lane.val or 0)), 3) ; screen.fill()
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text(dsel and "E3 port K3 hote K2 arm K1 0V" or "K3 src K2 on/off K1 0V")
+    screen.level(4) ; screen.move(2, 63) ; screen.text(dsel and "E3 port K3 hote K2 arm K1 0V" or "K3 src E3 cv/trg K2 on")
     screen.update() ; return
   end
   if page == 42 then
