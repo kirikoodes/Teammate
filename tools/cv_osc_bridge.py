@@ -99,13 +99,13 @@ class DacOut:
             self.set_cv(i, 0.0)
         print("[AUTO-TEST] fini (sorties a 0). Si tes CV ont MONTE puis sont retombees -> le materiel MARCHE.")
 
-    def set_cv(self, out_index, value01):
-        """out_index 0..7, value01 float 0..1 -> tension CV sur la sortie."""
+    def set_cv(self, out_index, value01, force=False):
+        """out_index 0..7, value01 float 0..1 -> tension CV sur la sortie. force = ecrit meme si identique (impulsions)."""
         if not (0 <= out_index < 8):
             return
         v = 0.0 if value01 < 0.0 else (1.0 if value01 > 1.0 else value01)
         raw = int(v * DAC_MAX + 0.5)
-        if raw == self.last[out_index]:
+        if raw == self.last[out_index] and not force:
             return                     # rien a faire, evite le trafic I2C inutile
         self.last[out_index] = raw
         if self.no_hw or self.bus is None:
@@ -174,6 +174,7 @@ def main():
     ap.add_argument("--send-eps", type=float, default=0.004, help="seuil de changement pour re-emettre un /in")
     ap.add_argument("--no-hw", action="store_true", help="mode test sans le HAT (OSC seul)")
     ap.add_argument("--no-selftest", action="store_true", help="ne pas faire la rampe de test des sorties au demarrage")
+    ap.add_argument("--trig-ms", type=float, default=5.0, help="largeur de l'impulsion /trig en millisecondes (defaut 5)")
     args = ap.parse_args()
 
     no_hw = args.no_hw or not HW_LIBS
@@ -199,8 +200,34 @@ def main():
             if rx_stat["n"] == 1:
                 print(f"\n[RX] PREMIER paquet recu ! {rx_stat['last']}  <-- le signal arrive.")
 
+    # --- OSC : /trig/N -> impulsion courte (Eurorack : 0V -> 10V pendant ~5 ms -> 0V) ---
+    trig_s = max(0.0005, args.trig_ms / 1000.0)
+    def on_trig(address, *osc_args):
+        try:
+            idx = int(address.rsplit("/", 1)[1]) - 1
+        except (ValueError, IndexError):
+            return
+        level = float(osc_args[0]) if osc_args else 1.0   # 1.0 = 10V (plein), 0.5 = 5V
+        dac.set_cv(idx, level, force=True)                # front montant immediat
+        threading.Timer(trig_s, lambda: dac.set_cv(idx, 0.0, force=True)).start()   # retombee apres trig_ms
+        rx_stat["n"] += 1 ; rx_stat["last"] = f"{address}(trig {args.trig_ms:.0f}ms)"
+        if rx_stat["n"] == 1:
+            print(f"\n[RX] PREMIER paquet recu ! {rx_stat['last']}  <-- le signal arrive.")
+
+    # --- OSC : /gate/N v -> tient la tension (haut tant que v>0.5, sinon 0) ---
+    def on_gate(address, *osc_args):
+        try:
+            idx = int(address.rsplit("/", 1)[1]) - 1
+        except (ValueError, IndexError):
+            return
+        v = float(osc_args[0]) if osc_args else 0.0
+        dac.set_cv(idx, v if v > 0.0 else 0.0, force=True)   # v=1.0 -> 10V maintenu ; 0 -> 0V
+        rx_stat["n"] += 1 ; rx_stat["last"] = f"{address}={v:.1f}"
+
     disp = Dispatcher()
-    disp.map("/cv/*", on_cv)                              # /cv/1 .. /cv/8
+    disp.map("/cv/*", on_cv)                              # /cv/1 .. /cv/8  (CV continu)
+    disp.map("/trig/*", on_trig)                          # /trig/1 .. /trig/8  (impulsion 5 ms)
+    disp.map("/gate/*", on_gate)                          # /gate/1 .. /gate/8  (maintien)
     server = ThreadingOSCUDPServer(("0.0.0.0", args.listen_port), disp)
     threading.Thread(target=server.serve_forever, daemon=True).start()
 

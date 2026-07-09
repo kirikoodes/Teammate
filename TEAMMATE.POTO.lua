@@ -3415,26 +3415,33 @@ function init()
         local lane = osco_lanes[i]
         if lane then
           local tgt = cc_target(lane, i)                -- meme calcul de source que la CC
-          local outv
           local tm = lane.tmode or 0
-          if tm == 2 then                               -- GATE : haut (1) tant que la source depasse le seuil
-            lane.val = ((tgt or 0) > 0.25) and 1 or 0 ; outv = lane.val
-          elseif tm == 1 then                           -- TRIGGER : impulsion sur front montant OU nouvelle attaque (marche a tout BPM)
-            local src = tgt or 0
-            local hi  = src > 0.25
-            if (hi and not lane.armed_hi) or (src - (lane.psrc or 0)) > 0.08 then lane.pulse = 2 end   -- seuil OU re-attaque
+          if tm == 1 then                               -- TRIGGER : /trig/N sur evenement -> le Pi fait l'impulsion 5 ms
+            local src  = tgt or 0
+            local hi   = src > 0.25
+            local fire = (hi and not lane.armed_hi) or (src - (lane.psrc or 0)) > 0.08   -- seuil OU re-attaque (tout BPM)
             lane.armed_hi = hi ; lane.psrc = src
-            if (lane.pulse or 0) > 0 then lane.val = 1 ; lane.pulse = lane.pulse - 1 else lane.val = 0 end
-            outv = lane.val
-          elseif tgt then                               -- CV : valeur continue lissee
+            lane.val = fire and 1 or (lane.val or 0) * 0.4        -- affichage : flash a chaque trig
+            if dest and lane.on and fire then pcall(osc.send, dest, "/trig/" .. i, { 1.0 }) end
+          elseif tm == 2 then                           -- GATE : /gate/N sur les FRONTS -> le Pi tient la tension
+            local hi = (tgt or 0) > 0.25
+            lane.val = hi and 1 or 0
+            if hi ~= lane.ghi then                       -- n'envoie qu'aux changements d'etat
+              lane.ghi = hi
+              if dest and lane.on then pcall(osc.send, dest, "/gate/" .. i, { hi and 1.0 or 0.0 }) end
+            end
+          elseif tgt then                               -- CV continu : /cv/N lisse
             lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2
-            outv = lane.val
-          else
-            lane.val = (lane.val or 0) * 0.9 ; outv = lane.val   -- source OFF : retombe a 0
-          end
-          if dest and lane.on then
-            local v = math.floor(outv * 1000 + 0.5) / 1000       -- float 0..1
-            if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
+            if dest and lane.on then
+              local v = math.floor(lane.val * 1000 + 0.5) / 1000
+              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
+            end
+          else                                          -- source OFF : retombe a 0
+            lane.val = (lane.val or 0) * 0.9
+            if dest and lane.on then
+              local v = math.floor(lane.val * 1000 + 0.5) / 1000
+              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. i, { v }) ; last[i] = v end
+            end
           end
         end
       end
@@ -4069,7 +4076,7 @@ function key(n, z)
       elseif n == 2 then osco_on = not osco_on            -- K2 : arme/desarme l'envoi
       elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
         local dest = { osco_host, osco_port }
-        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 end
+        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
     else                                                  -- une sortie CV
       local lane = osco_lanes[osco_cursor]
@@ -4077,7 +4084,7 @@ function key(n, z)
       elseif n == 2 then lane.on = not lane.on ; if lane.on then osco_on = true end   -- K2 : on/off (arme le master)
       elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
         local dest = { osco_host, osco_port }
-        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 end
+        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. i, { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. i, { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
     end
     redraw() ; return
