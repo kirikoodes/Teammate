@@ -1605,6 +1605,7 @@ local function mgen_start()
               -- (pas de companion_feed ici : COMP = impro du compagnon seulement, distinct de MGEN)
               mgen_nfreq = 440 * 2 ^ ((nn - 69) / 12)
               if vel / 127 > mgen_nenergy then mgen_nenergy = vel / 127 end
+              if vel / 127 > (ch.energy or 0) then ch.energy = vel / 127 end   -- activite PAR PISTE (sources MG1-8)
               for d = 1, 4 do
                 if midi_route[4][d] and midi_outs[d] then
                   local out = midi_outs[d]
@@ -2530,7 +2531,8 @@ cc_dev    = 1          -- device MIDI de sortie (1..4)
 cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
 CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK", "MO1", "MO2", "MO3", "MO4",
-              "IMPR", "POTO", "8OS", "MGEN", "AUD", "PERU", "NIAK", "MOVE" }   -- tous les modes comme sources
+              "IMPR", "POTO", "8OS", "MGEN", "AUD", "PERU", "NIAK", "MOVE",   -- tous les modes comme sources
+              "MG1", "MG2", "MG3", "MG4", "MG5", "MG6", "MG7", "MG8" }         -- pistes MGEN individuelles
 cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par CC
 
 -- ===== OSC OUT (page 45) : pilote un module externe en OSC (ex. HAT CV/Gate sur un Pi separe) =====
@@ -2653,6 +2655,7 @@ function cc_target(lane, i)
   elseif s == 20 then v = peru_energy or 0                             -- PERU : PIC a chaque collision (impact)
   elseif s == 21 then v = stream_energy[7] or 0                        -- NIAKABY : activite des accords
   elseif s == 22 then v = samt_energy or 0                             -- MOVE : mouvement global du danseur
+  elseif s >= 23 and s <= 30 then v = (mgen_ch[s - 22] and mgen_ch[s - 22].energy) or 0   -- MG1-8 : pistes MGEN
   end
   return math.max(0, math.min(1, v))
 end
@@ -3631,6 +3634,7 @@ function init()
       clock.sleep(1/30)
       meta_energy  = meta_energy  * 0.90   -- decay de l'energie METABO (suit ses silences)
       mgen_nenergy = mgen_nenergy * 0.88   -- decay de l'energie MGEN
+      for i = 1, 8 do mgen_ch[i].energy = (mgen_ch[i].energy or 0) * 0.88 end   -- decay activite par piste MG1-8
       -- sources actives (INPUT/METABO/COMP/MGEN, combinables) : on prend la plus FORTE
       local s = niakaby.src or { input = true }
       local br, bf, bc, bfl = 0, 0, 0, 0
