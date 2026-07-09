@@ -2649,7 +2649,7 @@ function cc_target(lane, i)
   elseif s == 17 then v = stream_energy[3] or 0                        -- 8OS : activite
   elseif s == 18 then v = math.min(1, mgen_nenergy or 0)               -- MGEN : energie des notes generees
   elseif s == 19 then v = math.min(1, (rms_smooth or 0) * 8)           -- AUDIO : niveau de l'entree
-  elseif s == 20 then v = peru_dia and math.min(1, #peru_dia / PERU_MAX) or 0   -- PERU : grains vivants
+  elseif s == 20 then v = peru_energy or 0                             -- PERU : PIC a chaque collision (impact)
   elseif s == 21 then v = stream_energy[7] or 0                        -- NIAKABY : activite des accords
   elseif s == 22 then v = samt_energy or 0                             -- MOVE : mouvement global du danseur
   end
@@ -2683,6 +2683,7 @@ peru_on     = false           -- actif (armable depuis LIVE ; s'active en lachan
 peru_sel    = 1              -- grain selectionne (slot) pour l'ajout
 peru_grav   = 0.12          -- gravite (E3)
 peru_bounce = 0.90          -- restitution au rebond
+peru_energy = 0             -- enveloppe : PIC a chaque collision (selon la force), decroit -> source CC/OSC "PERU"
 -- auto-secousse : l'INPUT (ton son) ou METABO agite les diamants, dose en % (K2)
 peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=0.5}, {src=2, amt=1.0}, {src=3, amt=0.5}, {src=3, amt=1.0}, {src=4, amt=0.5}, {src=4, amt=1.0} }
 peru_rmode  = 1
@@ -2790,6 +2791,7 @@ function peru_step()
     end
     if hit and speed > 0.5 then
       d.flash = 3
+      peru_energy = math.max(peru_energy, math.min(1, speed / 4))   -- PIC de collision (source PERU) selon la force
       local pan = math.max(-1, math.min(1, (d.x - (PERU_BX0 + PERU_BX1) / 2) / ((PERU_BX1 - PERU_BX0) / 2)))  -- pan = position horizontale du choc
       pcall(peru_play, corpus[d.slot], pan)   -- choc = joue le grain sur les voix PERU (5,6), spatialise, sans voler l'agent
     elseif d.flash > 0 then d.flash = d.flash - 1 end
@@ -3491,6 +3493,7 @@ function init()
       clock.sleep(1/30)
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
+      peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
       if peru_on and #peru_dia > 0 then peru_step() end
       if page == PERU_PAGE then redraw() end
     end
