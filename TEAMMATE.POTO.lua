@@ -3151,7 +3151,7 @@ function state_save()
     local snots = {}
     for s = 1, 4 do local sn = samt_notes[s]                                              -- 4 instruments SNOT
       snots[s] = { trig = sn.trig, pitch = sn.pitch, dev = sn.dev, ch = sn.ch, lo = sn.lo, hi = sn.hi, thr = sn.thr } end
-    local osco = { host = osco_host, port = osco_port, src = {}, on = {} }                 -- config OSC OUT
+    local osco = { host = osco_host, port = osco_port, armed = osco_on, src = {}, on = {} } -- config OSC OUT (armed persiste)
     for i = 1, OSCO_N do osco.src[i] = osco_lanes[i].src ; osco.on[i] = osco_lanes[i].on end
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
@@ -3231,6 +3231,7 @@ function state_load()
       if st.osco.host then osco_host = st.osco.host end ; osco_port = g(st.osco.port, osco_port)
       if type(st.osco.src)=="table" then for i=1,OSCO_N do if st.osco.src[i] then osco_lanes[i].src=st.osco.src[i] end end end
       if type(st.osco.on)=="table"  then for i=1,OSCO_N do osco_lanes[i].on = st.osco.on[i] and true or false end end
+      if st.osco.armed ~= nil then osco_on = st.osco.armed end   -- l'armement OSC OUT est restaure au demarrage
     end
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
