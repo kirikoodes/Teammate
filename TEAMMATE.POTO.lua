@@ -4477,6 +4477,8 @@ function redraw()
     -- OSC OUT : 8 sorties /cv/N pilotees par leur source, envoyees vers un module externe
     screen.clear() ; screen.font_size(8)
     screen.level(osco_on and 15 or 6) ; screen.move(2, 8) ; screen.text("OSC OUT")
+    do local _, nc = nav_cat_of(page) ; if nc then local p = 1 ; for k, pg in ipairs(nc.pg) do if pg == page then p = k end end
+      screen.level(5) ; screen.move(58, 8) ; screen.text(p .. "/" .. #nc.pg) end end   -- position dans la categorie CC
     screen.level(osco_on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(osco_on and "ARME" or "off")
     -- ligne destination (curseur 0)
     local dsel = (osco_cursor == 0)
@@ -4646,6 +4648,8 @@ function redraw()
   if page == 37 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("CC GEN")
+    do local _, nc = nav_cat_of(page) ; if nc then local p = 1 ; for k, pg in ipairs(nc.pg) do if pg == page then p = k end end
+      screen.level(5) ; screen.move(56, 8) ; screen.text(p .. "/" .. #nc.pg) end end   -- position dans la categorie CC
     screen.level(cc_on and 12 or 3) ; screen.move(126, 8) ; screen.text_right(cc_on and "ARM" or "off")
     -- ligne OUT (device + canal global) : curseur 0
     local osel = (cc_cursor == 0)
