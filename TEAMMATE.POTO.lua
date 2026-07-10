@@ -2665,7 +2665,7 @@ function cc_target(lane, i)
       audio_pitch_cv = math.max(0, math.min(1, math.log(cur_freq / 32.703) / math.log(2) / 10))
     end
     v = audio_pitch_cv or 0                                            -- tient la derniere hauteur pendant le silence
-  elseif s == 33 then v = ((cur_gate or 0) > 0.5) and 1 or 0           -- AGT : gate de l'audio d'entree
+  elseif s == 33 then v = ((cur_rms or 0) > p_gate_thr) and 1 or 0     -- AGT : gate SNAPPY (amplitude brute, sans le hold de cur_gate)
   end
   return math.max(0, math.min(1, v))
 end
