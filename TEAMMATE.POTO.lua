@@ -2661,8 +2661,10 @@ function cc_target(lane, i)
   -- ===== AUDIO -> CV (convertisseur type Eurorack : l'entree audio traduite en tensions) =====
   elseif s == 31 then v = math.min(1, (cur_centroid or 0) / 4000)      -- TIMB : timbre / brillance (centroide spectral)
   elseif s == 32 then                                                  -- PTCH : hauteur en 1V/oct (0..1 -> 0..10V, C1 = 0V)
-    if (cur_freq or 0) > 20 then                                       -- 1 octave = 1V : log2(f/C1) / 10
-      audio_pitch_cv = math.max(0, math.min(1, math.log(cur_freq / 32.703) / math.log(2) / 10))
+    if (cur_freq or 0) > 20 then
+      local semi = 12 * math.log(cur_freq / 32.703) / math.log(2)      -- demi-tons depuis C1
+      semi = math.floor(semi + 0.5)                                    -- QUANTIFIE au demi-ton le plus proche -> note juste
+      audio_pitch_cv = math.max(0, math.min(1, semi / 120))            -- 120 demi-tons = 10 octaves = 0..10V (1V/oct)
     end
     v = audio_pitch_cv or 0                                            -- tient la derniere hauteur pendant le silence
   elseif s == 33 then v = ((cur_rms or 0) > p_gate_thr) and 1 or 0     -- AGT : gate SNAPPY (amplitude brute, sans le hold de cur_gate)
@@ -3440,16 +3442,18 @@ function init()
               lane.ghi = hi
               if dest and lane.on then pcall(osc.send, dest, "/gate/" .. (i - 1), { hi and 1.0 or 0.0 }) end
             end
-          elseif tgt then                               -- CV continu : /cv/N lisse
-            lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2
+          elseif tgt then                               -- CV continu : /cv/N
+            local sid = lane.src or 1
+            if sid == 32 or sid == 33 then lane.val = tgt              -- PTCH / AGT : AUCUN lissage (saut net, pas de glide)
+            else lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2 end   -- les autres : lissage
             if dest and lane.on then
-              local v = math.floor(lane.val * 1000 + 0.5) / 1000
+              local v = math.floor(lane.val * 4095 + 0.5) / 4095       -- precision 12 bits = resolution exacte du DAC
               if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. (i - 1), { v }) ; last[i] = v end
             end
           else                                          -- source OFF : retombe a 0
             lane.val = (lane.val or 0) * 0.9
             if dest and lane.on then
-              local v = math.floor(lane.val * 1000 + 0.5) / 1000
+              local v = math.floor(lane.val * 4095 + 0.5) / 4095
               if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. (i - 1), { v }) ; last[i] = v end
             end
           end
