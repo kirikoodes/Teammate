@@ -3420,40 +3420,41 @@ function init()
   -- OSC OUT : 8 sorties pilotees par leur source -> envoi OSC /cv/1..8 vers un module externe (ex. HAT CV/Gate)
   clock.run(function()
     local last = {}
+    local tick = 0
     while true do
-      clock.sleep(0.04)                                 -- ~25 Hz
+      clock.sleep(0.01)                                 -- 100 Hz : TRIG/GATE reactifs (le poll audio tourne a 60 Hz)
+      tick = tick + 1
+      local cv_tick = (tick % 4 == 0)                   -- CV : ~25 Hz -> trafic OSC inchange
       local dest = osco_on and { osco_host, osco_port } or nil
       for i = 1, OSCO_N do
         local lane = osco_lanes[i]
         if lane then
-          local tgt = cc_target(lane, i)                -- meme calcul de source que la CC
           local tm = lane.tmode or 0
-          if tm == 1 then                               -- TRIGGER : /trig/N sur evenement -> le Pi fait l'impulsion 5 ms
-            local src  = tgt or 0
+          if tm == 1 then                               -- TRIGGER (100 Hz) : /trig/N -> le Pi fait l'impulsion 5 ms
+            local src  = cc_target(lane, i) or 0
             local hi   = src > 0.25
             local fire = (hi and not lane.armed_hi) or (src - (lane.psrc or 0)) > 0.08   -- seuil OU re-attaque (tout BPM)
             lane.armed_hi = hi ; lane.psrc = src
-            lane.val = fire and 1 or (lane.val or 0) * 0.4        -- affichage : flash a chaque trig
+            lane.val = fire and 1 or (lane.val or 0) * 0.85       -- affichage : flash a chaque trig
             if dest and lane.on and fire then pcall(osc.send, dest, "/trig/" .. (i - 1), { 1.0 }) end
-          elseif tm == 2 then                           -- GATE : /gate/N sur les FRONTS -> le Pi tient la tension
-            local hi = (tgt or 0) > 0.25
+          elseif tm == 2 then                           -- GATE (100 Hz) : /gate/N sur les FRONTS -> le Pi tient la tension
+            local hi = (cc_target(lane, i) or 0) > 0.25
             lane.val = hi and 1 or 0
             if hi ~= lane.ghi then                       -- n'envoie qu'aux changements d'etat
               lane.ghi = hi
               if dest and lane.on then pcall(osc.send, dest, "/gate/" .. (i - 1), { hi and 1.0 or 0.0 }) end
             end
-          elseif tgt then                               -- CV continu : /cv/N
-            local sid = lane.src or 1
-            if sid == 32 or sid == 33 then lane.val = tgt              -- PTCH / AGT : AUCUN lissage (saut net, pas de glide)
-            else lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2 end   -- les autres : lissage
+          elseif cv_tick then                           -- CV continu (~25 Hz) : /cv/N
+            local tgt = cc_target(lane, i)
+            if tgt then
+              local sid = lane.src or 1
+              if sid == 32 or sid == 33 then lane.val = tgt            -- PTCH / AGT : AUCUN lissage (saut net, pas de glide)
+              else lane.val = (lane.val or 0) + (tgt - (lane.val or 0)) * 0.2 end   -- les autres : lissage
+            else
+              lane.val = (lane.val or 0) * 0.9          -- source OFF : retombe a 0
+            end
             if dest and lane.on then
               local v = math.floor(lane.val * 4095 + 0.5) / 4095       -- precision 12 bits = resolution exacte du DAC
-              if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. (i - 1), { v }) ; last[i] = v end
-            end
-          else                                          -- source OFF : retombe a 0
-            lane.val = (lane.val or 0) * 0.9
-            if dest and lane.on then
-              local v = math.floor(lane.val * 4095 + 0.5) / 4095
               if v ~= last[i] then pcall(osc.send, dest, "/cv/" .. (i - 1), { v }) ; last[i] = v end
             end
           end
