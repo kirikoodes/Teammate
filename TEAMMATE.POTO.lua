@@ -4236,6 +4236,16 @@ function redraw()
   screen.clear()
   screen.aa(0)
 
+  -- ECRAN D'ACCUEIL : doit passer AVANT le dispatch des pages (elles sortent toutes en early return)
+  if splash_active then
+    screen.font_size(16)
+    screen.level(15) ; screen.move(2, 24) ; screen.text("TEAMMATE")
+    screen.level(8)  ; screen.move(2, 44) ; screen.text(".POTO")
+    screen.level(2)  ; screen.font_size(8) ; screen.move(2, 58) ; screen.text("norns / nsdos 2026")
+    screen.level(3)  ; screen.move(0, 30) ; screen.line(128, 30) ; screen.stroke()
+    screen.update() ; return
+  end
+
   if page == 26 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
@@ -4719,24 +4729,6 @@ function redraw()
     end
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2 sel  K3 on/off  K2 all")
     screen.update() ; return
-  end
-
-  if splash_active then
-    screen.font_size(16)
-    screen.level(15)
-    screen.move(2, 24)
-    screen.text("TEAMMATE")
-    screen.level(8)
-    screen.move(2, 44)
-    screen.text(".POTO")
-    screen.level(2)
-    screen.font_size(8)
-    screen.move(2, 58)
-    screen.text("norns / nsdos 2026")
-    screen.level(3)
-    screen.move(0, 30) ; screen.line(128, 30) ; screen.stroke()
-    screen.update()
-    return
   end
 
   screen.font_size(8)
