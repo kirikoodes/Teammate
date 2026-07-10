@@ -459,6 +459,7 @@ comp_rms = 0 ; comp_freq = 0 ; comp_centroid = 0 ; comp_flatness = 0
 meta_freq = 0 ; meta_energy = 0   -- derniere note de METABO (pour alimenter NIAKABY)
 impro_energy = 0                  -- enveloppe d'activite de l'impro (pour PERU src=IMPRO, continu)
 stream_energy = {0,0,0,0,0,0,0,0} -- enveloppe d'activite par stream MIDI (POtO=2, 8OS=3, NIAKA=7...) -> sources CC/OSC
+audio_pitch_cv = 0                -- AUDIO->CV : hauteur en 1V/oct (tenue pendant les silences)
 mgen_nfreq = 0 ; mgen_nenergy = 0 -- derniere note de MGEN (pour alimenter NIAKABY)
 function companion_feed(rms, freq, centroid, flatness)
   if (rms or 0) > comp_rms then comp_rms = rms end        -- attaque (le decay est dans la boucle metabo)
@@ -2532,7 +2533,8 @@ cc_ch     = 1          -- canal MIDI
 cc_cursor = 0          -- 0 = ligne OUT (device/canal), 1..16 = les CC
 CC_SRC    = { "OFF", "ENRG", "TENS", "ARC", "DENS", "STRS", "WIFI", "STYL", "LFO", "WALK", "MO1", "MO2", "MO3", "MO4",
               "IMPR", "POTO", "8OS", "MGEN", "AUD", "PERU", "NIAK", "MOVE",   -- tous les modes comme sources
-              "MG1", "MG2", "MG3", "MG4", "MG5", "MG6", "MG7", "MG8" }         -- pistes MGEN individuelles
+              "MG1", "MG2", "MG3", "MG4", "MG5", "MG6", "MG7", "MG8",         -- pistes MGEN individuelles
+              "TIMB", "PTCH", "AGT" }                                          -- AUDIO -> CV : timbre, hauteur 1V/oct, gate
 cc_lanes  = {}         -- rempli dans init : { src, on, val, phase, walk } par CC
 
 -- ===== OSC OUT (page 45) : pilote un module externe en OSC (ex. HAT CV/Gate sur un Pi separe) =====
@@ -2656,6 +2658,14 @@ function cc_target(lane, i)
   elseif s == 21 then v = stream_energy[7] or 0                        -- NIAKABY : activite des accords
   elseif s == 22 then v = samt_energy or 0                             -- MOVE : mouvement global du danseur
   elseif s >= 23 and s <= 30 then v = (mgen_ch[s - 22] and mgen_ch[s - 22].energy) or 0   -- MG1-8 : pistes MGEN
+  -- ===== AUDIO -> CV (convertisseur type Eurorack : l'entree audio traduite en tensions) =====
+  elseif s == 31 then v = math.min(1, (cur_centroid or 0) / 4000)      -- TIMB : timbre / brillance (centroide spectral)
+  elseif s == 32 then                                                  -- PTCH : hauteur en 1V/oct (0..1 -> 0..10V, C1 = 0V)
+    if (cur_freq or 0) > 20 then                                       -- 1 octave = 1V : log2(f/C1) / 10
+      audio_pitch_cv = math.max(0, math.min(1, math.log(cur_freq / 32.703) / math.log(2) / 10))
+    end
+    v = audio_pitch_cv or 0                                            -- tient la derniere hauteur pendant le silence
+  elseif s == 33 then v = ((cur_gate or 0) > 0.5) and 1 or 0           -- AGT : gate de l'audio d'entree
   end
   return math.max(0, math.min(1, v))
 end
