@@ -3171,6 +3171,32 @@ function live_all_off()
   for st = 1, 8 do midi_cc_all(st, 123, 0) end   -- all notes off sur tous les streams
 end
 
+-- etat ON/OFF de chaque mode (index live_toggle) : pour SAUVER puis RESTAURER les modes ouverts
+function live_is_on(i)
+  if     i == 1 then return p_poto_on
+  elseif i == 2 then return os8_mode ~= "OFF"
+  elseif i == 3 then return mgen_running
+  elseif i == 4 then return spat.on
+  elseif i == 5 then return metabolik.on
+  elseif i == 6 then return niakaby.on
+  elseif i == 7 then return audio_midi_on
+  elseif i == 8 then return comp_on
+  elseif i == 9 then return wifi.on
+  elseif i == 10 then return cc_on
+  elseif i == 11 then return peru_on
+  elseif i == 12 then return samt_on
+  elseif i == 13 then return osco_on end
+  return false
+end
+live_restore = nil   -- rempli au chargement : { [i]=bool } des modes a rallumer au demarrage
+function live_apply_restore()
+  if type(live_restore) ~= "table" then return end
+  for i = 1, 13 do
+    local want = live_restore[i] and true or false
+    if want ~= (live_is_on(i) and true or false) then pcall(live_toggle, i) end   -- ne toggle que si different
+  end
+end
+
 -- ===== MEMOIRE GLOBALE : sauve/recharge TOUS les reglages =====
 function state_save()
   pcall(function()
@@ -3187,6 +3213,7 @@ function state_save()
       snots[s] = { trig = sn.trig, pitch = sn.pitch, dev = sn.dev, ch = sn.ch, lo = sn.lo, hi = sn.hi, thr = sn.thr } end
     local osco = { host = osco_host, port = osco_port, armed = osco_on, src = {}, on = {}, tmode = {} } -- config OSC OUT (armed persiste)
     for i = 1, OSCO_N do osco.src[i] = osco_lanes[i].src ; osco.on[i] = osco_lanes[i].on ; osco.tmode[i] = osco_lanes[i].tmode end
+    local live = {} ; for i = 1, 13 do live[i] = live_is_on(i) end   -- etat ON/OFF de TOUS les modes (a rallumer au boot)
     local st = {
       p_density=p_density, p_sil_bias=p_sil_bias, p_contrast=p_contrast, p_reply=p_reply,
       p_rec_prob=p_rec_prob, p_voice=p_voice, p_deaf=p_deaf, p_rhythm_idx=p_rhythm_idx,
@@ -3201,7 +3228,7 @@ function state_save()
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num, cc_tmd=cc_tmd,
       samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
-      samt_notes=snots, osco=osco, perf_mode=perf_mode,
+      samt_notes=snots, osco=osco, perf_mode=perf_mode, live=live,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3271,6 +3298,7 @@ function state_load()
       if st.osco.armed ~= nil then osco_on = st.osco.armed end   -- l'armement OSC OUT est restaure au demarrage
     end
     if st.perf_mode ~= nil then perf_mode = st.perf_mode end      -- mode RECHERCHE/PERFORMANCE memorise
+    if type(st.live)=="table" then live_restore = st.live end     -- modes ouverts a rallumer (applique apres le boot)
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
@@ -3328,6 +3356,13 @@ function init()
   clock.run(function()
     clock.sleep(3.0) ; splash_active = false      -- fin du splash
     redraw()                                      -- AFFICHE l'ecran de choix (il attend K2/K3)
+  end)
+  -- RESTAURE les modes qui etaient ouverts : apres le choix du mode ET que le moteur SC/softcut soit pret
+  clock.run(function()
+    while boot_choose do clock.sleep(0.2) end
+    clock.sleep(1.2)
+    pcall(live_apply_restore)
+    if perf_mode then page = 33 ; redraw() end   -- perf : revient sur AGENT une fois les modes lances
   end)
   clock.run(audio_midi_loop)
   -- MODE PERFORMANCE : suit l'action tout seul (agent par defaut ; nouveau son -> corpus ; diamants -> PERU)
