@@ -1740,6 +1740,12 @@ function peruStep(){
       if(corpus[d.slot])playEvent(corpus[d.slot],1,pan);                                  // choc = joue le grain, spatialise
     }else if(d.flash>0)d.flash--;
   }
+  // chaque diamant immobile depuis 1 s disparait (propriete du diamant)
+  for(let i=peru_dia.length-1;i>=0;i--){
+    const d=peru_dia[i];
+    if(Math.abs(d.vx)+Math.abs(d.vy)>0.35)d.still=0;
+    else{d.still=(d.still||0)+1/30;if(d.still>1)peru_dia.splice(i,1);}
+  }
 }
 setInterval(()=>{impro_energy*=0.90;if(peru_on&&peru_dia.length>0)peruStep();},1000/30);
 
