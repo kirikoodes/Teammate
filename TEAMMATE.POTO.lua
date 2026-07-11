@@ -50,6 +50,9 @@ local corpus      = {}
 local head        = 1
 local count       = 0
 local last_slot   = 0
+-- MODE au demarrage : RECHERCHE (nav libre, normal) ou PERFORMANCE (auto-paging agent/corpus/PERU)
+perf_mode = false ; boot_choose = false
+perf_last_input = 0 ; perf_last_count = 0 ; perf_corpus_t = 0 ; perf_had_diamonds = false
 
 local phrase_buf      = {}
 local phrase_analysis = nil
@@ -3320,8 +3323,27 @@ function init()
     end
   end
   splash_active = true
+  boot_choose   = true   -- apres le splash : ecran de choix RECHERCHE / PERFORMANCE
   clock.run(function() clock.sleep(3.0) ; splash_active = false end)
   clock.run(audio_midi_loop)
+  -- MODE PERFORMANCE : suit l'action tout seul (agent par defaut ; nouveau son -> corpus ; diamants -> PERU)
+  clock.run(function()
+    while true do
+      clock.sleep(0.1)
+      if perf_mode and not boot_choose and not splash_active then
+        local now = util.time()
+        local diamonds = peru_on and #peru_dia > 0
+        if count > perf_last_count then perf_last_count = count ; perf_corpus_t = now ; perf_last_input = 0 end   -- nouveau son capte
+        if diamonds and not perf_had_diamonds then perf_last_input = 0 end   -- des diamants viennent d'apparaitre
+        perf_had_diamonds = diamonds
+        local target
+        if now - (perf_corpus_t or 0) < 2.0 then target = 1          -- CORPUS : un son vient d'etre capte
+        elseif diamonds then target = 39                             -- PERU : des diamants sont vivants
+        else target = 33 end                                         -- AGENT : au repos
+        if page ~= target and (now - (perf_last_input or 0)) > 3.0 then page = target ; redraw() end
+      end
+    end
+  end)
   for d = 1, 4 do
     local ok, md = pcall(midi.connect, d)
     if ok then
@@ -3751,6 +3773,8 @@ function page_pos(p)
 end
 
 function enc(n, d)
+  if boot_choose then return end                                  -- ecran de choix : ignore les encodeurs
+  if perf_mode then perf_last_input = util.time() end             -- input manuel = grace anti-yank
   if n == 1 then
     if page == 27 then
       home_cursor = ((home_cursor - 1 + d) % #NAV_CATS) + 1        -- HUB : deplace le curseur
@@ -3948,6 +3972,15 @@ function enc(n, d)
 end
 
 function key(n, z)
+  if boot_choose then                       -- ECRAN DE CHOIX : K2 = Recherche, K3 = Performance
+    if z == 1 then
+      if n == 2 then perf_mode = false ; boot_choose = false ; page = 27           -- RECHERCHE : menu, nav libre
+      elseif n == 3 then perf_mode = true ; boot_choose = false ; page = 33         -- PERFORMANCE : demarre sur AGENT
+        perf_last_count = count ; perf_had_diamonds = false ; perf_last_input = 0 end
+    end
+    redraw() ; return
+  end
+  if perf_mode and z == 1 then perf_last_input = util.time() end   -- toute touche = input manuel (grace anti-yank)
   if page == PERU_PAGE and n == 2 then      -- K2 : tap = react ; maintenu + E3 = threshold SAMT
     if z == 1 then peru_k2_down = true ; peru_k2_moved = false
     else peru_k2_down = false ; if not peru_k2_moved then peru_rmode = (peru_rmode % #peru_rmodes) + 1 end end
@@ -4248,6 +4281,18 @@ function redraw()
     screen.level(8)  ; screen.move(2, 44) ; screen.text(".POTO")
     screen.level(2)  ; screen.font_size(8) ; screen.move(2, 58) ; screen.text("norns / nsdos 2026")
     screen.level(3)  ; screen.move(0, 30) ; screen.line(128, 30) ; screen.stroke()
+    screen.update() ; return
+  end
+
+  -- CHOIX DU MODE au demarrage (apres le splash)
+  if boot_choose then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 9) ; screen.text("TEAMMATE.POTO")
+    screen.level(4)  ; screen.move(2, 19) ; screen.text("choisis le mode :")
+    screen.level(15) ; screen.move(2, 33) ; screen.text("K2  RECHERCHE")
+    screen.level(6)  ; screen.move(14, 41) ; screen.text("nav libre (normal)")
+    screen.level(15) ; screen.move(2, 54) ; screen.text("K3  PERFORMANCE")
+    screen.level(6)  ; screen.move(14, 62) ; screen.text("auto : agent/peru/corpus")
     screen.update() ; return
   end
 
