@@ -3201,7 +3201,7 @@ function state_save()
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num, cc_tmd=cc_tmd,
       samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
-      samt_notes=snots, osco=osco,
+      samt_notes=snots, osco=osco, perf_mode=perf_mode,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
@@ -3270,6 +3270,7 @@ function state_load()
       elseif type(st.osco.trig)=="table" then for i=1,OSCO_N do osco_lanes[i].tmode = st.osco.trig[i] and 1 or 0 end end   -- migre l'ancien booleen
       if st.osco.armed ~= nil then osco_on = st.osco.armed end   -- l'armement OSC OUT est restaure au demarrage
     end
+    if st.perf_mode ~= nil then perf_mode = st.perf_mode end      -- mode RECHERCHE/PERFORMANCE memorise
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
@@ -3324,7 +3325,16 @@ function init()
   end
   splash_active = true
   boot_choose   = true   -- apres le splash : ecran de choix RECHERCHE / PERFORMANCE
-  clock.run(function() clock.sleep(3.0) ; splash_active = false end)
+  clock.run(function()
+    clock.sleep(3.0) ; splash_active = false      -- splash
+    clock.sleep(5.0)                              -- fenetre de choix
+    if boot_choose then                           -- pas de choix manuel -> on GARDE le mode memorise
+      boot_choose = false
+      page = perf_mode and 33 or 27
+      if perf_mode then perf_last_count = count ; perf_had_diamonds = false ; perf_last_input = 0 end
+      redraw()
+    end
+  end)
   clock.run(audio_midi_loop)
   -- MODE PERFORMANCE : suit l'action tout seul (agent par defaut ; nouveau son -> corpus ; diamants -> PERU)
   clock.run(function()
@@ -4284,14 +4294,16 @@ function redraw()
     screen.update() ; return
   end
 
-  -- CHOIX DU MODE au demarrage (apres le splash)
+  -- CHOIX DU MODE au demarrage (apres le splash) ; le dernier mode est memorise et pris par defaut
   if boot_choose then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 9) ; screen.text("TEAMMATE.POTO")
-    screen.level(4)  ; screen.move(2, 19) ; screen.text("choisis le mode :")
+    screen.level(4)  ; screen.move(2, 19) ; screen.text("mode :  (sans choix = dernier)")
     screen.level(15) ; screen.move(2, 33) ; screen.text("K2  RECHERCHE")
+    if not perf_mode then screen.level(12) ; screen.move(96, 33) ; screen.text("<dernier") end
     screen.level(6)  ; screen.move(14, 41) ; screen.text("nav libre (normal)")
     screen.level(15) ; screen.move(2, 54) ; screen.text("K3  PERFORMANCE")
+    if perf_mode then screen.level(12) ; screen.move(96, 54) ; screen.text("<dernier") end
     screen.level(6)  ; screen.move(14, 62) ; screen.text("auto : agent/peru/corpus")
     screen.update() ; return
   end
