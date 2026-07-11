@@ -3326,14 +3326,8 @@ function init()
   splash_active = true
   boot_choose   = true   -- apres le splash : ecran de choix RECHERCHE / PERFORMANCE
   clock.run(function()
-    clock.sleep(3.0) ; splash_active = false      -- splash
-    clock.sleep(5.0)                              -- fenetre de choix
-    if boot_choose then                           -- pas de choix manuel -> on GARDE le mode memorise
-      boot_choose = false
-      page = perf_mode and 33 or 27
-      if perf_mode then perf_last_count = count ; perf_had_diamonds = false ; perf_last_input = 0 end
-      redraw()
-    end
+    clock.sleep(3.0) ; splash_active = false      -- fin du splash
+    redraw()                                      -- AFFICHE l'ecran de choix (il attend K2/K3)
   end)
   clock.run(audio_midi_loop)
   -- MODE PERFORMANCE : suit l'action tout seul (agent par defaut ; nouveau son -> corpus ; diamants -> PERU)
@@ -4298,7 +4292,7 @@ function redraw()
   if boot_choose then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 9) ; screen.text("TEAMMATE.POTO")
-    screen.level(4)  ; screen.move(2, 19) ; screen.text("mode :  (sans choix = dernier)")
+    screen.level(4)  ; screen.move(2, 19) ; screen.text("choisis le mode :")
     screen.level(15) ; screen.move(2, 33) ; screen.text("K2  RECHERCHE")
     if not perf_mode then screen.level(12) ; screen.move(96, 33) ; screen.text("<dernier") end
     screen.level(6)  ; screen.move(14, 41) ; screen.text("nav libre (normal)")
