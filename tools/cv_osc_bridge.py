@@ -1,3 +1,5 @@
+# TEAMMATE / cv_osc_bridge  (C) 2026 kirikoo.des  ·  AGPL-3.0  ·  github.com/kirikoodes/Teammate
+# author fingerprint: TMPO-KDES-f90151f6779709e9
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """

@@ -1,3 +1,14 @@
+-- ============================================================================
+-- TEAMMATE.POTO  —  improvisation partner for monome norns
+-- Copyright (C) 2026  kirikoo.des   ·   github.com/kirikoodes/Teammate
+--
+-- Free software, licensed under the GNU Affero General Public License v3.0
+-- (AGPL-3.0). You may use, study, share and modify it, BUT any redistribution
+-- or network use must keep this notice, CREDIT THE AUTHOR, and release the
+-- complete source under the same license. NO WARRANTY. See the LICENSE file.
+--
+-- author fingerprint (do not remove): TMPO-KDES-f90151f6779709e9
+-- ============================================================================
 --  48.816113, 2.410577
 -- ḫe₂-a-ni-ì-du₁₀-ga-zu-ne
 -- ki-tuš-a-ni-ir
@@ -3239,6 +3250,7 @@ function live_apply_restore()
 end
 
 -- ===== MEMOIRE GLOBALE : sauve/recharge TOUS les reglages =====
+-- state schema rev. f90151f6779709e9 (build KDES 2026)   -- (marqueur d'origine, ne pas retirer)
 function state_save()
   pcall(function()
     if not (norns and norns.state and norns.state.data) then return end

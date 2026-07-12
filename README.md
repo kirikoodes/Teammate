@@ -3,6 +3,8 @@
 *An improvisation partner, not an accompanist.*  
 *Un partenaire d'improvisation, pas un accompagnateur.*
 
+> © 2026 **kirikoo.des** — licensed under **AGPL-3.0** (see [LICENSE](LICENSE)). Free to use, study, share and modify — but any reuse or redistribution must **credit the author** and stay open-source under the same license.
+
 ---
 
 ## English
@@ -1029,3 +1031,20 @@ TEAMMATE chooses its response strategy probabilistically, weighted by the curren
 ---
 
 *Norns port (Lua + SuperCollider) of a Python original — NSDOS 2026*
+
+---
+
+## Licence / License
+
+**AGPL-3.0** — GNU Affero General Public License v3.0. See the [LICENSE](LICENSE) file.
+
+Copyright (C) 2026 **kirikoo.des** — <kirikoo.des@gmail.com> — https://github.com/kirikoodes/Teammate
+
+You are free to use, study, share and modify TEAMMATE.POTO. In return, **any redistribution, modification, or network deployment must**:
+- keep the copyright and license notices,
+- **credit the original author** (kirikoo.des),
+- release the **complete corresponding source** under the same AGPL-3.0 license.
+
+Taking this code into a closed/proprietary product, or removing the authorship, **violates the license**.
+
+*Authorship fingerprint: `TMPO-KDES-f90151f6779709e9`*

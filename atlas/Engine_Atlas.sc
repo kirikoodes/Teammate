@@ -1,3 +1,5 @@
+// TEAMMATE / ATLAS  (C) 2026 kirikoo.des  ·  AGPL-3.0  ·  github.com/kirikoodes/Teammate
+// author fingerprint: TMPO-KDES-f90151f6779709e9
 // ============================================================================
 // Engine_Atlas  —  PHASE A (brouillon, moteur SEPARE pour tester)
 // ----------------------------------------------------------------------------
