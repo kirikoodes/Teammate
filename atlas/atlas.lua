@@ -18,7 +18,7 @@
 --   E1            = duree de grain.
 -- ============================================================================
 
-engine.name = "TeammateGranular"
+engine.name = "Atlas"
 
 local NSRC     = 8
 local cursor   = 0.5
@@ -92,7 +92,7 @@ end
 
 function redraw()
   screen.clear() ; screen.font_size(8)
-  screen.level(15) ; screen.move(2, 8) ; screen.text("GRANULAR TEST")
+  screen.level(15) ; screen.move(2, 8) ; screen.text("ATLAS")
   screen.level(recording and 15 or 5) ; screen.move(2, 19)
   screen.text("K2 REC slot " .. recslot .. (recording and "  *REC*" or ""))
   screen.level(cloud_on and 12 or 5) ; screen.move(2, 29)

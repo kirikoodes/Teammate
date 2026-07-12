@@ -1,5 +1,5 @@
 // ============================================================================
-// Engine_TeammateGranular  —  PHASE A (brouillon, moteur SEPARE pour tester)
+// Engine_Atlas  —  PHASE A (brouillon, moteur SEPARE pour tester)
 // ----------------------------------------------------------------------------
 // Objectif : héberger le CORPUS dans un Buffer SuperCollider et le rejouer en
 // NUAGE granulaire concaténatif (CataRT poly), sans toucher au moteur live.
@@ -13,7 +13,7 @@
 //   engine.cloud(0, 0.4, 40, 0.12, 1, <8 positions sec>, <8 gains>)
 // ============================================================================
 
-Engine_TeammateGranular : CroneEngine {
+Engine_Atlas : CroneEngine {
 
   classvar <slots = 48;
   classvar <slotDur = 2.0;        // secondes par slot (= CORPUS_DUR cote Lua)
@@ -33,13 +33,13 @@ Engine_TeammateGranular : CroneEngine {
     corpus_buf = Buffer.alloc(Server.default, (slots * slotDur * Server.default.sampleRate).asInteger, 1);
 
     // entree audio -> bus mono (comme le moteur live)
-    SynthDef('tmg_input', {
+    SynthDef('atlas_input', {
       Out.ar(in_bus, Mix.ar(SoundIn.ar([0, 1])));
     }).add;
 
     // ENREGISTREMENT d'un slot : ecrit l'entree dans le buffer a l'offset du slot.
     // Phasor a la vitesse 1 = 1 frame/sample. Lua le cree (rec) et le free (rec_stop).
-    SynthDef('tmg_corpus_rec', { |slot = 0|
+    SynthDef('atlas_corpus_rec', { |slot = 0|
       var sig   = In.ar(in_bus);
       var sr    = SampleRate.ir;
       var start = slot * slotDur * sr;
@@ -51,7 +51,7 @@ Engine_TeammateGranular : CroneEngine {
     //  - nSrc sources = les grains proches du curseur (position en SECONDES dans le buffer)
     //  - gains = poids (distance au curseur) ; tirage pondere par grain (TWindex)
     //  - Dust declenche les grains a `density` grains/s ; GrainBuf lit une fenetre
-    SynthDef('tmg_cloud', { |amp = 0.3, density = 40, grainDur = 0.12, rate = 1,
+    SynthDef('atlas_cloud', { |amp = 0.3, density = 40, grainDur = 0.12, rate = 1,
                             jitter = 0.01, gate = 1, out = 0,
                             positions = #[0,0,0,0,0,0,0,0],
                             gains     = #[0.001,0,0,0,0,0,0,0]|
@@ -67,14 +67,14 @@ Engine_TeammateGranular : CroneEngine {
     }).add;
 
     Server.default.sync;
-    input_synth = Synth('tmg_input', [], Server.default);
+    input_synth = Synth('atlas_input', [], Server.default);
 
     // ---- Commandes ----------------------------------------------------------
 
     // enregistre le slot donne (0..47) : cree le synth d'enreg (parallele a softcut)
     this.addCommand("corpus_rec", "i", { |msg|
       if (rec_synth.notNil) { rec_synth.free };
-      rec_synth = Synth('tmg_corpus_rec', [\slot, msg[1].asInteger], input_synth, \addAfter);
+      rec_synth = Synth('atlas_corpus_rec', [\slot, msg[1].asInteger], input_synth, \addAfter);
     });
 
     // stoppe l'enregistrement en cours
@@ -94,7 +94,7 @@ Engine_TeammateGranular : CroneEngine {
       var gns  = msg[(6 + nSrc)..(6 + (2 * nSrc) - 1)];
       var s    = clouds[id];
       if (s.isNil) {
-        s = Synth('tmg_cloud',
+        s = Synth('atlas_cloud',
           [\amp, amp, \density, dens, \grainDur, gd, \rate, rate], input_synth, \addAfter);
         clouds[id] = s;
       } {
