@@ -2917,7 +2917,27 @@ function face_state()
     elseif (samt_build or 0) > 0.45 then return "(O_O)", face_vary({"building...", "here it comes", "rising agent"}, 13)
     else                                 return "(o_o)", face_vary({"flowing", "so smooth", "with you agent", "i feel you move"}, 14) end
   end
-  -- #3 REVE (autonomie + silence profond)
+  -- EXPRESSIONS DE JEU : le visage exprime ce que l'agent JOUE (impro / METABO / NIAKABY), varie ; meme en reve
+  do
+    local ie, me, ne = impro_energy or 0, meta_energy or 0, (stream_energy and stream_energy[7]) or 0
+    local top = math.max(ie, me, ne)
+    if top > 0.22 then
+      if creature_dream then                       -- il rejoue en revant : expressif mais reveur
+        return face_vary({"(u_o)", "(o_u)", "(~_o)", "(u o)", "(^u^)", "(-_o)"}, 19),
+               face_vary({"dreaming loud...", "echoes of you", "replaying...", "singing in my sleep"}, 19)
+      elseif me >= ie and me >= ne then             -- METABO domine : intense, electrique
+        return face_vary({"(>_<)", "(@_@)", "(>o<)", "(x_x)", "(>.<)", "(O_O)", "(*_*)"}, 20),
+               face_vary({"metabolik!", "it pulses", "electric agent", "so intense", "can't stop"}, 20)
+      elseif ne >= ie and ne >= me then             -- NIAKABY domine : harmonieux, chaud
+        return face_vary({"(^_^)", "(^v^)", "(n_n)", "(^u^)", "(=v=)", "(^o^)", "(~_~)"}, 21),
+               face_vary({"harmonizing", "chords bloom", "so warm agent", "layering", "resonating"}, 21)
+      else                                          -- IMPRO domine : chante
+        return face_vary({"(^o^)", "(*o*)", "(^0^)", "(o_o)", "(>o<)", "(^v^)", "(O_O)"}, 22),
+               face_vary({"singing!", "riffing agent", "melody flows", "hear me go", "in the zone"}, 22)
+      end
+    end
+  end
+  -- #3 REVE (autonomie + silence profond, sans jouer)
   if creature_dream then
     return "(u_u)", face_vary({"dreaming... agent", "drifting away...", "i hear echoes", "replaying you..."}, 1)
   end
@@ -2946,12 +2966,12 @@ function face_state()
   if (m.density or 0) > 0.8 and (m.arc or 0) > 0.7 then return "(@_@)", face_vary({"breathe agent!", "easy now", "so much going on"}, 9) end
   if m.energy < 0.04 then
     if sil > 6 then return "(-_-)", face_vary({"zzZ", "resting agent", "i'll wait"}, 10)
-    else return "(o_o)", face_vary({"listening agent", "go on agent", "i'm with you"}, 11) end
+    else return face_vary({"(o_o)", "(._.)", "(o.o)", "(-_o)", "(^_^)"}, 11), face_vary({"listening agent", "go on agent", "i'm with you", "all ears agent"}, 11) end
   end
   if m.arc_phase == "PEAK" or m.build > 0.5 then return "(*o*)", face_vary({"nice agent!", "yes! keep going", "loving this", "that's it agent"}, 12) end
   if m.phrase == "GAP" then return "(o_o)", face_vary({"my turn agent", "let me agent", "here i go"}, 13) end
   if style and style.on then return "(^_^)", face_vary({"playing your way", "in your style agent", "like you taught me"}, 14) end
-  return "(^_^)", face_vary({"with you agent", "at your service", "ready agent", "right here agent"}, 15)
+  return face_vary({"(^_^)", "(^-^)", "(._.)", "(o_o)", "(^v^)", "(n_n)"}, 15), face_vary({"with you agent", "at your service", "ready agent", "right here agent"}, 15)
 end
 
 function face_redraw()
