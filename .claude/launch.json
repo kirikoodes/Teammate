@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "go2-lidar-studio",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "C:/Users/kirik/Desktop/uni3go2-main/web/go2-lidar-studio/node_modules/vite/bin/vite.js",
+        "C:/Users/kirik/Desktop/uni3go2-main/web/go2-lidar-studio",
+        "--port", "5173"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "go2-mobile-companion",
+      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "C:/Users/kirik/Desktop/uni3go2-main/mobile_companion/node_modules/vite/bin/vite.js",
+        "C:/Users/kirik/Desktop/uni3go2-main/mobile_companion",
+        "--host", "0.0.0.0",
+        "--port", "5174"
+      ],
+      "port": 5174
+    },
+    {
+      "name": "systema8os",
+      "runtimeExecutable": "C:/Users/kirik/AppData/Local/Programs/Python/Python312/python.exe",
+      "runtimeArgs": [
+        "-m", "http.server", "5175",
+        "--directory", "C:/Users/kirik/Desktop/uni3go2-main/external/systema8os"
+      ],
+      "port": 5175
+    }
+  ]
+}

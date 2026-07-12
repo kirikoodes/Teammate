@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capture Insta — Météo · Espèces · Astres</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Orbitron:wght@600;900&family=Noto+Sans+JP:wght@700;900&family=Noto+Sans+Devanagari:wght@600;700&family=Noto+Sans+Cuneiform&display=swap');
+  :root{
+    --bg:#15021f; --panel:#1c0633; --line:#ff2d95; --txt:#fdf2ff;
+    --muted:#c79be0; --accent:#00f0ff; --accent2:#ff2d95; --gold:#ffd23f;
+    --danger:#ff2d6b; --purple:#7b2ff7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;color:var(--txt);
+    font-family:"Orbitron","Segoe UI",system-ui,Arial,sans-serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #ff2d9533 0%, transparent 60%),
+      linear-gradient(180deg,#1a0530 0%,#2a0838 40%,#3d0a55 100%);
+    background-attachment:fixed}
+  .app{display:flex;gap:18px;padding:18px;height:100%;align-items:flex-start}
+  .stage{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .panel{flex:1 1 320px;border-radius:14px;padding:18px;max-width:390px;
+    background:linear-gradient(180deg,#2a0846 0%,#1c0633 100%);
+    border:2px solid var(--accent2);
+    box-shadow:0 0 22px #ff2d9577, inset 0 0 18px #7b2ff744}
+  h1{font-family:"Audiowide",sans-serif;font-size:24px;margin:0 0 6px;
+    color:#fff;letter-spacing:1px;
+    text-shadow:0 0 8px var(--accent),2px 2px 0 var(--accent2),4px 4px 0 var(--purple)}
+  .sub{color:var(--gold);font-size:11px;margin-bottom:16px;letter-spacing:.5px;
+    text-transform:uppercase;text-shadow:0 0 6px #ffd23f88}
+  .group{margin-bottom:18px}
+  .group>label{display:block;font-size:11px;color:var(--accent);font-weight:600;
+    text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;
+    text-shadow:0 0 6px #00f0ff88}
+  .seg{display:flex;background:#10041d;border:2px solid var(--purple);
+    border-radius:10px;overflow:hidden}
+  .seg button{flex:1;background:transparent;border:0;color:var(--muted);
+    padding:10px 6px;font-size:12px;cursor:pointer;font-family:inherit;
+    font-weight:600;text-transform:uppercase;letter-spacing:.5px;transition:.15s}
+  .seg button.on{background:linear-gradient(180deg,#ff2d95,#b3137a);color:#fff;
+    text-shadow:0 0 6px #fff;box-shadow:0 0 14px #ff2d95aa}
+  .row{display:flex;gap:8px}
+  .btn{border:0;border-radius:10px;padding:13px 14px;font-size:14px;
+    cursor:pointer;font-weight:900;flex:1;font-family:"Orbitron",sans-serif;
+    text-transform:uppercase;letter-spacing:1px}
+  .btn.start{background:linear-gradient(180deg,#00f0ff,#0098c9);color:#04263a;
+    box-shadow:0 0 18px #00f0ffaa}
+  .btn.stop{background:linear-gradient(180deg,#ff2d6b,#c00f44);color:#fff;
+    box-shadow:0 0 18px #ff2d6baa}
+  .btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .field input,.field textarea,.field select{background:#10041d;
+    border:2px solid var(--purple);color:var(--txt);border-radius:8px;padding:9px;
+    font:inherit;font-size:13px;width:100%}
+  .field select{cursor:pointer}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 12px #00f0ff88}
+  /* ---- Mode capture plein écran : on masque les réglages ---- */
+  body.capture .panel{display:none}
+  body.capture .app{padding:0;justify-content:center;align-items:center}
+  body.capture .stage{position:fixed;inset:0;justify-content:center;background:#000}
+  body.capture canvas#preview{max-height:100vh;max-width:100vw;border:0;
+    border-radius:0;box-shadow:none}
+  body.capture .stat{display:none}
+  /* barre flottante en mode capture */
+  #capBar{display:none}
+  body.capture #capBar{display:flex;position:fixed;left:50%;bottom:22px;
+    transform:translateX(-50%);gap:12px;align-items:center;z-index:10;
+    background:rgba(20,2,40,.78);border:2px solid var(--accent2);border-radius:14px;
+    padding:10px 14px;box-shadow:0 0 22px #ff2d9577;backdrop-filter:blur(4px)}
+  #capBar .timer{font-size:18px}
+  #capBar button{font-family:"Orbitron",sans-serif;font-weight:900;border:0;
+    border-radius:10px;padding:11px 16px;cursor:pointer;text-transform:uppercase;
+    letter-spacing:1px;font-size:13px}
+  #capRec{background:linear-gradient(180deg,#ff2d6b,#c00f44);color:#fff;
+    box-shadow:0 0 16px #ff2d6baa}
+  #capExit{background:#10041d;color:var(--accent);border:2px solid var(--accent)!important}
+  canvas#preview{background:#000;border-radius:12px;max-height:78vh;
+    border:3px solid var(--accent);box-shadow:0 0 28px #00f0ff66,0 0 50px #ff2d9544}
+  .stat{display:flex;justify-content:space-between;align-items:center;
+    font-size:13px;color:var(--gold)}
+  .timer{font-variant-numeric:tabular-nums;font-size:16px;color:#fff;
+    font-weight:900;text-shadow:0 0 8px var(--accent2)}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;
+    background:#555;margin-right:6px;vertical-align:middle}
+  .dot.rec{background:var(--danger);box-shadow:0 0 10px var(--danger);
+    animation:pulse .8s infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
+  a.dl{display:none;margin-top:10px;text-align:center;
+    background:linear-gradient(180deg,#ffd23f,#e0a400);
+    color:#3a2400;text-decoration:none;border-radius:10px;padding:12px;
+    font-weight:900;font-family:"Orbitron",sans-serif;letter-spacing:1px;
+    text-transform:uppercase;box-shadow:0 0 18px #ffd23faa}
+  a.dl.show{display:block}
+  .swrow{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:7px}
+  .swrow input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="stage">
+    <canvas id="preview" width="1080" height="1920"></canvas>
+    <div class="stat" style="width:100%;max-width:440px">
+      <span><span id="recdot" class="dot"></span><span id="recstate">Prêt</span></span>
+      <span class="timer"><span id="elapsed">00:00</span> / 02:00</span>
+    </div>
+  </div>
+
+  <!-- Barre flottante affichée uniquement en mode capture plein écran -->
+  <div id="capBar">
+    <button id="capRec">● REC</button>
+    <span class="timer"><span id="elapsed2">00:00</span> / 02:00</span>
+    <button id="capExit">⛶ Quitter</button>
+  </div>
+
+  <div class="panel">
+    <h1>★ CAPTURE INSTA ★</h1>
+    <div class="sub">▸ Spécial téléachat ◂ 2 min max · météo · espèces · astres</div>
+    <div id="srvWarn" style="display:none;background:#ff2d6b;color:#fff;border-radius:10px;padding:11px;font-size:12.5px;line-height:1.5;margin-bottom:14px;font-weight:600">
+      ⚠️ Serveur non détecté. Ferme cette fenêtre et lance l'appli avec<br><b>Lancer_CaptureInsta.bat</b> (sinon la conversion auto ne marche pas).
+    </div>
+
+    <div class="group">
+      <label>Source</label>
+      <div class="seg" id="segSource">
+        <button data-src="camera" class="on">📷 Webcam</button>
+        <button data-src="screen">🖥️ Écran</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label>🎤 Carte son / micro</label>
+      <div class="field" style="margin:0">
+        <select id="audioSel"><option value="">Micro par défaut</option></select>
+      </div>
+    </div>
+
+    <div class="group">
+      <label>Format Instagram</label>
+      <div class="seg" id="segFormat">
+        <button data-fmt="9:16" class="on">Vertical 9:16</button>
+        <button data-fmt="1:1">Carré 1:1</button>
+        <button data-fmt="16:9">Paysage 16:9</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label>Banderoles affichées</label>
+      <div class="swrow"><input type="checkbox" id="swTop" checked><label for="swTop" style="margin:0;text-transform:none;color:var(--txt)">Haut — Météo & Astres</label></div>
+      <div class="swrow"><input type="checkbox" id="swBot" checked><label for="swBot" style="margin:0;text-transform:none;color:var(--txt)">Bas — Espèces protégées</label></div>
+      <div class="swrow"><input type="checkbox" id="swVhs" checked><label for="swVhs" style="margin:0;text-transform:none;color:var(--txt)">Effet rétro VHS (scanlines + grain)</label></div>
+    </div>
+
+    <div class="group">
+      <label>Titre perso (optionnel)</label>
+      <div class="field">
+        <input id="customTitle" type="text" placeholder="ex : Sortie nature du jour 🌿" maxlength="60">
+      </div>
+    </div>
+
+    <div class="group">
+      <label>Enregistrement</label>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn start" id="btnStart">● Démarrer</button>
+        <button class="btn stop" id="btnStop" disabled>■ Stop</button>
+      </div>
+      <button class="btn" id="btnFull" style="width:100%;background:linear-gradient(180deg,#7b2ff7,#5a1fc0);color:#fff;box-shadow:0 0 16px #7b2ff7aa;margin-bottom:8px">⛶ Mode capture plein écran</button>
+      <a class="dl" id="dlLink" download="capture-insta.webm">⬇️ Télécharger la vidéo</a>
+      <video id="resultVid" controls playsinline style="display:none;width:100%;border-radius:10px;margin-top:8px;border:2px solid var(--accent)"></video>
+      <div class="hint" id="statusHint">Autorise la caméra et la localisation quand le navigateur le demande. L'enregistrement s'arrête tout seul à 2 min.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ *
+ *  Capture Insta — tout-en-un, sans dépendance.
+ *  - Webcam (getUserMedia) ou écran (getDisplayMedia)
+ *  - Composite vidéo + banderoles sur un <canvas>, enregistré via MediaRecorder
+ *  - Météo + astres : Open-Meteo (gratuit, sans clé) d'après la géoloc
+ *  - Espèces protégées : liste embarquée qui défile
+ * ------------------------------------------------------------------ */
+
+const FORMATS = {
+  "9:16": {w:1080, h:1920},
+  "1:1":  {w:1080, h:1080},
+  "16:9": {w:1920, h:1080},
+};
+const MAX_SECONDS = 120;
+
+const canvas = document.getElementById("preview");
+const ctx = canvas.getContext("2d");
+const video = document.createElement("video");
+video.muted = true; video.playsInline = true;
+
+let state = {
+  source: "camera",
+  format: "9:16",
+  stream: null,        // flux vidéo (cam ou écran)
+  micStream: null,     // flux audio du micro / carte son choisie
+  audioDeviceId: "",   // deviceId sélectionné ("" = défaut)
+  recorder: null,
+  chunks: [],
+  recording: false,
+  startTime: 0,
+  showTop: true,
+  showBot: true,
+  showVhs: true,
+  title: "",
+};
+
+/* ---------------- Données dynamiques ---------------- */
+let weather = null;   // {temp, code, wind, place}
+let astro   = null;   // {sunrise, sunset, moonPhase}
+// code WMO -> [catégorie, emoji]
+const WMO = {
+  0:["clear","☀️"],1:["fair","🌤️"],2:["partly","⛅"],3:["overcast","☁️"],
+  45:["fog","🌫️"],48:["fog","🌫️"],
+  51:["drizzle","🌦️"],53:["drizzle","🌦️"],55:["drizzle","🌧️"],
+  61:["rain","🌦️"],63:["rain","🌧️"],65:["heavyrain","🌧️"],
+  71:["snow","🌨️"],73:["snow","🌨️"],75:["heavysnow","❄️"],
+  80:["showers","🌦️"],81:["showers","🌧️"],82:["storm","⛈️"],
+  95:["storm","⛈️"],96:["storm","⛈️"],99:["storm","⛈️"],
+};
+
+/* ===== Langues des banderoles (rotation auto) =====
+   EN · JA · RU · Sumérien (translittération, approx.) · Sanskrit (devanagari) */
+const LANGS=["en","ja","ru","su","sa"];
+const LANGNAME={en:"ENGLISH",ja:"日本語",ru:"РУССКИЙ",su:"𒅴 EME-ĜIR",sa:"संस्कृतम्"};
+let langIdx=0, langAt=0;
+function curLang(){ return LANGS[langIdx]; }
+
+const WX={
+ en:{clear:"CLEAR SKY",fair:"MOSTLY CLEAR",partly:"PARTLY CLOUDY",overcast:"OVERCAST",fog:"FOG",drizzle:"DRIZZLE",rain:"RAIN",heavyrain:"HEAVY RAIN",snow:"SNOW",heavysnow:"HEAVY SNOW",showers:"SHOWERS",storm:"THUNDERSTORM"},
+ ja:{clear:"快晴",fair:"晴れ",partly:"晴れ時々曇り",overcast:"曇り",fog:"霧",drizzle:"霧雨",rain:"雨",heavyrain:"大雨",snow:"雪",heavysnow:"大雪",showers:"にわか雨",storm:"雷雨"},
+ ru:{clear:"ЯСНО",fair:"МАЛООБЛАЧНО",partly:"ПЕРЕМЕННАЯ ОБЛАЧНОСТЬ",overcast:"ПАСМУРНО",fog:"ТУМАН",drizzle:"МОРОСЬ",rain:"ДОЖДЬ",heavyrain:"СИЛЬНЫЙ ДОЖДЬ",snow:"СНЕГ",heavysnow:"СИЛЬНЫЙ СНЕГ",showers:"ЛИВНИ",storm:"ГРОЗА"},
+ su:{clear:"AN-SIKIL",fair:"AN-DADAG",partly:"DUNGU",overcast:"DUNGU-GAL",fog:"IM-DUGUD",drizzle:"ŠEG-TUR",rain:"ŠEG₃",heavyrain:"ŠEG-GAL",snow:"ŠEG-BABBAR",heavysnow:"ŠEG-BABBAR-GAL",showers:"ŠEG-DU",storm:"U₁₈-LU"},
+ sa:{clear:"निर्मलं नभः",fair:"प्रायः निर्मलम्",partly:"अंशमेघाच्छन्नम्",overcast:"मेघाच्छन्नम्",fog:"नीहारः",drizzle:"सूक्ष्मवृष्टिः",rain:"वृष्टिः",heavyrain:"महावृष्टिः",snow:"हिमपातः",heavysnow:"महाहिमपातः",showers:"वर्षणम्",storm:"विद्युत्स्तनितम्"},
+};
+const MOON={
+ en:{new:"NEW MOON",waxcres:"WAXING CRESCENT",firstq:"FIRST QUARTER",waxgib:"WAXING GIBBOUS",full:"FULL MOON",wangib:"WANING GIBBOUS",lastq:"LAST QUARTER",wancres:"WANING CRESCENT"},
+ ja:{new:"新月",waxcres:"三日月",firstq:"上弦の月",waxgib:"満ちゆく月",full:"満月",wangib:"欠けゆく月",lastq:"下弦の月",wancres:"有明月"},
+ ru:{new:"НОВОЛУНИЕ",waxcres:"РАСТУЩИЙ СЕРП",firstq:"ПЕРВАЯ ЧЕТВЕРТЬ",waxgib:"РАСТУЩАЯ ЛУНА",full:"ПОЛНОЛУНИЕ",wangib:"УБЫВАЮЩАЯ ЛУНА",lastq:"ПОСЛЕДНЯЯ ЧЕТВЕРТЬ",wancres:"УБЫВАЮЩИЙ СЕРП"},
+ su:{new:"ITI-GIBIL",waxcres:"ITI-BANDA",firstq:"ITI-BAR",waxgib:"ITI-GU-LA",full:"ITI-SAG",wangib:"ITI-TUR",lastq:"ITI-BAR-TA",wancres:"ITI-TIL"},
+ sa:{new:"अमावस्या",waxcres:"नवचन्द्रः",firstq:"शुक्लाष्टमी",waxgib:"वर्धमानचन्द्रः",full:"पूर्णिमा",wangib:"क्षीयमाणचन्द्रः",lastq:"कृष्णाष्टमी",wancres:"क्षीणचन्द्रः"},
+};
+const MOONEMO={new:"🌑",waxcres:"🌒",firstq:"🌓",waxgib:"🌔",full:"🌕",wangib:"🌖",lastq:"🌗",wancres:"🌘"};
+const T={
+ protected:{en:"PROTECTED SPECIES",ja:"保護種",ru:"ОХРАНЯЕМЫЙ ВИД",su:"NÍĜ-ZI",sa:"संरक्षितः जीवः"},
+ wind:{en:"WIND",ja:"風",ru:"ВЕТЕР",su:"IM",sa:"वायुः"},
+ tag:{en:"Let's protect nature",ja:"自然を守ろう",ru:"Сохраним природу",su:"NAM-TIL₃ ŠA₆-GA",sa:"प्रकृतिं रक्षाम"},
+};
+
+/* Espèces protégées — [emoji, nom latin (universel), {noms communs par langue}]
+   Pour sumérien/sanskrit on retombe sur le nom latin (pas de nom attesté). */
+const SPECIES = [
+  ["🦦","Lutra lutra",{en:"European otter",ja:"カワウソ",ru:"Речная выдра"}],
+  ["🐸","Bombina variegata",{en:"Yellow-bellied toad",ja:"キバラスズガエル",ru:"Жёлтобрюхая жерлянка"}],
+  ["🦅","Gypaetus barbatus",{en:"Bearded vulture",ja:"ヒゲワシ",ru:"Бородач"}],
+  ["🦇","Rhinolophus ferrumequinum",{en:"Greater horseshoe bat",ja:"キクガシラコウモリ",ru:"Большой подковонос"}],
+  ["🐢","Emys orbicularis",{en:"European pond turtle",ja:"ヨーロッパヌマガメ",ru:"Болотная черепаха"}],
+  ["🌿","Luronium natans",{en:"Floating water-plantain",ja:"ウキオモダカ",ru:"Лурониум плавающий"}],
+  ["🐟","Zingel asper",{en:"Rhône streber",ja:"ローヌ・ストレーバー",ru:"Чоп Аспер"}],
+  ["🦎","Timon lepidus",{en:"Ocellated lizard",ja:"ホウセキカナヘビ",ru:"Жемчужная ящерица"}],
+  ["🌺","Cypripedium calceolus",{en:"Lady's slipper orchid",ja:"キバナノアツモリソウ",ru:"Венерин башмачок"}],
+  ["🐔","Tetrao urogallus",{en:"Western capercaillie",ja:"ヨーロッパオオライチョウ",ru:"Глухарь"}],
+  ["🦞","Austropotamobius pallipes",{en:"White-clawed crayfish",ja:"シロアシザリガニ",ru:"Белоногий рак"}],
+  ["🐦","Lanius excubitor",{en:"Great grey shrike",ja:"オオモズ",ru:"Серый сорокопут"}],
+];
+let speciesIdx = 0, speciesAt = 0;
+
+/* Phase de lune (fraction 0..1, 0=nouvelle, .5=pleine) */
+function moonPhase(d){
+  // Algorithme classique basé sur l'âge de la lune (~29.53 j)
+  const lp = 2551443; // période synodique en secondes
+  const now = d.getTime()/1000;
+  const newMoon = Date.UTC(2000,0,6,18,14,0)/1000; // nouvelle lune de réf.
+  const age = ((now - newMoon) % lp + lp) % lp;
+  return age / lp; // 0..1
+}
+function moonKey(frac){
+  const k=[[0.03,"new"],[0.22,"waxcres"],[0.28,"firstq"],[0.47,"waxgib"],
+    [0.53,"full"],[0.72,"wangib"],[0.78,"lastq"],[0.97,"wancres"],[1.01,"new"]];
+  for(const [lim,key] of k) if(frac<=lim) return key;
+  return "full";
+}
+function fmtTime(iso){ if(!iso) return "—"; const t=new Date(iso);
+  return String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0"); }
+
+/* ---------------- Récupération météo + astres ---------------- */
+function loadData(){
+  if(!navigator.geolocation){ setHint("Géolocalisation indisponible — banderole haute limitée."); return; }
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const {latitude:lat, longitude:lon} = pos.coords;
+    try{
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+        +`&current=temperature_2m,weather_code,wind_speed_10m`
+        +`&daily=sunrise,sunset&timezone=auto`;
+      const r = await fetch(url); const j = await r.json();
+      weather = {
+        temp: Math.round(j.current.temperature_2m),
+        code: j.current.weather_code,
+        wind: Math.round(j.current.wind_speed_10m),
+      };
+      astro = {
+        sunrise: j.daily.sunrise[0],
+        sunset:  j.daily.sunset[0],
+      };
+      // Nom du lieu via géocodage inverse (gratuit, sans clé)
+      try{
+        const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?latitude=${lat}&longitude=${lon}&count=1&language=fr`);
+        // (l'API search ne fait pas l'inverse fiable ; on reste sur coords)
+      }catch(e){}
+      weather.place = `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+      setHint("Données météo & astres chargées ✔");
+    }catch(e){ setHint("Météo indisponible (hors-ligne ?) — vidéo OK quand même."); }
+  }, err=>{
+    setHint("Localisation refusée — la banderole haute affichera juste l'heure.");
+  }, {enableHighAccuracy:false, timeout:8000});
+}
+
+/* ---------------- Caméra / écran / micro ---------------- */
+async function acquireMic(){
+  if(state.micStream){ state.micStream.getTracks().forEach(t=>t.stop()); state.micStream=null; }
+  try{
+    const audio = state.audioDeviceId
+      ? {deviceId:{exact:state.audioDeviceId}} : true;
+    state.micStream = await navigator.mediaDevices.getUserMedia({audio});
+  }catch(e){
+    state.micStream = null;
+    setHint("Micro/carte son indisponible : "+e.message+" — la vidéo sera muette.");
+  }
+}
+async function startSource(src){
+  stopVideo();
+  try{
+    if(src==="camera"){
+      state.stream = await navigator.mediaDevices.getUserMedia({
+        video:{width:{ideal:1920},height:{ideal:1080}}, audio:false});
+    }else{
+      state.stream = await navigator.mediaDevices.getDisplayMedia({
+        video:{frameRate:30}, audio:false});
+      state.stream.getVideoTracks()[0].onended = ()=>{ if(!state.recording) setHint("Partage d'écran arrêté."); };
+    }
+    video.srcObject = state.stream;
+    await video.play();
+    await acquireMic();          // micro indépendant de la source vidéo
+    await populateAudioDevices(); // libellés dispo après autorisation
+    setHint(src==="camera" ? "Webcam active." : "Capture d'écran active.");
+  }catch(e){
+    setHint("Impossible d'accéder à "+(src==="camera"?"la webcam":"l'écran")+" : "+e.message);
+  }
+}
+function stopVideo(){
+  if(state.stream){ state.stream.getTracks().forEach(t=>t.stop()); state.stream=null; }
+}
+
+/* Liste des cartes son / micros disponibles */
+async function populateAudioDevices(){
+  try{
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const sel = document.getElementById("audioSel");
+    const inputs = devs.filter(d=>d.kind==="audioinput");
+    sel.innerHTML = '<option value="">Micro par défaut</option>';
+    inputs.forEach((d,i)=>{
+      const o=document.createElement("option");
+      o.value=d.deviceId; o.textContent=d.label||`Entrée audio ${i+1}`;
+      sel.appendChild(o);
+    });
+    // Sélection auto du TX-6 par défaut (tant que rien n'a été choisi manuellement)
+    if(!state.audioDeviceId){
+      const tx=inputs.find(d=>/tx[\s_-]?6/i.test(d.label||""));
+      if(tx){
+        state.audioDeviceId=tx.deviceId;
+        sel.value=tx.deviceId;
+        await acquireMic();
+        setHint("Entrée audio réglée automatiquement sur le TX-6 ✔");
+        return;
+      }
+    }
+    sel.value = state.audioDeviceId; // garde la sélection
+  }catch(e){}
+}
+
+/* ---------------- Rendu (boucle d'animation) ---------------- */
+function resizeCanvas(){
+  const f = FORMATS[state.format];
+  canvas.width=f.w; canvas.height=f.h;
+}
+function drawCover(){
+  const cw=canvas.width, ch=canvas.height;
+  const vw=video.videoWidth||16, vh=video.videoHeight||9;
+  const scale=Math.max(cw/vw, ch/vh);
+  const dw=vw*scale, dh=vh*scale;
+  ctx.drawImage(video,(cw-dw)/2,(ch-dh)/2,dw,dh);
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+/* ---- Helpers esthétique téléachat / synthwave 80s ---- */
+// Pile de polices : latin rétro + repli scripts non-latins (JP, devanagari, cunéiforme)
+const FONTS=`"Orbitron","Noto Sans JP","Noto Sans Devanagari","Noto Sans Cuneiform","Segoe UI",sans-serif`;
+// Texte "chromé" : dégradé blanc->or->orange, contour sombre + halo néon
+function chromeText(text,x,y,size,align,glow){
+  ctx.save();
+  ctx.font=`900 ${size}px ${FONTS}`;
+  ctx.textAlign=align||"left"; ctx.textBaseline="alphabetic";
+  const g=ctx.createLinearGradient(0,y-size,0,y+size*0.25);
+  g.addColorStop(0,"#ffffff"); g.addColorStop(.45,"#ffe27a");
+  g.addColorStop(.55,"#ffb02e"); g.addColorStop(1,"#c76a00");
+  ctx.lineJoin="round";
+  ctx.lineWidth=Math.max(2,size*0.10);
+  ctx.strokeStyle="#3a0a2a"; ctx.strokeText(text,x,y);
+  if(glow){ ctx.shadowColor=glow; ctx.shadowBlur=size*0.5; }
+  ctx.fillStyle=g; ctx.fillText(text,x,y);
+  ctx.restore();
+}
+// Texte néon simple (couleur + halo)
+function neonText(text,x,y,size,color,align,weight){
+  ctx.save();
+  ctx.font=`${weight||700} ${size}px ${FONTS}`;
+  ctx.textAlign=align||"left"; ctx.textBaseline="alphabetic";
+  ctx.shadowColor=color; ctx.shadowBlur=size*0.6; ctx.fillStyle=color;
+  ctx.fillText(text,x,y);
+  ctx.shadowBlur=0; ctx.fillStyle="#fff8"; ctx.fillText(text,x,y);
+  ctx.restore();
+}
+// Étoile "starburst" façon étiquette de prix
+function starburst(cx,cy,rO,rI,points,fill,stroke){
+  ctx.save(); ctx.beginPath();
+  for(let i=0;i<points*2;i++){
+    const r=i%2?rI:rO, a=(Math.PI/points)*i - Math.PI/2;
+    const px=cx+Math.cos(a)*r, py=cy+Math.sin(a)*r;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+  ctx.shadowColor=fill; ctx.shadowBlur=rO*0.5;
+  ctx.fillStyle=fill; ctx.fill();
+  if(stroke){ ctx.shadowBlur=0; ctx.lineWidth=Math.max(2,rO*0.06);
+    ctx.strokeStyle=stroke; ctx.stroke(); }
+  ctx.restore();
+}
+// Scanlines + grain VHS sur tout le cadre
+function drawVHS(ts){
+  const cw=canvas.width, ch=canvas.height;
+  ctx.save();
+  ctx.globalAlpha=0.10; ctx.fillStyle="#000";
+  for(let y=0;y<ch;y+=4) ctx.fillRect(0,y,cw,2);
+  // léger balayage lumineux qui descend
+  const sweep=((ts*0.06)% (ch+200))-100;
+  const g=ctx.createLinearGradient(0,sweep-60,0,sweep+60);
+  g.addColorStop(0,"rgba(255,255,255,0)"); g.addColorStop(.5,"rgba(255,255,255,.06)");
+  g.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.globalAlpha=1; ctx.fillStyle=g; ctx.fillRect(0,sweep-60,cw,120);
+  // vignette
+  const v=ctx.createRadialGradient(cw/2,ch/2,ch*0.3,cw/2,ch/2,ch*0.75);
+  v.addColorStop(0,"rgba(0,0,0,0)"); v.addColorStop(1,"rgba(20,0,30,.45)");
+  ctx.fillStyle=v; ctx.fillRect(0,0,cw,ch);
+  ctx.restore();
+}
+function drawTopBanner(ts){
+  const cw=canvas.width;
+  const bh=Math.round(canvas.height*0.12);
+  const pad=Math.round(cw*0.035);
+  // Fond dégradé synthwave (violet -> magenta)
+  const grad=ctx.createLinearGradient(0,0,0,bh);
+  grad.addColorStop(0,"rgba(43,7,77,.92)"); grad.addColorStop(1,"rgba(179,19,122,.78)");
+  ctx.fillStyle=grad; ctx.fillRect(0,0,cw,bh);
+  // scanlines internes
+  ctx.save(); ctx.globalAlpha=.12; ctx.fillStyle="#000";
+  for(let y=0;y<bh;y+=4) ctx.fillRect(0,y,cw,1.5); ctx.restore();
+  // double liseré néon cyan en bas
+  ctx.save(); ctx.shadowColor="#00f0ff"; ctx.shadowBlur=14;
+  ctx.fillStyle="#00f0ff"; ctx.fillRect(0,bh-5,cw,5);
+  ctx.shadowColor="#ff2d95"; ctx.shadowBlur=10;
+  ctx.fillStyle="#ff2d95"; ctx.fillRect(0,bh,cw,3); ctx.restore();
+
+  const now=new Date();
+  const L=curLang();
+
+  // Onglet "chaîne" avec le nom de la langue courante (haut-gauche)
+  const tag=LANGNAME[L];
+  ctx.save();
+  ctx.font=`700 ${Math.round(bh*0.15)}px ${FONTS}`;
+  const tw=ctx.measureText(tag).width, tpx=bh*0.10;
+  ctx.fillStyle="rgba(0,240,255,.92)";
+  roundRect(pad, bh*0.06, tw+tpx*2, bh*0.28, bh*0.09); ctx.fill();
+  ctx.fillStyle="#04263a"; ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.fillText(tag, pad+tpx, bh*0.21);
+  ctx.restore();
+
+  // Starburst température façon étiquette de prix (à droite)
+  const bcx=cw-pad-bh*0.40, bcy=bh*0.5, rO=bh*0.40;
+  starburst(bcx,bcy,rO,rO*0.62,12,"#ffd23f","#ff2d95");
+  if(weather){
+    chromeText(`${weather.temp}°`, bcx, bcy+rO*0.18, rO*0.78, "center", "#fff");
+  }else{
+    neonText("…", bcx, bcy+rO*0.18, rO*0.7, "#fff", "center", 900);
+  }
+
+  // Ligne 1 : météo (chromé) dans la langue courante
+  let line1, emo="🌡️";
+  if(weather){
+    const w=WMO[weather.code]||["clear","🌡️"]; emo=w[1];
+    line1=`${emo} ${WX[L][w[0]]}`;
+  }else{ line1=`🌡️ ${WX[L].clear}`; }
+  chromeText(line1, pad, bh*0.60, bh*0.24, "left", "#ff2d95");
+
+  // Ligne 2 : astres (néon cyan)
+  const mk=moonKey(moonPhase(now)), ml=`${MOONEMO[mk]} ${MOON[L][mk]}`;
+  let line2;
+  if(weather && astro){
+    line2=`☀ ${fmtTime(astro.sunrise)}-${fmtTime(astro.sunset)} · 💨${T.wind[L]} ${weather.wind} · ${ml}`;
+  }else if(astro){
+    line2=`☀ ${fmtTime(astro.sunrise)} → ${fmtTime(astro.sunset)} · ${ml}`;
+  }else{
+    line2=`${ml} · ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+  }
+  neonText(line2, pad, bh*0.88, bh*0.135, "#00f0ff", "left", 700);
+}
+function drawBottomBanner(ts){
+  const cw=canvas.width, ch=canvas.height;
+  const bh=Math.round(ch*0.135);
+  const y0=ch-bh;
+  // Fond coucher de soleil (orange -> rose -> violet)
+  const grad=ctx.createLinearGradient(0,y0,0,ch);
+  grad.addColorStop(0,"rgba(123,47,247,.55)");
+  grad.addColorStop(.5,"rgba(255,45,149,.78)");
+  grad.addColorStop(1,"rgba(255,140,30,.85)");
+  ctx.fillStyle=grad; ctx.fillRect(0,y0,cw,bh);
+  ctx.save(); ctx.globalAlpha=.12; ctx.fillStyle="#000";
+  for(let y=y0;y<ch;y+=4) ctx.fillRect(0,y,cw,1.5); ctx.restore();
+  // liseré néon haut
+  ctx.save(); ctx.shadowColor="#ffd23f"; ctx.shadowBlur=14;
+  ctx.fillStyle="#ffd23f"; ctx.fillRect(0,y0,cw,5); ctx.restore();
+
+  // rotation espèce toutes les 7 s
+  if(ts-speciesAt>7000){ speciesAt=ts; speciesIdx=(speciesIdx+1)%SPECIES.length; }
+  const [emo,latin,names]=SPECIES[speciesIdx];
+  const L=curLang();
+  const common=names[L]||latin;   // su/sa : repli sur le nom latin
+  const pad=Math.round(cw*0.035);
+
+  // Badge starburst (icône emoji de l'espèce) en haut-gauche, chevauche la banderole
+  const bx=pad+bh*0.30, by=y0+bh*0.04, br=bh*0.30;
+  starburst(bx,by,br,br*0.6,14,"#00f0ff","#fff");
+  ctx.save();
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.font=`${Math.round(br*0.9)}px ${FONTS}`;
+  ctx.fillText(emo,bx,by+br*0.05);
+  ctx.restore();
+
+  const tx=bx+br+pad*0.7;
+  // Libellé "espèce protégée" traduit (néon cyan)
+  neonText(`🛡 ${T.protected[L]}`, tx, y0+bh*0.30, bh*0.15, "#7fd8ff", "left", 700);
+  // Nom commun (chromé) — nom latin si pas de traduction
+  chromeText(common.toUpperCase(), tx, y0+bh*0.62, bh*0.24, "left", "#7b2ff7");
+  // Latin + slogan (italique néon blanc)
+  ctx.save();
+  ctx.font=`italic 600 ${Math.round(bh*0.145)}px ${FONTS}`;
+  ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+  ctx.shadowColor="#fff"; ctx.shadowBlur=bh*0.05; ctx.fillStyle="#fff";
+  ctx.fillText(`${latin} · ${T.tag[L]}`, tx, y0+bh*0.88);
+  ctx.restore();
+}
+function drawTitle(ts){
+  if(!state.title) return;
+  const cw=canvas.width, ch=canvas.height;
+  const fs=Math.round(ch*0.034);
+  ctx.font=`900 ${fs}px "Orbitron",sans-serif`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  const tw=ctx.measureText(state.title).width;
+  const padX=fs*0.9, bw=tw+padX*2, bh=fs*1.9;
+  const y=ch*0.18;
+  // plaque néon avec léger clignotement
+  const blink=0.85+0.15*Math.sin(ts*0.005);
+  ctx.save();
+  ctx.shadowColor="#00f0ff"; ctx.shadowBlur=22*blink;
+  ctx.fillStyle="rgba(20,2,40,.82)";
+  roundRect((cw-bw)/2,y-bh/2,bw,bh,bh*0.32); ctx.fill();
+  ctx.lineWidth=Math.max(2,fs*0.10); ctx.strokeStyle="#ff2d95";
+  ctx.shadowColor="#ff2d95"; ctx.shadowBlur=18*blink; ctx.stroke();
+  ctx.restore();
+  // petites étoiles aux extrémités
+  starburst((cw-bw)/2,y,fs*0.5,fs*0.22,5,"#ffd23f","#fff");
+  starburst((cw+bw)/2,y,fs*0.5,fs*0.22,5,"#ffd23f","#fff");
+  chromeText(state.title, cw/2, y+fs*0.32, fs, "center", "#00f0ff");
+}
+
+function loop(ts){
+  // rotation des langues des banderoles toutes les 6 s
+  if(ts-langAt>6000){ langAt=ts; langIdx=(langIdx+1)%LANGS.length; }
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(video.readyState>=2) drawCover();
+  else { ctx.fillStyle="#0b0f14"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#5a6675"; ctx.font=`${Math.round(canvas.width*0.035)}px sans-serif`;
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("En attente de la source vidéo…",canvas.width/2,canvas.height/2); }
+  if(state.showVhs && video.readyState>=2) drawVHS(ts);
+  if(state.showTop) drawTopBanner(ts);
+  if(state.showBot) drawBottomBanner(ts);
+  drawTitle(ts);
+
+  if(state.recording){
+    const el=(performance.now()-state.startTime)/1000;
+    const t=fmt(el);
+    document.getElementById("elapsed").textContent=t;
+    document.getElementById("elapsed2").textContent=t;
+    if(el>=MAX_SECONDS) stopRecording();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- Enregistrement ---------------- */
+function pickMime(){
+  // On privilégie le MP4 H.264/AAC : lisible partout sous Windows + accepté par Instagram
+  const cands=[
+    'video/mp4;codecs="avc1.640028,mp4a.40.2"',
+    'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+    'video/mp4;codecs=avc1',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'];
+  for(const c of cands) if(window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+  return "";
+}
+function startRecording(){
+  if(!state.stream){ setHint("Active d'abord une source (webcam ou écran)."); return; }
+  const canvasStream=canvas.captureStream(30);
+  const mixed=new MediaStream();
+  canvasStream.getVideoTracks().forEach(t=>mixed.addTrack(t));
+  if(state.micStream) state.micStream.getAudioTracks().forEach(t=>mixed.addTrack(t)); // son du micro choisi
+  const mime=pickMime();
+  try{
+    state.recorder=new MediaRecorder(mixed, mime?{mimeType:mime,videoBitsPerSecond:8_000_000}:undefined);
+  }catch(e){ setHint("Enregistrement non supporté : "+e.message); return; }
+  state.chunks=[];
+  state.recorder.ondataavailable=e=>{ if(e.data.size>0) state.chunks.push(e.data); };
+  state.recorder.onstop=finalize;
+  state.recorder.start(); // un seul bloc à l'arrêt = fichier propre et lisible partout
+  state.recording=true; state.startTime=performance.now();
+  document.getElementById("recdot").classList.add("rec");
+  document.getElementById("recstate").textContent="Enregistrement…";
+  document.getElementById("btnStart").disabled=true;
+  document.getElementById("btnStop").disabled=false;
+  document.getElementById("capRec").textContent="■ STOP";
+  document.getElementById("dlLink").classList.remove("show");
+  setHint("C'est parti ! Stop automatique à 2:00.");
+}
+function stopRecording(){
+  if(state.recorder && state.recording){ state.recording=false; state.recorder.stop(); }
+}
+function finalize(){
+  const type=state.recorder.mimeType||"video/webm";
+  const blob=new Blob(state.chunks,{type});
+  const url=URL.createObjectURL(blob);
+  const ext=type.includes("mp4")?"mp4":"webm";
+  const dl=document.getElementById("dlLink");
+  const stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  dl.href=url; dl.download=`capture-insta-${stamp}.${ext}`;
+  // ⚠️ on n'affiche PAS le téléchargement par défaut : il donnerait le brut non converti.
+  // autoSave() l'affichera seulement si la conversion serveur échoue (secours).
+  // Aperçu intégré : prouve que le fichier est bon et lisible
+  const rv=document.getElementById("resultVid");
+  rv.src=url; rv.style.display="block";
+  autoSave(blob, ext);   // conversion + rangement auto côté serveur
+  document.getElementById("recdot").classList.remove("rec");
+  document.getElementById("recstate").textContent="Terminé";
+  document.getElementById("btnStart").disabled=false;
+  document.getElementById("btnStop").disabled=true;
+  document.getElementById("capRec").textContent="● REC";
+  document.getElementById("elapsed").textContent="00:00";
+  document.getElementById("elapsed2").textContent="00:00";
+}
+
+// Envoie la vidéo au serveur local qui la convertit (ffmpeg) et la range proprement
+async function autoSave(blob, ext){
+  try{
+    setHint("⏳ Conversion automatique en cours… (quelques secondes)");
+    const r = await fetch("/save", {method:"POST", headers:{"X-Ext":ext}, body:blob});
+    const j = await r.json();
+    if(j.ok){
+      setHint("✅ Vidéo prête pour Instagram, rangée dans : "+j.path);
+    }else if(!j.ffmpeg){
+      document.getElementById("dlLink").classList.add("show");
+      setHint("⚠️ ffmpeg introuvable côté serveur. Utilise ⬇️ Télécharger puis Convertir_pour_Insta.bat.");
+    }else{
+      document.getElementById("dlLink").classList.add("show");
+      setHint("⚠️ Conversion auto échouée. Utilise ⬇️ Télécharger puis Convertir_pour_Insta.bat.");
+    }
+  }catch(e){
+    document.getElementById("dlLink").classList.add("show");
+    setHint("⚠️ Serveur non détecté : relance l'appli via Lancer_CaptureInsta.bat. Secours : ⬇️ Télécharger puis Convertir_pour_Insta.bat.");
+  }
+}
+
+/* ---------------- Utilitaires UI ---------------- */
+function fmt(s){ s=Math.max(0,Math.floor(s));
+  return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0"); }
+function setHint(t){ document.getElementById("statusHint").textContent=t; }
+
+document.getElementById("segSource").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); state.source=b.dataset.src; startSource(state.source);
+});
+document.getElementById("segFormat").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); state.format=b.dataset.fmt; resizeCanvas();
+});
+document.getElementById("swTop").addEventListener("change",e=>state.showTop=e.target.checked);
+document.getElementById("swBot").addEventListener("change",e=>state.showBot=e.target.checked);
+document.getElementById("swVhs").addEventListener("change",e=>state.showVhs=e.target.checked);
+document.getElementById("customTitle").addEventListener("input",e=>state.title=e.target.value.trim());
+document.getElementById("btnStart").addEventListener("click",startRecording);
+document.getElementById("btnStop").addEventListener("click",stopRecording);
+
+// Changement de carte son / micro -> on ré-acquiert juste l'audio
+document.getElementById("audioSel").addEventListener("change",async e=>{
+  state.audioDeviceId=e.target.value;
+  await acquireMic();
+  setHint("Carte son changée : "+(e.target.selectedOptions[0].textContent));
+});
+
+// Mode capture plein écran (vidéo + banderoles seulement, sans les réglages)
+function enterCapture(){
+  document.body.classList.add("capture");
+  const el=document.documentElement;
+  if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+}
+function exitCapture(){
+  document.body.classList.remove("capture");
+  if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+}
+document.getElementById("btnFull").addEventListener("click",enterCapture);
+document.getElementById("capExit").addEventListener("click",exitCapture);
+document.getElementById("capRec").addEventListener("click",()=>{
+  state.recording ? stopRecording() : startRecording();
+});
+// Sortir du plein écran avec Échap remet l'affichage normal
+document.addEventListener("fullscreenchange",()=>{
+  if(!document.fullscreenElement) document.body.classList.remove("capture");
+});
+
+/* ---------------- Démarrage ---------------- */
+// Précharge les polices non-latines pour que le canvas ait les bons glyphes
+function preloadFonts(){
+  if(!document.fonts) return;
+  ["Orbitron","Noto Sans JP","Noto Sans Devanagari","Noto Sans Cuneiform"]
+    .forEach(f=>{ try{ document.fonts.load(`700 40px "${f}"`); }catch(e){} });
+}
+preloadFonts();
+resizeCanvas();
+loadData();
+startSource("camera");
+requestAnimationFrame(loop);
+
+// Vérifie que le serveur de conversion répond bien (sinon bandeau d'alerte)
+(async()=>{
+  try{
+    const r=await fetch("/ping",{cache:"no-store"});
+    const j=await r.json();
+    if(!j.ok) throw 0;
+    if(!j.ffmpeg) document.getElementById("srvWarn").style.display="block";
+  }catch(e){
+    document.getElementById("srvWarn").style.display="block";
+  }
+})();
+</script>
+</body>
+</html>
