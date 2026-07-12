@@ -29,6 +29,10 @@ local recording = false
 local cloud_on  = false
 local recorded  = {}   -- [slot 0..7] = true si enregistre
 
+-- ----- MANETTE (HID) -----
+local pad
+local last_hid = "-"   -- dernier evenement brut (debug : pour voir les codes de TA manette)
+
 local function positions()
   local p = {}
   for i = 0, NSRC - 1 do p[i + 1] = i * 2.0 + 0.10 end   -- centre approx du slot i (secondes)
@@ -51,6 +55,16 @@ local function send_cloud()
   engine.cloud(0, 0.5, density, grainDur, 1.0,
     p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8],
     g[1], g[2], g[3], g[4], g[5], g[6], g[7], g[8])
+end
+
+-- MANETTE : dernier evenement brut affiche (debug) ; stick gauche X -> curseur
+local function hid_event(typ, code, value)
+  last_hid = "t" .. typ .. " c" .. code .. " v" .. value
+  if typ == 3 and code == 0 then                          -- EV_ABS, ABS_X (a ajuster selon la manette)
+    cursor = util.clamp((value + 32768) / 65535, 0, 1)    -- suppose signe 16 bits
+    if cloud_on then send_cloud() end
+  end
+  redraw()
 end
 
 function key(n, z)
@@ -92,10 +106,12 @@ function redraw()
   end
   local cx = 8 + cursor * (NSRC - 1) * 14 + 4
   screen.level(15) ; screen.move(cx, 37) ; screen.line(cx, 53) ; screen.stroke()
-  screen.level(4) ; screen.move(2, 62) ; screen.text("E2 curseur  E3 dens " .. density)
+  screen.level(4) ; screen.move(2, 57) ; screen.text("E2/stick curseur  E3 dens " .. density)
+  screen.level(6) ; screen.move(2, 63) ; screen.text("HID " .. (pad and "OK" or "--") .. "  " .. last_hid)
   screen.update()
 end
 
 function init()
+  pcall(function() pad = hid.connect(1) ; pad.event = hid_event end)   -- manette sur le vport HID 1
   redraw()
 end
