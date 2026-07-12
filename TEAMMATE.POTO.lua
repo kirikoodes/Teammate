@@ -2827,6 +2827,8 @@ end
 face_blink     = 0
 creature_auto  = false   -- AUTO (K3) : la creature AGIT (reve + decide). off = affichage seul.
 creature_dream = false   -- en train de rever (idle profond + auto)
+face_notes = {}          -- particules "notes" qui s'envolent du visage (anim de jeu)
+face_prev_act = 0        -- activite du frame precedent (detection des attaques)
 
 -- #2 XP / NIVEAU : l'agent grandit (reseaux, lieux, motifs, jeu). Persiste.
 creature_xp    = 0
@@ -2955,9 +2957,28 @@ end
 function face_redraw()
   screen.clear()
   local f, quip = face_state()
-  if face_blink > 0 then face_blink = face_blink - 1 ; f = f:gsub("[oO%^%*@>]", "-") end
+  -- ACTIVITE de jeu de l'agent : impro / METABO / NIAKABY (et en reve, l'impro rejoue -> ca vit)
+  local act = math.max(impro_energy or 0, meta_energy or 0, (stream_energy and stream_energy[7]) or 0)
+  -- une NOTE s'envole a chaque attaque (front montant d'activite)
+  if act > (face_prev_act or 0) + 0.10 and #face_notes < 16 then
+    face_notes[#face_notes + 1] = { x = 64 + math.random(-20, 20), y = 34, vy = -(0.7 + act * 1.4), life = 1.0 }
+  end
+  face_prev_act = act
+  for i = #face_notes, 1, -1 do
+    local p = face_notes[i]
+    p.y = p.y + p.vy ; p.life = p.life - 0.03
+    if p.life <= 0 or p.y < 4 then table.remove(face_notes, i) end
+  end
+  -- respiration + rebond du visage selon l'activite
+  local bob = math.sin((util.time() or 0) * 3.2) * (1.2 + act * 4.5)
+  -- bouche : cligne, sinon s'OUVRE quand ca joue fort
+  if face_blink > 0 then face_blink = face_blink - 1 ; f = f:gsub("[oO%^%*@>]", "-")
+  elseif act > 0.30 then f = f:gsub("_", (act > 0.6) and "O" or "o") end
   screen.font_size(31) ; screen.level(15)
-  screen.move(64, 38) ; screen.text_center(f)
+  screen.move(64, 38 + bob) ; screen.text_center(f)
+  for _, p in ipairs(face_notes) do          -- les notes qui montent
+    screen.level(math.max(1, math.floor(p.life * 13))) ; screen.rect(p.x, p.y, 2, 2) ; screen.fill()
+  end
   screen.font_size(8)
   screen.level(9) ; screen.move(64, 52) ; screen.text_center(quip)
   -- entete : autonomie + niveau de l'agent + contexte
@@ -3605,7 +3626,7 @@ function init()
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
       if peru_on and #peru_dia > 0 then peru_step() end
-      if page == PERU_PAGE then redraw() end
+      if page == PERU_PAGE or page == 33 then redraw() end   -- PERU anime + AGENT (visage vivant)
     end
   end)
 
