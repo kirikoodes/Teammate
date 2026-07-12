@@ -57,7 +57,7 @@ Engine_TeammateGranular : CroneEngine {
                             gains     = #[0.001,0,0,0,0,0,0,0]|
       var totalSec = BufDur.kr(corpus_buf);
       var trig     = Dust.kr(density.max(1));            // trigger control-rate (~700 Hz >> densite)
-      var idx      = TWindex.kr(trig, gains);            // choisit une source (pondere par le gain)
+      var idx      = TWindex.kr(trig, gains, 1);            // choisit une source (pondere par le gain)
       var posSec   = Select.kr(idx, positions);          // sa position en secondes
       var jit      = TRand.kr(jitter.neg, jitter, trig); // micro-dispersion
       var posN     = ((posSec + jit) / totalSec).clip(0, 1);
@@ -74,7 +74,7 @@ Engine_TeammateGranular : CroneEngine {
     // enregistre le slot donne (0..47) : cree le synth d'enreg (parallele a softcut)
     this.addCommand("corpus_rec", "i", { |msg|
       if (rec_synth.notNil) { rec_synth.free };
-      rec_synth = Synth('tmg_corpus_rec', [\slot, msg[1].asInteger], input_synth, \addToTail);
+      rec_synth = Synth('tmg_corpus_rec', [\slot, msg[1].asInteger], input_synth, \addAfter);
     });
 
     // stoppe l'enregistrement en cours
@@ -95,7 +95,7 @@ Engine_TeammateGranular : CroneEngine {
       var s    = clouds[id];
       if (s.isNil) {
         s = Synth('tmg_cloud',
-          [\amp, amp, \density, dens, \grainDur, gd, \rate, rate], input_synth, \addToTail);
+          [\amp, amp, \density, dens, \grainDur, gd, \rate, rate], input_synth, \addAfter);
         clouds[id] = s;
       } {
         s.set(\amp, amp, \density, dens, \grainDur, gd, \rate, rate);
