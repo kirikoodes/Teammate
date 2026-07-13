@@ -279,6 +279,7 @@ local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
 mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog) -- GLOBAL : evite la limite de 200 locals du chunk principal
 mclk_src         = 0    -- port MIDI (1..4) d'ou viennent les pulses : pour afficher QUI envoie l'horloge
 mclk_src_name    = "?"  -- nom du device source
+mclk_bpm_f       = 0    -- BPM lisse (filtre passe-bas) : absorbe la gigue de l'USB MIDI (ex. OP-XY qui envoie les pulses par paquets)
 
 local mgen_ch = {}
 for i = 1, 16 do
@@ -2211,6 +2212,7 @@ local function midi_clock_in(data, src)
     mclk_pulse_count = 0
     mclk_active      = true
     mclk_last_t      = util.time()   -- amorce le watchdog
+    mclk_bpm_f       = 0             -- re-verrouillage propre du BPM lisse au demarrage transport
     if src then mclk_src = src ; mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src) end
   elseif b == 0xFC then            -- transport stop
     mclk_t           = {}
@@ -2222,14 +2224,15 @@ local function midi_clock_in(data, src)
     mclk_last_t      = now           -- watchdog : dernier signe de vie de l'horloge externe
     if src and src ~= mclk_src then mclk_src = src ; mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src) end
     table.insert(mclk_t, now)
-    if #mclk_t > 12 then table.remove(mclk_t, 1) end
-    if #mclk_t >= 4 then
-      local total = 0
-      for i = 2, #mclk_t do total = total + (mclk_t[i] - mclk_t[i-1]) end
-      local avg_pulse = total / (#mclk_t - 1)
+    if #mclk_t > 48 then table.remove(mclk_t, 1) end     -- fenetre longue (~2 noires) : moyenne la gigue USB
+    if #mclk_t >= 24 then                                 -- attend ~1 noire de pulses avant d'estimer
+      -- moyenne sur toute la fenetre (1er->dernier pulse) : robuste aux paquets USB
+      local avg_pulse = (mclk_t[#mclk_t] - mclk_t[1]) / (#mclk_t - 1)
       local bpm = 60.0 / (avg_pulse * 24)
       if bpm >= 30 and bpm <= 300 then   -- fenetre elargie : suit les horloges lentes (30) et rapides (300)
-        mgen_bpm    = math.floor(bpm + 0.5)
+        -- lissage passe-bas : le BPM affiche/utilise ne saute plus
+        mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.15)
+        mgen_bpm    = math.floor(mclk_bpm_f + 0.5)
         clock.tempo = mgen_bpm
         mclk_active = true   -- active des que des pulses valides arrivent
       end
