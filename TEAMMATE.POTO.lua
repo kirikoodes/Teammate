@@ -277,6 +277,8 @@ local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
 local mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog : coupe l'horloge externe si le flux s'arrete sans Stop)
+local mclk_src         = 0    -- port MIDI (1..4) d'ou viennent les pulses : pour afficher QUI envoie l'horloge
+local mclk_src_name    = "?"  -- nom du device source
 
 local mgen_ch = {}
 for i = 1, 16 do
@@ -2191,7 +2193,7 @@ end
 -- calcule le BPM a partir de l'intervalle moyen entre pulses (24 PPQ)
 -- met a jour mgen_bpm en temps reel si le resultat est dans [60, 200]
 ---------------------------------------------------------------------
-local function midi_clock_in(data)
+local function midi_clock_in(data, src)
   local b = data[1]
   if b and b >= 0xB0 and b <= 0xBF then   -- Control Change : moniteur + learn
     cc_rx_cc = data[2] or -1
@@ -2209,6 +2211,7 @@ local function midi_clock_in(data)
     mclk_pulse_count = 0
     mclk_active      = true
     mclk_last_t      = util.time()   -- amorce le watchdog
+    if src then mclk_src = src ; mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src) end
   elseif b == 0xFC then            -- transport stop
     mclk_t           = {}
     mclk_pulse_count = 0
@@ -2217,6 +2220,7 @@ local function midi_clock_in(data)
     mclk_pulse_count = mclk_pulse_count + 1
     local now = util.time()
     mclk_last_t      = now           -- watchdog : dernier signe de vie de l'horloge externe
+    if src and src ~= mclk_src then mclk_src = src ; mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src) end
     table.insert(mclk_t, now)
     if #mclk_t > 12 then table.remove(mclk_t, 1) end
     if #mclk_t >= 4 then
@@ -3434,7 +3438,7 @@ function init()
     local ok, md = pcall(midi.connect, d)
     if ok then
       midi_outs[d] = md
-      md.event = midi_clock_in   -- ecoute les pulses 0xF8 entrants
+      md.event = function(data) midi_clock_in(data, d) end   -- ecoute les pulses 0xF8 + retient le port source
     end
   end
   audio.level_adc(1.0)
@@ -5138,6 +5142,10 @@ function redraw()
     screen.level(mclk_active and 15 or 10)
     screen.move(48, 50)
     screen.text(string.format("%s %d", mclk_active and "EXT" or "bpm", mgen_bpm))
+    if mclk_active then                                   -- QUI envoie l'horloge : nom du device source
+      local nm = mclk_src_name or "?" ; if #nm > 12 then nm = string.sub(nm, 1, 11) .. "~" end
+      screen.level(6) ; screen.move(128, 50) ; screen.text_right(nm)
+    end
     screen.level(8)
     screen.move(48, 57)
     screen.text(MGEN_SCALE_NAMES[mgen_scale_idx])
