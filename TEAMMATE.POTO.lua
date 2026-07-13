@@ -2212,10 +2212,10 @@ local function midi_clock_in(data, src)
   -- Messages d'horloge : VERROUILLAGE SUR UN SEUL PORT.
   -- Un device qui expose plusieurs ports USB (ex. OP-XY) peut envoyer les pulses en double
   -- sur 2 ports -> comptage x2 -> BPM faux et instable. On ne suit qu'UNE source a la fois ;
-  -- on ne re-verrouille sur un autre port que si l'ancien s'est tu (>0.3 s sans pulse).
+  -- on ne re-verrouille sur un autre port que si l'ancien s'est vraiment tu (>1.0 s sans pulse -> pas sur un micro-trou USB).
   if b == 0xFA or b == 0xFC or b == 0xF8 then
     if src then
-      if mclk_src == 0 or (src ~= mclk_src and (util.time() - mclk_last_t) > 0.3) then
+      if mclk_src == 0 or (src ~= mclk_src and (util.time() - mclk_last_t) > 1.0) then
         mclk_src = src ; mclk_t = {} ; mclk_pulse_count = 0 ; mclk_bpm_f = 0   -- (re)verrouille
         mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src)
       elseif src ~= mclk_src then
@@ -2238,14 +2238,15 @@ local function midi_clock_in(data, src)
     local now = util.time()
     mclk_last_t      = now
     table.insert(mclk_t, now)
-    if #mclk_t > 48 then table.remove(mclk_t, 1) end   -- fenetre longue (~2 noires) : moyenne la gigue USB
-    if #mclk_t >= 24 then                              -- attend ~1 noire de pulses avant d'estimer
+    if #mclk_t > 64 then table.remove(mclk_t, 1) end   -- fenetre longue (~2.7 noires) : moyenne bien la gigue USB
+    if #mclk_t >= 32 then                              -- attend ~1.3 noire de pulses avant d'estimer
       local avg_pulse = (mclk_t[#mclk_t] - mclk_t[1]) / (#mclk_t - 1)
       local bpm = 60.0 / (avg_pulse * 24)
       if bpm >= 30 and bpm <= 300 then
-        mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.15)   -- passe-bas
-        mgen_bpm    = math.floor(mclk_bpm_f + 0.5)
-        clock.tempo = mgen_bpm
+        mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.08)   -- passe-bas doux (plus stable)
+        if math.abs(mclk_bpm_f - mgen_bpm) > 0.6 then   -- hysteresis : ne change l'entier qu'au vrai changement de tempo (pas de flottement +-1)
+          mgen_bpm = math.floor(mclk_bpm_f + 0.5) ; clock.tempo = mgen_bpm
+        end
         mclk_active = true   -- active des que des pulses valides arrivent
       end
     end
@@ -3668,7 +3669,7 @@ function init()
       clock.sleep(1/30)
       -- WATCHDOG horloge externe : si le flux de pulses s'arrete (sans Stop) -> on coupe l'horloge
       -- externe et on libere le verrou de port, pour ne pas figer les sequenceurs ni rester bloque.
-      if mclk_active and (util.time() - mclk_last_t) > 0.5 then mclk_active = false ; mclk_src = 0 end
+      if mclk_active and (util.time() - mclk_last_t) > 1.0 then mclk_active = false ; mclk_src = 0 end
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
