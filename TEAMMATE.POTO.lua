@@ -2578,7 +2578,7 @@ osco_seen_t = 0                     -- derniere fois qu'on a entendu le Pi
 osco_in_t   = {}                    -- anti-flood : horodatage du dernier /in/N traite (le pont Pi peut cracher ~3200 msg/s)
 function osco_safe_ip()             -- cible SURE pour l'OSC OUT : IP numerique (jamais de blocage), ou IP du Pi apprise (<10 s). nil = pas de cible sure -> on n'envoie pas (Teammate reste fluide sans le Pi)
   if type(osco_host) == "string" and osco_host:match("^%d+%.%d+%.%d+%.%d+$") then return osco_host end
-  if osco_ip and (util.time() - (osco_seen_t or 0)) < 10 then return osco_ip end
+  if osco_ip then return osco_ip end   -- IP du Pi apprise (numerique, sure a envoyer meme s'il se tait) ; MAJ auto quand il reparle
   return nil
 end
 osco_cursor = 0                     -- 0 = ligne destination (host:port), 1..8 = les sorties CV
@@ -4692,9 +4692,10 @@ function redraw()
     local dsel = (osco_cursor == 0)
     screen.level(dsel and 15 or 7) ; screen.move(2, 17)
     screen.text((dsel and ">" or " ") .. osco_host .. ":" .. osco_port)
-    if osco_on then                              -- etat du Pi : envoie-t-on vraiment ? (nom non resolu / Pi absent -> pas d'envoi)
+    if osco_on then                              -- etat du Pi : cible d'envoi + fraicheur (vert = parle en ce moment, terne = IP connue mais silencieux)
       local ip = osco_safe_ip()
-      screen.level(ip and 10 or 3) ; screen.move(126, 25) ; screen.text_right(ip and ("Pi " .. ip) or "Pi absent")
+      local fresh = osco_ip and (util.time() - (osco_seen_t or 0)) < 10
+      screen.level(ip and (fresh and 12 or 5) or 3) ; screen.move(126, 25) ; screen.text_right(ip and ("Pi " .. ip) or "Pi ?")
     end
     -- 8 sorties en 2 colonnes de 4
     local ys = { 28, 37, 46, 55 }
