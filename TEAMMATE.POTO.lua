@@ -276,9 +276,9 @@ mgen_freeze          = false   -- FREEZE : fige les patterns (stop mutation + re
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
-local mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog : coupe l'horloge externe si le flux s'arrete sans Stop)
-local mclk_src         = 0    -- port MIDI (1..4) d'ou viennent les pulses : pour afficher QUI envoie l'horloge
-local mclk_src_name    = "?"  -- nom du device source
+mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog) -- GLOBAL : evite la limite de 200 locals du chunk principal
+mclk_src         = 0    -- port MIDI (1..4) d'ou viennent les pulses : pour afficher QUI envoie l'horloge
+mclk_src_name    = "?"  -- nom du device source
 
 local mgen_ch = {}
 for i = 1, 16 do
