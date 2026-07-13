@@ -1535,7 +1535,7 @@ local function mgen_start()
     if mclk_active then
       local p0 = mclk_pulse_count
       while mclk_pulse_count == p0 and mclk_active and mgen_running and mgen_gen_id == my_id do
-        clock.sleep(0.001)   -- + mclk_active : sort si le watchdog coupe l'horloge (pas de spin infini)
+        clock.sleep(0.004)   -- + mclk_active : sort si le watchdog coupe l'horloge (pas de spin infini)
       end
     end
     while mgen_running and mgen_gen_id == my_id do
@@ -1642,7 +1642,7 @@ local function mgen_start()
               and mclk_active                  -- sort si le watchdog coupe l'horloge externe (pas de spin infini)
               and mgen_running
               and mgen_gen_id == my_id do
-          clock.sleep(0.001)
+          clock.sleep(0.004)
         end
         if not mclk_active then clock.sleep(sd) end   -- horloge perdue en cours : bascule sur l'interne
       else
@@ -3681,11 +3681,11 @@ function init()
   clock.run(function()
     local idx, prevnew, lastnote = 0, 0, nil
     while true do
-      if mclk_active then                          -- clock externe : verrouille sur les pulses (comme MGEN)
+      if mclk_active and wifi.on and wifi_midi_on then   -- verrou pulses SEULEMENT si l'arpege WiFi joue (sinon spin inutile)
         local tgt = mclk_pulse_count + 12           -- 1/8 = 12 pulses
-        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.001) end
+        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.004) end
       else
-        clock.sync(1/2)                             -- interne : cale sur la grille
+        clock.sync(1/2)                             -- interne / inactif : cale sur la grille (gratuit)
       end
       local out = midi_outs[wifi_midi_dev]
       if wifi.on and wifi_midi_on and out and #wifi.nets > 0 then
@@ -3717,11 +3717,11 @@ function init()
       return math.floor(i * k / n) ~= math.floor((i - 1) * k / n)
     end
     while true do
-      if mclk_active then                           -- clock externe : verrouille sur les pulses (comme MGEN)
+      if mclk_active and wifi.on then               -- verrou pulses SEULEMENT si les liens WiFi jouent (sinon spin inutile)
         local tgt = mclk_pulse_count + 6             -- 1/16 = 6 pulses
-        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.001) end
+        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.004) end
       else
-        clock.sync(1/4)                              -- interne : cale sur la grille
+        clock.sync(1/4)                              -- interne / inactif : cale sur la grille (gratuit)
       end
       step = (step + 1) % 16
       for _, p in ipairs(playing) do
