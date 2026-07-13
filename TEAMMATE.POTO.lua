@@ -1532,12 +1532,7 @@ local function mgen_start()
   clock.run(function()
     -- si clock externe active, attendre le prochain pulse avant le 1er step
     -- garantit que le debut tombe sur une frontiere de pulse
-    if mclk_active then
-      local p0 = mclk_pulse_count
-      while mclk_pulse_count == p0 and mclk_active and mgen_running and mgen_gen_id == my_id do
-        clock.sleep(0.004)   -- + mclk_active : sort si le watchdog coupe l'horloge (pas de spin infini)
-      end
-    end
+    if mclk_active then clock.sync(1/4) end   -- depart cale sur la grille (tempo = horloge externe), natif sans busy-wait
     while mgen_running and mgen_gen_id == my_id do
       local sd = 60.0 / mgen_bpm / 4   -- 1/16 note (pour gate duration)
       for i = 1, 16 do
@@ -1637,14 +1632,7 @@ local function mgen_start()
       -- sync : attend exactement 6 pulses MIDI si clock externe active
       -- sinon sleep interne base sur mgen_bpm
       if mclk_active then
-        local target = mclk_pulse_count + 6
-        while mclk_pulse_count < target
-              and mclk_active                  -- sort si le watchdog coupe l'horloge externe (pas de spin infini)
-              and mgen_running
-              and mgen_gen_id == my_id do
-          clock.sleep(0.004)
-        end
-        if not mclk_active then clock.sleep(sd) end   -- horloge perdue en cours : bascule sur l'interne
+        clock.sync(1/4)     -- 1/16 note calee sur la grille Norns (tempo suit l'horloge externe) : natif, ZERO busy-wait, fiable 40-220 BPM
       else
         clock.sleep(sd)
       end
@@ -3681,12 +3669,7 @@ function init()
   clock.run(function()
     local idx, prevnew, lastnote = 0, 0, nil
     while true do
-      if mclk_active and wifi.on and wifi_midi_on then   -- verrou pulses SEULEMENT si l'arpege WiFi joue (sinon spin inutile)
-        local tgt = mclk_pulse_count + 12           -- 1/8 = 12 pulses
-        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.004) end
-      else
-        clock.sync(1/2)                             -- interne / inactif : cale sur la grille (gratuit)
-      end
+      clock.sync(1/2)                               -- 1/8 note : suit clock.tempo (externe ou interne), natif sans busy-wait
       local out = midi_outs[wifi_midi_dev]
       if wifi.on and wifi_midi_on and out and #wifi.nets > 0 then
         if lastnote then out:note_off(lastnote, 0, wifi_midi_ch) ; lastnote = nil end
@@ -3717,12 +3700,7 @@ function init()
       return math.floor(i * k / n) ~= math.floor((i - 1) * k / n)
     end
     while true do
-      if mclk_active and wifi.on then               -- verrou pulses SEULEMENT si les liens WiFi jouent (sinon spin inutile)
-        local tgt = mclk_pulse_count + 6             -- 1/16 = 6 pulses
-        while mclk_pulse_count < tgt and mclk_active do clock.sleep(0.004) end
-      else
-        clock.sync(1/4)                              -- interne / inactif : cale sur la grille (gratuit)
-      end
+      clock.sync(1/4)                               -- 1/16 note : suit clock.tempo (externe ou interne), natif sans busy-wait
       step = (step + 1) % 16
       for _, p in ipairs(playing) do
         local out = midi_outs[p.dev] ; if out then out:note_off(p.note, 0, p.ch) end
