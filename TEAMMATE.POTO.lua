@@ -3525,10 +3525,11 @@ function init()
     local last = {}
     local tick = 0
     while true do
+      if not osco_on then clock.sleep(0.1) ; goto idle end   -- OSC OUT eteint : veille 10 Hz, ne mange pas de CPU
       clock.sleep(0.01)                                 -- 100 Hz : TRIG/GATE reactifs (le poll audio tourne a 60 Hz)
       tick = tick + 1
       local cv_tick = (tick % 4 == 0)                   -- CV : ~25 Hz -> trafic OSC inchange
-      local dest = osco_on and { osco_host, osco_port } or nil
+      local dest = { osco_host, osco_port }
       for i = 1, OSCO_N do
         local lane = osco_lanes[i]
         if lane then
@@ -3563,6 +3564,7 @@ function init()
           end
         end
       end
+      ::idle::
     end
   end)
 
