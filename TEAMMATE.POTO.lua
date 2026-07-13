@@ -276,6 +276,7 @@ mgen_freeze          = false   -- FREEZE : fige les patterns (stop mutation + re
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
+local mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog : coupe l'horloge externe si le flux s'arrete sans Stop)
 
 local mgen_ch = {}
 for i = 1, 16 do
@@ -1529,8 +1530,8 @@ local function mgen_start()
     -- garantit que le debut tombe sur une frontiere de pulse
     if mclk_active then
       local p0 = mclk_pulse_count
-      while mclk_pulse_count == p0 and mgen_running and mgen_gen_id == my_id do
-        clock.sleep(0.001)
+      while mclk_pulse_count == p0 and mclk_active and mgen_running and mgen_gen_id == my_id do
+        clock.sleep(0.001)   -- + mclk_active : sort si le watchdog coupe l'horloge externe (pas de spin infini)
       end
     end
     while mgen_running and mgen_gen_id == my_id do
@@ -1634,10 +1635,12 @@ local function mgen_start()
       if mclk_active then
         local target = mclk_pulse_count + 6
         while mclk_pulse_count < target
+              and mclk_active                  -- sort si le watchdog coupe l'horloge externe (pas de spin infini)
               and mgen_running
               and mgen_gen_id == my_id do
           clock.sleep(0.001)
         end
+        if not mclk_active then clock.sleep(sd) end   -- horloge externe perdue en cours : bascule sur l'interne
       else
         clock.sleep(sd)
       end
@@ -2205,6 +2208,7 @@ local function midi_clock_in(data)
     mclk_t           = {}
     mclk_pulse_count = 0
     mclk_active      = true
+    mclk_last_t      = util.time()   -- amorce le watchdog
   elseif b == 0xFC then            -- transport stop
     mclk_t           = {}
     mclk_pulse_count = 0
@@ -2212,6 +2216,7 @@ local function midi_clock_in(data)
   elseif b == 0xF8 then            -- timing clock pulse (24 par noire)
     mclk_pulse_count = mclk_pulse_count + 1
     local now = util.time()
+    mclk_last_t      = now           -- watchdog : dernier signe de vie de l'horloge externe
     table.insert(mclk_t, now)
     if #mclk_t > 12 then table.remove(mclk_t, 1) end
     if #mclk_t >= 4 then
@@ -3645,6 +3650,9 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(1/30)
+      -- WATCHDOG horloge externe : si le flux de pulses s'arrete sans Stop (0xFC) -> on coupe
+      -- l'horloge externe pour ne pas figer les sequenceurs ni saturer le CPU en attente.
+      if mclk_active and (util.time() - mclk_last_t) > 0.5 then mclk_active = false end
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
