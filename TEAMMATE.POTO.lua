@@ -2228,7 +2228,7 @@ local function midi_clock_in(data, src)
       for i = 2, #mclk_t do total = total + (mclk_t[i] - mclk_t[i-1]) end
       local avg_pulse = total / (#mclk_t - 1)
       local bpm = 60.0 / (avg_pulse * 24)
-      if bpm >= 60 and bpm <= 200 then
+      if bpm >= 30 and bpm <= 300 then   -- fenetre elargie : suit les horloges lentes (30) et rapides (300)
         mgen_bpm    = math.floor(bpm + 0.5)
         clock.tempo = mgen_bpm
         mclk_active = true   -- active des que des pulses valides arrivent
