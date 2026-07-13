@@ -2573,6 +2573,13 @@ osco_lanes  = {}                    -- rempli dans init : { src, on, val, phase,
 osco_on     = false                 -- arme depuis LIVE : envoie l'OSC (sinon la page anime mais n'envoie rien)
 osco_host   = "pigeons.local"       -- hote du module externe (ip ou nom .local)
 osco_port   = 9000                  -- port OSC d'ecoute du module
+osco_ip     = nil                   -- IP du Pi APPRISE quand il nous renvoie de l'OSC (evite de resoudre "pigeons.local" sans le Pi = pas de blocage)
+osco_seen_t = 0                     -- derniere fois qu'on a entendu le Pi
+function osco_safe_ip()             -- cible SURE pour l'OSC OUT : IP numerique (jamais de blocage), ou IP du Pi apprise (<10 s). nil = pas de cible sure -> on n'envoie pas (Teammate reste fluide sans le Pi)
+  if type(osco_host) == "string" and osco_host:match("^%d+%.%d+%.%d+%.%d+$") then return osco_host end
+  if osco_ip and (util.time() - (osco_seen_t or 0)) < 10 then return osco_ip end
+  return nil
+end
 osco_cursor = 0                     -- 0 = ligne destination (host:port), 1..8 = les sorties CV
 
 -- ===== SAMT (السمت) : capteurs de mouvement via OSC (port 10111) =====
@@ -3408,7 +3415,10 @@ function init()
   clock.run(function() while true do clock.sleep(30) ; state_save() end end)  -- sauvegarde periodique
   last_sound_t = util.time()
   -- LORA : reception des messages depuis le pont OSC externe (port OSC du norns : 10111)
-  osc.event = function(path, args)
+  osc.event = function(path, args, from)
+    if from and type(path) == "string" and path:match("^/in/") then   -- entrees du Pi (ADC) -> on retient SON IP pour lui repondre en OSC OUT sans resoudre le nom
+      osco_ip = from[1] ; osco_seen_t = util.time()
+    end
     if path == "/lora/rx" then
       lora_rx(args[1], tonumber(args[2]), tonumber(args[3]), tonumber(args[4]), args[5])
     elseif path == "/lora/tx" then
@@ -3550,10 +3560,12 @@ function init()
     local tick = 0
     while true do
       if not osco_on then clock.sleep(0.1) ; goto idle end   -- OSC OUT eteint : veille 10 Hz, ne mange pas de CPU
+      local ip = osco_safe_ip()
+      if not ip then clock.sleep(0.1) ; goto idle end        -- pas de cible sure (Pi absent / nom non resolu) : veille, aucun envoi, aucun blocage
       clock.sleep(0.01)                                 -- 100 Hz : TRIG/GATE reactifs (le poll audio tourne a 60 Hz)
       tick = tick + 1
       local cv_tick = (tick % 4 == 0)                   -- CV : ~25 Hz -> trafic OSC inchange
-      local dest = { osco_host, osco_port }
+      local dest = { ip, osco_port }
       for i = 1, OSCO_N do
         local lane = osco_lanes[i]
         if lane then
@@ -4241,16 +4253,16 @@ function key(n, z)
         return
       elseif n == 2 then osco_on = not osco_on            -- K2 : arme/desarme l'envoi
       elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
-        local dest = { osco_host, osco_port }
-        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
+        local ip = osco_safe_ip() ; local dest = ip and { ip, osco_port }
+        for i = 1, OSCO_N do if dest then pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) end ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
     else                                                  -- une sortie CV
       local lane = osco_lanes[osco_cursor]
       if n == 3 then lane.src = (lane.src % #CC_SRC) + 1  -- K3 : cycle la source
       elseif n == 2 then lane.on = not lane.on ; if lane.on then osco_on = true end   -- K2 : on/off (arme le master)
       elseif n == 1 then                                  -- K1 : PANIC -> 0 sur toutes les sorties
-        local dest = { osco_host, osco_port }
-        for i = 1, OSCO_N do pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
+        local ip = osco_safe_ip() ; local dest = ip and { ip, osco_port }
+        for i = 1, OSCO_N do if dest then pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) end ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
     end
     redraw() ; return
@@ -4674,6 +4686,10 @@ function redraw()
     local dsel = (osco_cursor == 0)
     screen.level(dsel and 15 or 7) ; screen.move(2, 17)
     screen.text((dsel and ">" or " ") .. osco_host .. ":" .. osco_port)
+    if osco_on then                              -- etat du Pi : envoie-t-on vraiment ? (nom non resolu / Pi absent -> pas d'envoi)
+      local ip = osco_safe_ip()
+      screen.level(ip and 10 or 3) ; screen.move(126, 25) ; screen.text_right(ip and ("Pi " .. ip) or "Pi absent")
+    end
     -- 8 sorties en 2 colonnes de 4
     local ys = { 28, 37, 46, 55 }
     for i = 1, OSCO_N do
