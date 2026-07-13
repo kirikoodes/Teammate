@@ -1,3 +1,14 @@
+-- ============================================================================
+-- TEAMMATE.POTO  —  improvisation partner for monome norns
+-- Copyright (C) 2026  kirikoo.des   ·   github.com/kirikoodes/Teammate
+--
+-- Free software, licensed under the GNU Affero General Public License v3.0
+-- (AGPL-3.0). You may use, study, share and modify it, BUT any redistribution
+-- or network use must keep this notice, CREDIT THE AUTHOR, and release the
+-- complete source under the same license. NO WARRANTY. See the LICENSE file.
+--
+-- author fingerprint (do not remove): TMPO-KDES-f90151f6779709e9
+-- ============================================================================
 --  48.816113, 2.410577
 -- ḫe₂-a-ni-ì-du₁₀-ga-zu-ne
 -- ki-tuš-a-ni-ir
@@ -276,10 +287,6 @@ mgen_freeze          = false   -- FREEZE : fige les patterns (stop mutation + re
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
-mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog) -- GLOBAL : evite la limite de 200 locals du chunk principal
-mclk_src         = 0    -- port MIDI (1..4) d'ou viennent les pulses : pour afficher QUI envoie l'horloge
-mclk_src_name    = "?"  -- nom du device source
-mclk_bpm_f       = 0    -- BPM lisse (filtre passe-bas) : absorbe la gigue de l'USB MIDI (ex. OP-XY qui envoie les pulses par paquets)
 
 local mgen_ch = {}
 for i = 1, 16 do
@@ -1533,8 +1540,8 @@ local function mgen_start()
     -- garantit que le debut tombe sur une frontiere de pulse
     if mclk_active then
       local p0 = mclk_pulse_count
-      while mclk_pulse_count == p0 and mclk_active and mgen_running and mgen_gen_id == my_id do
-        clock.sleep(0.001)   -- + mclk_active : sort si le watchdog coupe l'horloge externe (pas de spin infini)
+      while mclk_pulse_count == p0 and mgen_running and mgen_gen_id == my_id do
+        clock.sleep(0.001)
       end
     end
     while mgen_running and mgen_gen_id == my_id do
@@ -1638,12 +1645,10 @@ local function mgen_start()
       if mclk_active then
         local target = mclk_pulse_count + 6
         while mclk_pulse_count < target
-              and mclk_active                  -- sort si le watchdog coupe l'horloge externe (pas de spin infini)
               and mgen_running
               and mgen_gen_id == my_id do
           clock.sleep(0.001)
         end
-        if not mclk_active then clock.sleep(sd) end   -- horloge externe perdue en cours : bascule sur l'interne
       else
         clock.sleep(sd)
       end
@@ -2194,7 +2199,7 @@ end
 -- calcule le BPM a partir de l'intervalle moyen entre pulses (24 PPQ)
 -- met a jour mgen_bpm en temps reel si le resultat est dans [60, 200]
 ---------------------------------------------------------------------
-local function midi_clock_in(data, src)
+local function midi_clock_in(data)
   local b = data[1]
   if b and b >= 0xB0 and b <= 0xBF then   -- Control Change : moniteur + learn
     cc_rx_cc = data[2] or -1
@@ -2211,9 +2216,6 @@ local function midi_clock_in(data, src)
     mclk_t           = {}
     mclk_pulse_count = 0
     mclk_active      = true
-    mclk_last_t      = util.time()   -- amorce le watchdog
-    mclk_bpm_f       = 0             -- re-verrouillage propre du BPM lisse au demarrage transport
-    if src then mclk_src = src ; mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src) end
   elseif b == 0xFC then            -- transport stop
     mclk_t           = {}
     mclk_pulse_count = 0
@@ -2221,18 +2223,15 @@ local function midi_clock_in(data, src)
   elseif b == 0xF8 then            -- timing clock pulse (24 par noire)
     mclk_pulse_count = mclk_pulse_count + 1
     local now = util.time()
-    mclk_last_t      = now           -- watchdog : dernier signe de vie de l'horloge externe
-    if src and src ~= mclk_src then mclk_src = src ; mclk_src_name = (midi.vports[src] and midi.vports[src].name) or ("DEV " .. src) end
     table.insert(mclk_t, now)
-    if #mclk_t > 48 then table.remove(mclk_t, 1) end     -- fenetre longue (~2 noires) : moyenne la gigue USB
-    if #mclk_t >= 24 then                                 -- attend ~1 noire de pulses avant d'estimer
-      -- moyenne sur toute la fenetre (1er->dernier pulse) : robuste aux paquets USB
-      local avg_pulse = (mclk_t[#mclk_t] - mclk_t[1]) / (#mclk_t - 1)
+    if #mclk_t > 12 then table.remove(mclk_t, 1) end
+    if #mclk_t >= 4 then
+      local total = 0
+      for i = 2, #mclk_t do total = total + (mclk_t[i] - mclk_t[i-1]) end
+      local avg_pulse = total / (#mclk_t - 1)
       local bpm = 60.0 / (avg_pulse * 24)
-      if bpm >= 30 and bpm <= 300 then   -- fenetre elargie : suit les horloges lentes (30) et rapides (300)
-        -- lissage passe-bas : le BPM affiche/utilise ne saute plus
-        mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.15)
-        mgen_bpm    = math.floor(mclk_bpm_f + 0.5)
+      if bpm >= 60 and bpm <= 200 then
+        mgen_bpm    = math.floor(bpm + 0.5)
         clock.tempo = mgen_bpm
         mclk_active = true   -- active des que des pulses valides arrivent
       end
@@ -3408,7 +3407,7 @@ function init()
   splash_active = true
   boot_choose   = true   -- apres le splash : ecran de choix RECHERCHE / PERFORMANCE
   clock.run(function()
-    clock.sleep(1.5) ; splash_active = false      -- fin du splash (raccourci)
+    clock.sleep(3.0) ; splash_active = false      -- fin du splash
     redraw()                                      -- AFFICHE l'ecran de choix (il attend K2/K3)
   end)
   -- RESTAURE les modes qui etaient ouverts : apres le choix du mode ET que le moteur SC/softcut soit pret
@@ -3441,7 +3440,7 @@ function init()
     local ok, md = pcall(midi.connect, d)
     if ok then
       midi_outs[d] = md
-      md.event = function(data) midi_clock_in(data, d) end   -- ecoute les pulses 0xF8 + retient le port source
+      md.event = midi_clock_in   -- ecoute les pulses 0xF8 entrants
     end
   end
   audio.level_adc(1.0)
@@ -3537,11 +3536,10 @@ function init()
     local last = {}
     local tick = 0
     while true do
-      if not osco_on then clock.sleep(0.1) ; goto idle end   -- OSC OUT eteint : veille 10 Hz, ne mange pas de CPU
       clock.sleep(0.01)                                 -- 100 Hz : TRIG/GATE reactifs (le poll audio tourne a 60 Hz)
       tick = tick + 1
       local cv_tick = (tick % 4 == 0)                   -- CV : ~25 Hz -> trafic OSC inchange
-      local dest = { osco_host, osco_port }
+      local dest = osco_on and { osco_host, osco_port } or nil
       for i = 1, OSCO_N do
         local lane = osco_lanes[i]
         if lane then
@@ -3576,7 +3574,6 @@ function init()
           end
         end
       end
-      ::idle::
     end
   end)
 
@@ -3657,9 +3654,6 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(1/30)
-      -- WATCHDOG horloge externe : si le flux de pulses s'arrete sans Stop (0xFC) -> on coupe
-      -- l'horloge externe pour ne pas figer les sequenceurs ni saturer le CPU en attente.
-      if mclk_active and (util.time() - mclk_last_t) > 0.5 then mclk_active = false end
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
@@ -5145,10 +5139,6 @@ function redraw()
     screen.level(mclk_active and 15 or 10)
     screen.move(48, 50)
     screen.text(string.format("%s %d", mclk_active and "EXT" or "bpm", mgen_bpm))
-    if mclk_active then                                   -- QUI envoie l'horloge : nom du device source
-      local nm = mclk_src_name or "?" ; if #nm > 12 then nm = string.sub(nm, 1, 11) .. "~" end
-      screen.level(6) ; screen.move(128, 50) ; screen.text_right(nm)
-    end
     screen.level(8)
     screen.move(48, 57)
     screen.text(MGEN_SCALE_NAMES[mgen_scale_idx])
