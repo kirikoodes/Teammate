@@ -3396,7 +3396,7 @@ function init()
   splash_active = true
   boot_choose   = true   -- apres le splash : ecran de choix RECHERCHE / PERFORMANCE
   clock.run(function()
-    clock.sleep(3.0) ; splash_active = false      -- fin du splash
+    clock.sleep(1.5) ; splash_active = false      -- fin du splash (raccourci)
     redraw()                                      -- AFFICHE l'ecran de choix (il attend K2/K3)
   end)
   -- RESTAURE les modes qui etaient ouverts : apres le choix du mode ET que le moteur SC/softcut soit pret
