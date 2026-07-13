@@ -2575,6 +2575,7 @@ osco_host   = "pigeons.local"       -- hote du module externe (ip ou nom .local)
 osco_port   = 9000                  -- port OSC d'ecoute du module
 osco_ip     = nil                   -- IP du Pi APPRISE quand il nous renvoie de l'OSC (evite de resoudre "pigeons.local" sans le Pi = pas de blocage)
 osco_seen_t = 0                     -- derniere fois qu'on a entendu le Pi
+osco_in_t   = {}                    -- anti-flood : horodatage du dernier /in/N traite (le pont Pi peut cracher ~3200 msg/s)
 function osco_safe_ip()             -- cible SURE pour l'OSC OUT : IP numerique (jamais de blocage), ou IP du Pi apprise (<10 s). nil = pas de cible sure -> on n'envoie pas (Teammate reste fluide sans le Pi)
   if type(osco_host) == "string" and osco_host:match("^%d+%.%d+%.%d+%.%d+$") then return osco_host end
   if osco_ip and (util.time() - (osco_seen_t or 0)) < 10 then return osco_ip end
@@ -3416,8 +3417,13 @@ function init()
   last_sound_t = util.time()
   -- LORA : reception des messages depuis le pont OSC externe (port OSC du norns : 10111)
   osc.event = function(path, args, from)
-    if from and type(path) == "string" and path:match("^/in/") then   -- entrees du Pi (ADC) -> on retient SON IP pour lui repondre en OSC OUT sans resoudre le nom
-      osco_ip = from[1] ; osco_seen_t = util.time()
+    if type(path) == "string" and path:match("^/in/") then   -- entrees du Pi (ADC)
+      if from then osco_ip = from[1] ; osco_seen_t = util.time() end   -- retient SON IP (repondre en OSC OUT sans resoudre le nom)
+      -- ANTI-FLOOD : le pont Pi lit a 200 Hz x 16 canaux (entrees flottantes = bruit) -> jusqu'a ~3200 msg/s.
+      -- On limite chaque canal a ~40 Hz : protege le CPU du Norns (sinon freeze + horloge MIDI instable).
+      local now = util.time()
+      if now - (osco_in_t[path] or 0) < 0.025 then return end   -- trop rapide : on ignore ce message
+      osco_in_t[path] = now
     end
     if path == "/lora/rx" then
       lora_rx(args[1], tonumber(args[2]), tonumber(args[3]), tonumber(args[4]), args[5])
