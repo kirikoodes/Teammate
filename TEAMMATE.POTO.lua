@@ -52,6 +52,7 @@ local count       = 0
 local last_slot   = 0
 -- MODE au demarrage : RECHERCHE (nav libre, normal) ou PERFORMANCE (auto-paging agent/corpus/PERU)
 perf_mode = false ; boot_choose = false
+gk2_down = false ; gk3_down = false   -- combo K2+K3 : rouvre l'ecran de choix RECHERCHE/PERFORMANCE a tout moment
 perf_last_input = 0 ; perf_last_count = 0 ; perf_corpus_t = 0 ; perf_had_diamonds = false
 
 local phrase_buf      = {}
@@ -4084,6 +4085,14 @@ function key(n, z)
       elseif n == 3 then perf_mode = true ; boot_choose = false ; page = 33         -- PERFORMANCE : demarre sur AGENT
         perf_last_count = count ; perf_had_diamonds = false ; perf_last_input = 0 end
     end
+    redraw() ; return
+  end
+  -- COMBO GLOBAL K2 + K3 (ensemble) : rouvre l'ecran de choix RECHERCHE / PERFORMANCE sans relancer le script
+  if n == 2 then gk2_down = (z == 1) end
+  if n == 3 then gk3_down = (z == 1) end
+  if gk2_down and gk3_down then
+    gk2_down = false ; gk3_down = false
+    splash_active = false ; boot_choose = true    -- affiche l'ecran de choix (K2 = Recherche, K3 = Performance)
     redraw() ; return
   end
   if perf_mode and z == 1 then perf_last_input = util.time() end   -- toute touche = input manuel (grace anti-yank)
