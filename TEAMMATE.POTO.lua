@@ -3445,7 +3445,7 @@ function init()
       osco_in_t[path] = now
     end
     if type(path) == "string" and path:match("^/wheel/") then   -- molette haptique (arrive via le relais sur le Pi)
-      if from then wheel_ip = from[1] end                       -- IP du relais (= le Pi) pour lui renvoyer les commandes
+      if from then wheel_ip = from[1] ; osco_ip = from[1] ; osco_seen_t = util.time() end   -- meme Pi : rafraichit AUSSI l'IP du CV OUT (flux continu -> re-apprentissage rapide apres reload)
       if path == "/wheel/position" then pcall(wheel_position, args[1])
       elseif path == "/wheel/rpm" then wheel_rpm = tonumber(args[1]) or 0 end
       return
