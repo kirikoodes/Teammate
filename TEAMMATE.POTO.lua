@@ -4311,14 +4311,11 @@ function key(n, z)
   end
   if page == 27 then
     local c = NAV_CATS[home_cursor]
-    if wheel_present() then                                  -- MOLETTE : K3 = entrer, K1 = armer
-      if n == 3 then if c then page = c.pg[1] ; wheel_update_grain() end
-      elseif n == 1 then if c and c.arm then live_toggle(c.arm) end
-      elseif n == 2 then mgen_freeze = not mgen_freeze end
-    else                                                     -- CLASSIQUE (pas de molette) : K3 = armer, entree = E3
-      if n == 3 then if c and c.arm then live_toggle(c.arm) end
-      elseif n == 2 then mgen_freeze = not mgen_freeze end
-    end
+    if n == 3 then
+      if c and c.arm then live_toggle(c.arm) end             -- K3 = ARMER / couper (retabli pour TOUS les modes)
+    elseif n == 1 then
+      if c then page = c.pg[1] ; wheel_update_grain() end     -- K1 = entrer dans la categorie (etait libre ; E3 entre aussi)
+    elseif n == 2 then mgen_freeze = not mgen_freeze end      -- K2 = FREEZE des patterns MGEN
     redraw() ; return
   end
   if page == 26 then
@@ -4567,7 +4564,7 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MENU")
     if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right(wheel_present() and "K3 in  K1 arm" or "E3 in  K3 arm")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K1 in  K3 arm")
     local ons = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
                   niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on, samt_on }
     local ys  = { 16, 23, 30, 37, 44, 51, 58 }
