@@ -3208,9 +3208,14 @@ function wheel_update_grain()   -- ajuste l'espacement des crans selon le niveau
     wheel_send("/wheel/mode", g) ; wheel_send("/wheel/force", 1.0)
   end
 end
+function wheel_thunk()   -- a-coup net : pic de force bref pour marquer le passage a un nouveau mode (HUB)
+  wheel_send("/wheel/force", 2.0)
+  clock.run(function() clock.sleep(0.07) ; wheel_send("/wheel/force", 1.0) end)
+end
 function wheel_nav_step(dir)   -- un cran = un pas de nav (miroir exact de E1 : HUB categories, sinon pages, retour HUB au bord)
   if page == 27 then
     home_cursor = ((home_cursor - 1 + dir) % #NAV_CATS) + 1
+    wheel_thunk()   -- a-coup net a chaque passage sur un nouveau mode
   else
     local _, c = nav_cat_of(page)
     if not c then page = 27 else
