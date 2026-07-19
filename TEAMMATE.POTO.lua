@@ -3191,60 +3191,22 @@ function nav_cat_of(p)
 end
 
 -- ===== WHEEL : SmartKnob haptique via OSC (relais wheel-osc-relay sur le Pi) =====
--- Rotation = navigation menu. GROS grain au HUB (choix module), PETIT grain dans une
--- categorie (choix page) -> on SENT le niveau sous les doigts. K3 = entrer, scroller au
--- bout d'une categorie = retour HUB. Le Norns envoie les commandes vers le relais (Pi:9100).
+-- La molette est un ORGANE de l'agent (PLUS de navigation menu) :
+--   - elle TOURNE selon METABO (vitesse ~ energie de METABO -> "differentes vitesses"),
+--   - + des A-COUPS sur les attaques de l'impro (kicks par-dessus la rotation),
+--   - quand l'utilisateur la SAISIT (la retient / la tourne a la main) -> nouveau theme MGEN.
+-- Le Norns envoie les commandes au relais (Pi:9100) ; lit /wheel/position + /wheel/rpm.
 wheel_ip = nil ; wheel_drive_port = 9100
-wheel_pos = nil ; wheel_ref = nil ; wheel_rpm = 0 ; wheel_last_t = 0 ; wheel_grain_cur = -1
-wheel_prev_deg = nil ; wheel_touch_t = 0 ; wheel_idle_active = false ; wheel_agent_t = 0   -- Phase 2 : detection touche + feedback agent (wheel_agent_t = l'agent bouge la molette)
-WHEEL_GRAIN_HUB = 40 ; WHEEL_GRAIN_SUB = 6   -- espacement des crans (= /wheel/mode en degres)
-WHEEL_IDLE_DELAY = 1.0   -- s sans rotation -> la molette passe en feedback haptique de l'agent
+wheel_pos = nil ; wheel_rpm = 0 ; wheel_last_t = 0 ; wheel_cmd_rpm = 0 ; wheel_interv_t = 0
 function wheel_send(p, v)
   if wheel_ip then pcall(osc.send, { wheel_ip, wheel_drive_port }, p, { v }) end
 end
-function wheel_present()   -- molette detectee = on a recu du /wheel/ il y a < 5 s. Sinon : nav classique (encodeurs)
+function wheel_present()   -- molette detectee = /wheel/ recu il y a < 5 s
   return wheel_ip ~= nil and (util.time() - (wheel_last_t or 0)) < 5
 end
-function wheel_grain() return (page == 27) and WHEEL_GRAIN_HUB or WHEEL_GRAIN_SUB end
-function wheel_update_grain()   -- ajuste l'espacement des crans selon le niveau de menu (envoi si change)
-  local g = wheel_grain()
-  if g ~= wheel_grain_cur then
-    wheel_grain_cur = g
-    wheel_send("/wheel/mode", g) ; wheel_send("/wheel/force", 1.0)
-  end
-end
-function wheel_thunk()   -- a-coup net : pic de force bref pour marquer le passage a un nouveau mode (HUB)
-  wheel_send("/wheel/force", 2.0)
-  clock.run(function() clock.sleep(0.07) ; wheel_send("/wheel/force", 1.0) end)
-end
-function wheel_nav_step(dir)   -- un cran = un pas de nav (miroir exact de E1 : HUB categories, sinon pages, retour HUB au bord)
-  if page == 27 then
-    home_cursor = ((home_cursor - 1 + dir) % #NAV_CATS) + 1
-    wheel_thunk()   -- a-coup net a chaque passage sur un nouveau mode
-  else
-    local _, c = nav_cat_of(page)
-    if not c then page = 27 else
-      local i = 1 ; for k, pg in ipairs(c.pg) do if pg == page then i = k end end
-      i = i + dir
-      if i < 1 or i > #c.pg then page = 27 else page = c.pg[i] end
-    end
-  end
-  if perf_mode then perf_last_input = util.time() end
-  redraw()
-end
-function wheel_position(deg)   -- angle absolu recu (~20 Hz)
+function wheel_position(deg)   -- angle absolu (~20 Hz) : on retient juste la position (detection de saisie faite dans la boucle)
   if type(deg) ~= "number" then return end
   wheel_last_t = util.time() ; wheel_pos = deg
-  if wheel_prev_deg == nil then wheel_prev_deg = deg ; wheel_ref = deg ; return end   -- 1re lecture
-  local moved = math.abs(deg - wheel_prev_deg) > 1.0
-  wheel_prev_deg = deg
-  if (util.time() - (wheel_agent_t or 0)) < 0.25 then wheel_ref = deg ; return end     -- c'est l'AGENT qui bouge la molette (kick) : pas une action utilisateur
-  if moved then wheel_touch_t = util.time() end                                        -- vraie rotation utilisateur
-  if (util.time() - wheel_touch_t) > WHEEL_IDLE_DELAY then wheel_ref = deg ; return end -- IDLE : pas de nav (l'agent pilote)
-  -- NAV : un pas de menu par cran franchi (sens inverse)
-  local g = wheel_grain() ; local d = deg - wheel_ref ; local guard = 0
-  while d >=  g and guard < 64 do wheel_nav_step(-1) ; wheel_ref = wheel_ref + g ; d = d - g ; guard = guard + 1 end
-  while d <= -g and guard < 64 do wheel_nav_step( 1) ; wheel_ref = wheel_ref - g ; d = d + g ; guard = guard + 1 end
 end
 
 function live_toggle(i)
@@ -3914,34 +3876,39 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(0.1)
-      if wheel_ip then wheel_update_grain() end   -- molette : garde le grain des crans synchro avec le niveau de menu
       if page ~= 33 and page ~= PERU_PAGE then redraw() end   -- AGENT/PERU deja redessines a 30 Hz : evite le double-draw (40->30 Hz sur ces pages lourdes)
     end
   end)
 
-  -- WHEEL Phase 2 : quand la molette est lachee (~1 s sans rotation), l'agent la fait VIVRE.
-  -- Force qui respire selon impro/METABO/agent (meme energie que le visage) + pic sur les attaques.
-  -- Retour NAV instantane des qu'on la reprend (rotation -> wheel_touch_t rafraichi).
+  -- WHEEL : la molette VIT (organe de l'agent). METABO -> vitesse de rotation ; impro -> a-coups.
+  -- Si l'utilisateur la RETIENT / la tourne (elle ne suit plus la vitesse commandee) -> nouveau theme MGEN.
   clock.run(function()
-    local pact, kick_until, kdir = 0, 0, 1
+    local kick, kdir, pie, ppos, intn = 0, 1, 0, nil, 0
     while true do
       clock.sleep(0.05)   -- 20 Hz
-      if wheel_present() and (util.time() - wheel_touch_t) > WHEEL_IDLE_DELAY then
-        local act = math.max(impro_energy or 0, meta_energy or 0, (stream_energy and stream_energy[7]) or 0)
-        if act - pact > 0.10 then                                       -- ATTAQUE -> coup physique (sens alterne = pas de derive)
-          kdir = -kdir
-          wheel_send("/wheel/rpm", kdir * (25 + act * 55))              -- intensite du coup ~ force de l'attaque
-          wheel_send("/wheel/force", math.min(2.0, 0.8 + act * 1.2))    -- + tendue quand ca joue fort
-          wheel_agent_t = util.time() ; kick_until = util.time() + 0.11
-        elseif kick_until > 0 and util.time() > kick_until then          -- fin du coup : stop + on remet les crans
-          wheel_send("/wheel/rpm", 0) ; wheel_send("/wheel/mode", wheel_grain())
-          kick_until = 0
+      if wheel_present() then
+        local me = meta_energy or 0                                              -- METABO -> vitesse de base
+        local ie = math.max(impro_energy or 0, (stream_energy and stream_energy[7]) or 0)  -- impro -> a-coups
+        local base = me * 80                                                     -- rpm ~ energie METABO
+        if ie - pie > 0.10 then kdir = -kdir ; kick = kdir * (30 + ie * 50) end   -- attaque impro -> kick (sens alterne)
+        pie = ie ; kick = kick * 0.55                                            -- le kick retombe
+        wheel_cmd_rpm = base + kick
+        wheel_send("/wheel/rpm", wheel_cmd_rpm)
+        wheel_send("/wheel/force", 0.9)                                          -- souple : on peut la retenir a la main
+        -- DETECTION SAISIE -> random MGEN
+        local hit = false ; local meas = wheel_rpm or 0
+        if math.abs(base) > 20 then                                              -- on commande un spin mais ca ne tourne pas -> retenue
+          if math.abs(meas) < math.abs(base) * 0.4 then hit = true end
+        elseif ppos and wheel_pos then                                           -- molette a l'arret mais tournee a la main
+          if math.abs(wheel_pos - ppos) > 8 then hit = true end
         end
-        pact = act
-        wheel_idle_active = true
-      elseif wheel_idle_active then                                      -- on reprend la main : stop + restaure la nav
-        wheel_idle_active = false ; kick_until = 0 ; wheel_grain_cur = -1
-        wheel_send("/wheel/rpm", 0) ; wheel_update_grain()
+        ppos = wheel_pos
+        intn = hit and (intn + 1) or 0
+        if intn >= 3 and (util.time() - (wheel_interv_t or 0)) > 1.2 then         -- saisie soutenue ~150 ms + cooldown
+          wheel_interv_t = util.time() ; intn = 0
+          pcall(mgen_gen_all, true)                                              -- SAISIE -> nouveau theme MGEN
+          kick = kdir * 90                                                       -- petit coup en retour : "c'est pris en compte"
+        end
       end
     end
   end)
@@ -4314,7 +4281,7 @@ function key(n, z)
     if n == 3 then
       if c and c.arm then live_toggle(c.arm) end             -- K3 = ARMER / couper (retabli pour TOUS les modes)
     elseif n == 1 then
-      if c then page = c.pg[1] ; wheel_update_grain() end     -- K1 = entrer dans la categorie (etait libre ; E3 entre aussi)
+      if c then page = c.pg[1] end                             -- K1 = entrer dans la categorie (E3 entre aussi)
     elseif n == 2 then mgen_freeze = not mgen_freeze end      -- K2 = FREEZE des patterns MGEN
     redraw() ; return
   end
