@@ -3883,31 +3883,27 @@ function init()
   -- WHEEL : la molette VIT (organe de l'agent). METABO -> vitesse de rotation ; impro -> a-coups.
   -- Si l'utilisateur la RETIENT / la tourne (elle ne suit plus la vitesse commandee) -> nouveau theme MGEN.
   clock.run(function()
-    local kick, kdir, pie, ppos, intn, basesm, lastkick = 0, 1, 0, nil, 0, 0, 0
+    local kick, kdir, pie, ppos, basesm, lastkick, back = 0, 1, 0, nil, 0, 0, 0
     while true do
       clock.sleep(0.05)   -- 20 Hz
       if wheel_present() then
         local me = meta_energy or 0                                              -- METABO -> vitesse de base
         local ie = math.max(impro_energy or 0, (stream_energy and stream_energy[7]) or 0)  -- impro -> a-coups
-        basesm = basesm * 0.85 + (me * 80) * 0.15                                -- vitesse METABO LISSEE (pas de saut par note -> pas de faux declenchement)
-        if ie - pie > 0.10 then kdir = -kdir ; kick = kdir * (30 + ie * 50) ; lastkick = util.time() end  -- attaque impro -> kick alterne
+        basesm = basesm * 0.85 + (me * 55) * 0.15                                -- vitesse METABO LISSEE, TOUJOURS vers l'avant (+)
+        if ie - pie > 0.10 then kdir = -kdir ; kick = kdir * (30 + ie * 50) ; lastkick = util.time() end  -- attaque impro -> kick bref
         pie = ie ; kick = kick * 0.55                                            -- le kick retombe
         wheel_cmd_rpm = basesm + kick
         wheel_send("/wheel/rpm", wheel_cmd_rpm)
-        wheel_send("/wheel/force", 0.9)                                          -- souple : on peut la retenir a la main
-        -- DETECTION SAISIE (immune a l'agent : compare a la vitesse LISSEE, ignore les kicks impro)
-        local hit = false ; local meas = wheel_rpm or 0
-        if math.abs(basesm) > 22 then                                            -- METABO fait tourner : SAISI si ca ne suit pas la vitesse lissee
-          if math.abs(meas) < math.abs(basesm) * 0.35 then hit = true end
-        elseif (util.time() - lastkick) > 0.25 and ppos and wheel_pos then       -- molette au repos (hors kick recent) : tournee A LA MAIN
-          if math.abs(wheel_pos - ppos) > 10 then hit = true end
-        end
+        wheel_send("/wheel/force", 0.85)                                         -- souple : on peut la tourner a la main
+        -- DETECTION SAISIE = tu tournes la molette A CONTRE-SENS (l'agent ne recule JAMAIS de facon soutenue -> zero faux positif)
+        local delta = (ppos and wheel_pos) and (wheel_pos - ppos) or 0
         ppos = wheel_pos
-        intn = hit and (intn + 1) or 0
-        if intn >= 4 and (util.time() - (wheel_interv_t or 0)) > 1.2 then         -- saisie SOUTENUE ~200 ms + cooldown (evite les transitoires)
-          wheel_interv_t = util.time() ; intn = 0
-          pcall(mgen_gen_all, true)                                              -- TON intervention -> nouveau theme MGEN
-          kick = kdir * 90                                                       -- petit coup en retour : "c'est pris en compte"
+        local um = ((util.time() - lastkick) > 0.3) and math.max(0, -delta) or 0  -- recul, hors fenetre de kick
+        back = back * 0.9 + um
+        if back > 35 and (util.time() - (wheel_interv_t or 0)) > 1.2 then          -- recul soutenu -> intervention
+          wheel_interv_t = util.time() ; back = 0
+          pcall(mgen_gen_all, true)                                              -- TON intervention (contre-sens) -> nouveau theme MGEN
+          kdir = 1 ; kick = 60 ; lastkick = util.time()                          -- petit coup AVANT en retour + gate
         end
       end
     end
