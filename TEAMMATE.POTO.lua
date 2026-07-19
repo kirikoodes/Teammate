@@ -3196,7 +3196,9 @@ end
 -- bout d'une categorie = retour HUB. Le Norns envoie les commandes vers le relais (Pi:9100).
 wheel_ip = nil ; wheel_drive_port = 9100
 wheel_pos = nil ; wheel_ref = nil ; wheel_rpm = 0 ; wheel_last_t = 0 ; wheel_grain_cur = -1
+wheel_prev_deg = nil ; wheel_touch_t = 0 ; wheel_idle_active = false   -- Phase 2 : detection touche + feedback agent
 WHEEL_GRAIN_HUB = 40 ; WHEEL_GRAIN_SUB = 6   -- espacement des crans (= /wheel/mode en degres)
+WHEEL_IDLE_DELAY = 1.0   -- s sans rotation -> la molette passe en feedback haptique de l'agent
 function wheel_send(p, v)
   if wheel_ip then pcall(osc.send, { wheel_ip, wheel_drive_port }, p, { v }) end
 end
@@ -3230,13 +3232,16 @@ function wheel_nav_step(dir)   -- un cran = un pas de nav (miroir exact de E1 : 
   if perf_mode then perf_last_input = util.time() end
   redraw()
 end
-function wheel_position(deg)   -- angle absolu recu (~20 Hz) -> avance la nav a chaque cran franchi
+function wheel_position(deg)   -- angle absolu recu (~20 Hz)
   if type(deg) ~= "number" then return end
-  wheel_last_t = util.time()
-  if wheel_ref == nil then wheel_ref = deg ; wheel_pos = deg ; return end   -- 1re lecture : reference, pas de saut
-  wheel_pos = deg
+  wheel_last_t = util.time() ; wheel_pos = deg
+  if wheel_prev_deg == nil then wheel_prev_deg = deg ; wheel_ref = deg ; return end   -- 1re lecture
+  if math.abs(deg - wheel_prev_deg) > 1.0 then wheel_touch_t = util.time() end        -- rotation utilisateur reelle
+  wheel_prev_deg = deg
+  if (util.time() - wheel_touch_t) > WHEEL_IDLE_DELAY then wheel_ref = deg ; return end -- IDLE : pas de nav (l'agent pilote)
+  -- NAV : un pas de menu par cran franchi (sens inverse)
   local g = wheel_grain() ; local d = deg - wheel_ref ; local guard = 0
-  while d >=  g and guard < 64 do wheel_nav_step(-1) ; wheel_ref = wheel_ref + g ; d = d - g ; guard = guard + 1 end   -- sens inverse
+  while d >=  g and guard < 64 do wheel_nav_step(-1) ; wheel_ref = wheel_ref + g ; d = d - g ; guard = guard + 1 end
   while d <= -g and guard < 64 do wheel_nav_step( 1) ; wheel_ref = wheel_ref - g ; d = d + g ; guard = guard + 1 end
 end
 
@@ -3909,6 +3914,26 @@ function init()
       clock.sleep(0.1)
       if wheel_ip then wheel_update_grain() end   -- molette : garde le grain des crans synchro avec le niveau de menu
       if page ~= 33 and page ~= PERU_PAGE then redraw() end   -- AGENT/PERU deja redessines a 30 Hz : evite le double-draw (40->30 Hz sur ces pages lourdes)
+    end
+  end)
+
+  -- WHEEL Phase 2 : quand la molette est lachee (~1 s sans rotation), l'agent la fait VIVRE.
+  -- Force qui respire selon impro/METABO/agent (meme energie que le visage) + pic sur les attaques.
+  -- Retour NAV instantane des qu'on la reprend (rotation -> wheel_touch_t rafraichi).
+  clock.run(function()
+    local pact = 0
+    while true do
+      clock.sleep(0.05)   -- 20 Hz
+      if wheel_present() and (util.time() - wheel_touch_t) > WHEEL_IDLE_DELAY then
+        local act = math.max(impro_energy or 0, meta_energy or 0, (stream_energy and stream_energy[7]) or 0)
+        local f = 0.4 + act * 1.6                  -- molle au repos, "tendue" quand l'agent joue
+        if act - pact > 0.12 then f = 2.0 end       -- pic de force sur une attaque (montee d'energie)
+        pact = act
+        wheel_send("/wheel/force", math.min(2.0, f))
+        wheel_idle_active = true
+      elseif wheel_idle_active then                 -- on vient de reprendre la main : restaure grain + force nav
+        wheel_idle_active = false ; wheel_grain_cur = -1 ; wheel_update_grain()
+      end
     end
   end)
 end
