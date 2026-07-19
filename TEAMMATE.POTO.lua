@@ -3190,6 +3190,48 @@ function nav_cat_of(p)
   return nil
 end
 
+-- ===== WHEEL : SmartKnob haptique via OSC (relais wheel-osc-relay sur le Pi) =====
+-- Rotation = navigation menu. GROS grain au HUB (choix module), PETIT grain dans une
+-- categorie (choix page) -> on SENT le niveau sous les doigts. K3 = entrer, scroller au
+-- bout d'une categorie = retour HUB. Le Norns envoie les commandes vers le relais (Pi:9100).
+wheel_ip = nil ; wheel_drive_port = 9100
+wheel_pos = nil ; wheel_ref = nil ; wheel_rpm = 0 ; wheel_last_t = 0 ; wheel_grain_cur = -1
+WHEEL_GRAIN_HUB = 40 ; WHEEL_GRAIN_SUB = 6   -- espacement des crans (= /wheel/mode en degres)
+function wheel_send(p, v)
+  if wheel_ip then pcall(osc.send, { wheel_ip, wheel_drive_port }, p, { v }) end
+end
+function wheel_grain() return (page == 27) and WHEEL_GRAIN_HUB or WHEEL_GRAIN_SUB end
+function wheel_update_grain()   -- ajuste l'espacement des crans selon le niveau de menu (envoi si change)
+  local g = wheel_grain()
+  if g ~= wheel_grain_cur then
+    wheel_grain_cur = g
+    wheel_send("/wheel/mode", g) ; wheel_send("/wheel/force", 1.0)
+  end
+end
+function wheel_nav_step(dir)   -- un cran = un pas de nav (miroir exact de E1 : HUB categories, sinon pages, retour HUB au bord)
+  if page == 27 then
+    home_cursor = ((home_cursor - 1 + dir) % #NAV_CATS) + 1
+  else
+    local _, c = nav_cat_of(page)
+    if not c then page = 27 else
+      local i = 1 ; for k, pg in ipairs(c.pg) do if pg == page then i = k end end
+      i = i + dir
+      if i < 1 or i > #c.pg then page = 27 else page = c.pg[i] end
+    end
+  end
+  if perf_mode then perf_last_input = util.time() end
+  redraw()
+end
+function wheel_position(deg)   -- angle absolu recu (~20 Hz) -> avance la nav a chaque cran franchi
+  if type(deg) ~= "number" then return end
+  wheel_last_t = util.time()
+  if wheel_ref == nil then wheel_ref = deg ; wheel_pos = deg ; return end   -- 1re lecture : reference, pas de saut
+  wheel_pos = deg
+  local g = wheel_grain() ; local d = deg - wheel_ref ; local guard = 0
+  while d >=  g and guard < 64 do wheel_nav_step( 1) ; wheel_ref = wheel_ref + g ; d = d - g ; guard = guard + 1 end
+  while d <= -g and guard < 64 do wheel_nav_step(-1) ; wheel_ref = wheel_ref - g ; d = d + g ; guard = guard + 1 end
+end
+
 function live_toggle(i)
   if i == 1 then
     poto_set(not p_poto_on)
@@ -3424,6 +3466,12 @@ function init()
       local now = util.time()
       if now - (osco_in_t[path] or 0) < 0.025 then return end   -- trop rapide : on ignore ce message
       osco_in_t[path] = now
+    end
+    if type(path) == "string" and path:match("^/wheel/") then   -- molette haptique (arrive via le relais sur le Pi)
+      if from then wheel_ip = from[1] end                       -- IP du relais (= le Pi) pour lui renvoyer les commandes
+      if path == "/wheel/position" then pcall(wheel_position, args[1])
+      elseif path == "/wheel/rpm" then wheel_rpm = tonumber(args[1]) or 0 end
+      return
     end
     if path == "/lora/rx" then
       lora_rx(args[1], tonumber(args[2]), tonumber(args[3]), tonumber(args[4]), args[5])
@@ -3851,6 +3899,7 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(0.1)
+      if wheel_ip then wheel_update_grain() end   -- molette : garde le grain des crans synchro avec le niveau de menu
       if page ~= 33 and page ~= PERU_PAGE then redraw() end   -- AGENT/PERU deja redessines a 30 Hz : evite le double-draw (40->30 Hz sur ces pages lourdes)
     end
   end)
@@ -4221,8 +4270,10 @@ function key(n, z)
   if page == 27 then
     local c = NAV_CATS[home_cursor]
     if n == 3 then
-      if c and c.arm then live_toggle(c.arm) end            -- K3 = armer / couper (si armable)
-    elseif n == 2 then mgen_freeze = not mgen_freeze end     -- K2 = FREEZE des patterns MGEN ; K1 libre (entree = E3)
+      if c then page = c.pg[1] ; wheel_update_grain() end   -- K3 = ENTRER dans la categorie (petit grain molette)
+    elseif n == 1 then
+      if c and c.arm then live_toggle(c.arm) end            -- K1 = armer / couper (deplace de K3)
+    elseif n == 2 then mgen_freeze = not mgen_freeze end     -- K2 = FREEZE des patterns MGEN
     redraw() ; return
   end
   if page == 26 then
@@ -4471,7 +4522,7 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MENU")
     if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("E3 in  K3 arm")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 in  K1 arm")
     local ons = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
                   niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on, samt_on }
     local ys  = { 16, 23, 30, 37, 44, 51, 58 }
