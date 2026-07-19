@@ -3196,7 +3196,7 @@ end
 -- bout d'une categorie = retour HUB. Le Norns envoie les commandes vers le relais (Pi:9100).
 wheel_ip = nil ; wheel_drive_port = 9100
 wheel_pos = nil ; wheel_ref = nil ; wheel_rpm = 0 ; wheel_last_t = 0 ; wheel_grain_cur = -1
-wheel_prev_deg = nil ; wheel_touch_t = 0 ; wheel_idle_active = false   -- Phase 2 : detection touche + feedback agent
+wheel_prev_deg = nil ; wheel_touch_t = 0 ; wheel_idle_active = false ; wheel_agent_t = 0   -- Phase 2 : detection touche + feedback agent (wheel_agent_t = l'agent bouge la molette)
 WHEEL_GRAIN_HUB = 40 ; WHEEL_GRAIN_SUB = 6   -- espacement des crans (= /wheel/mode en degres)
 WHEEL_IDLE_DELAY = 1.0   -- s sans rotation -> la molette passe en feedback haptique de l'agent
 function wheel_send(p, v)
@@ -3236,8 +3236,10 @@ function wheel_position(deg)   -- angle absolu recu (~20 Hz)
   if type(deg) ~= "number" then return end
   wheel_last_t = util.time() ; wheel_pos = deg
   if wheel_prev_deg == nil then wheel_prev_deg = deg ; wheel_ref = deg ; return end   -- 1re lecture
-  if math.abs(deg - wheel_prev_deg) > 1.0 then wheel_touch_t = util.time() end        -- rotation utilisateur reelle
+  local moved = math.abs(deg - wheel_prev_deg) > 1.0
   wheel_prev_deg = deg
+  if (util.time() - (wheel_agent_t or 0)) < 0.25 then wheel_ref = deg ; return end     -- c'est l'AGENT qui bouge la molette (kick) : pas une action utilisateur
+  if moved then wheel_touch_t = util.time() end                                        -- vraie rotation utilisateur
   if (util.time() - wheel_touch_t) > WHEEL_IDLE_DELAY then wheel_ref = deg ; return end -- IDLE : pas de nav (l'agent pilote)
   -- NAV : un pas de menu par cran franchi (sens inverse)
   local g = wheel_grain() ; local d = deg - wheel_ref ; local guard = 0
@@ -3921,18 +3923,25 @@ function init()
   -- Force qui respire selon impro/METABO/agent (meme energie que le visage) + pic sur les attaques.
   -- Retour NAV instantane des qu'on la reprend (rotation -> wheel_touch_t rafraichi).
   clock.run(function()
-    local pact = 0
+    local pact, kick_until, kdir = 0, 0, 1
     while true do
       clock.sleep(0.05)   -- 20 Hz
       if wheel_present() and (util.time() - wheel_touch_t) > WHEEL_IDLE_DELAY then
         local act = math.max(impro_energy or 0, meta_energy or 0, (stream_energy and stream_energy[7]) or 0)
-        local f = 0.4 + act * 1.6                  -- molle au repos, "tendue" quand l'agent joue
-        if act - pact > 0.12 then f = 2.0 end       -- pic de force sur une attaque (montee d'energie)
+        if act - pact > 0.10 then                                       -- ATTAQUE -> coup physique (sens alterne = pas de derive)
+          kdir = -kdir
+          wheel_send("/wheel/rpm", kdir * (25 + act * 55))              -- intensite du coup ~ force de l'attaque
+          wheel_send("/wheel/force", math.min(2.0, 0.8 + act * 1.2))    -- + tendue quand ca joue fort
+          wheel_agent_t = util.time() ; kick_until = util.time() + 0.11
+        elseif kick_until > 0 and util.time() > kick_until then          -- fin du coup : stop + on remet les crans
+          wheel_send("/wheel/rpm", 0) ; wheel_send("/wheel/mode", wheel_grain())
+          kick_until = 0
+        end
         pact = act
-        wheel_send("/wheel/force", math.min(2.0, f))
         wheel_idle_active = true
-      elseif wheel_idle_active then                 -- on vient de reprendre la main : restaure grain + force nav
-        wheel_idle_active = false ; wheel_grain_cur = -1 ; wheel_update_grain()
+      elseif wheel_idle_active then                                      -- on reprend la main : stop + restaure la nav
+        wheel_idle_active = false ; kick_until = 0 ; wheel_grain_cur = -1
+        wheel_send("/wheel/rpm", 0) ; wheel_update_grain()
       end
     end
   end)
