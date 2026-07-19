@@ -3236,8 +3236,8 @@ function wheel_position(deg)   -- angle absolu recu (~20 Hz) -> avance la nav a 
   if wheel_ref == nil then wheel_ref = deg ; wheel_pos = deg ; return end   -- 1re lecture : reference, pas de saut
   wheel_pos = deg
   local g = wheel_grain() ; local d = deg - wheel_ref ; local guard = 0
-  while d >=  g and guard < 64 do wheel_nav_step( 1) ; wheel_ref = wheel_ref + g ; d = d - g ; guard = guard + 1 end
-  while d <= -g and guard < 64 do wheel_nav_step(-1) ; wheel_ref = wheel_ref - g ; d = d + g ; guard = guard + 1 end
+  while d >=  g and guard < 64 do wheel_nav_step(-1) ; wheel_ref = wheel_ref + g ; d = d - g ; guard = guard + 1 end   -- sens inverse
+  while d <= -g and guard < 64 do wheel_nav_step( 1) ; wheel_ref = wheel_ref - g ; d = d + g ; guard = guard + 1 end
 end
 
 function live_toggle(i)
