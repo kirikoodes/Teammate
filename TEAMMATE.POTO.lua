@@ -3891,10 +3891,10 @@ function init()
         local ie  = math.max(impro_energy or 0, (stream_energy and stream_energy[7]) or 0)
         local exc = math.max(me, ie)                                             -- excitation globale de l'agent
         basesm = basesm * 0.88 + (me * 55) * 0.12                                -- vitesse de base METABO (lissee, TOUJOURS vers l'avant)
-        if me - pme > 0.08 then surge = 1.0 end ; pme = me ; surge = surge * 0.8  -- GALOP : accelere a chaque note METABO
-        if ie - pie > 0.10 then jolt = 45 + ie * 70 end ; pie = ie ; jolt = jolt * 0.6  -- JOLT avant sur attaque impro
+        if me - pme > 0.08 then surge = 1.0 end ; pme = me ; surge = surge * 0.82  -- GALOP : bondit a chaque note METABO
+        if ie - pie > 0.10 then jolt = 70 + ie * 110 end ; pie = ie ; jolt = jolt * 0.62  -- JOLT avant sur attaque impro (plus fort)
         local trem = (exc > 0.4) and (0.35 * exc * (0.5 + 0.5 * math.sin(util.time() * 14))) or 0  -- FREMISSEMENT quand excite
-        wheel_cmd_rpm = basesm * (1 + surge * 0.9 + trem) + jolt                 -- somme de termes AVANT -> jamais < 0 (detection contre-sens preservee)
+        wheel_cmd_rpm = basesm * (1 + surge * 1.7 + trem) + surge * 45 + jolt    -- galop marque (mult + additif) ; somme AVANT -> jamais < 0
         wheel_send("/wheel/rpm", wheel_cmd_rpm)
         wheel_send("/wheel/force", math.min(1.6, 0.6 + exc * 0.6))               -- la force RESPIRE avec l'energie (reste tournable a la main)
         -- INTERVENTION = tu tournes A CONTRE-SENS (l'agent ne recule jamais -> zero faux positif)
