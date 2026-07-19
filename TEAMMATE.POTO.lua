@@ -3883,27 +3883,27 @@ function init()
   -- WHEEL : la molette VIT (organe de l'agent). METABO -> vitesse de rotation ; impro -> a-coups.
   -- Si l'utilisateur la RETIENT / la tourne (elle ne suit plus la vitesse commandee) -> nouveau theme MGEN.
   clock.run(function()
-    local kick, kdir, pie, ppos, basesm, lastkick, back = 0, 1, 0, nil, 0, 0, 0
+    local pme, pie, ppos, basesm, surge, jolt, back = 0, 0, nil, 0, 0, 0, 0
     while true do
       clock.sleep(0.05)   -- 20 Hz
       if wheel_present() then
-        local me = meta_energy or 0                                              -- METABO -> vitesse de base
-        local ie = math.max(impro_energy or 0, (stream_energy and stream_energy[7]) or 0)  -- impro -> a-coups
-        basesm = basesm * 0.85 + (me * 55) * 0.15                                -- vitesse METABO LISSEE, TOUJOURS vers l'avant (+)
-        if ie - pie > 0.10 then kdir = -kdir ; kick = kdir * (30 + ie * 50) ; lastkick = util.time() end  -- attaque impro -> kick bref
-        pie = ie ; kick = kick * 0.55                                            -- le kick retombe
-        wheel_cmd_rpm = basesm + kick
+        local me  = meta_energy or 0
+        local ie  = math.max(impro_energy or 0, (stream_energy and stream_energy[7]) or 0)
+        local exc = math.max(me, ie)                                             -- excitation globale de l'agent
+        basesm = basesm * 0.88 + (me * 55) * 0.12                                -- vitesse de base METABO (lissee, TOUJOURS vers l'avant)
+        if me - pme > 0.08 then surge = 1.0 end ; pme = me ; surge = surge * 0.8  -- GALOP : accelere a chaque note METABO
+        if ie - pie > 0.10 then jolt = 45 + ie * 70 end ; pie = ie ; jolt = jolt * 0.6  -- JOLT avant sur attaque impro
+        local trem = (exc > 0.4) and (0.35 * exc * (0.5 + 0.5 * math.sin(util.time() * 14))) or 0  -- FREMISSEMENT quand excite
+        wheel_cmd_rpm = basesm * (1 + surge * 0.9 + trem) + jolt                 -- somme de termes AVANT -> jamais < 0 (detection contre-sens preservee)
         wheel_send("/wheel/rpm", wheel_cmd_rpm)
-        wheel_send("/wheel/force", 0.85)                                         -- souple : on peut la tourner a la main
-        -- DETECTION SAISIE = tu tournes la molette A CONTRE-SENS (l'agent ne recule JAMAIS de facon soutenue -> zero faux positif)
+        wheel_send("/wheel/force", math.min(1.6, 0.6 + exc * 0.6))               -- la force RESPIRE avec l'energie (reste tournable a la main)
+        -- INTERVENTION = tu tournes A CONTRE-SENS (l'agent ne recule jamais -> zero faux positif)
         local delta = (ppos and wheel_pos) and (wheel_pos - ppos) or 0
         ppos = wheel_pos
-        local um = ((util.time() - lastkick) > 0.3) and math.max(0, -delta) or 0  -- recul, hors fenetre de kick
-        back = back * 0.9 + um
-        if back > 35 and (util.time() - (wheel_interv_t or 0)) > 1.2 then          -- recul soutenu -> intervention
+        back = back * 0.9 + math.max(0, -delta)
+        if back > 35 and (util.time() - (wheel_interv_t or 0)) > 1.2 then
           wheel_interv_t = util.time() ; back = 0
-          pcall(mgen_gen_all, true)                                              -- TON intervention (contre-sens) -> nouveau theme MGEN
-          kdir = 1 ; kick = 60 ; lastkick = util.time()                          -- petit coup AVANT en retour + gate
+          pcall(mgen_gen_all, true) ; jolt = 80                                  -- nouveau theme MGEN + coup avant en retour
         end
       end
     end
