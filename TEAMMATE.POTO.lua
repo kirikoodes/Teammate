@@ -3200,6 +3200,9 @@ WHEEL_GRAIN_HUB = 40 ; WHEEL_GRAIN_SUB = 6   -- espacement des crans (= /wheel/m
 function wheel_send(p, v)
   if wheel_ip then pcall(osc.send, { wheel_ip, wheel_drive_port }, p, { v }) end
 end
+function wheel_present()   -- molette detectee = on a recu du /wheel/ il y a < 5 s. Sinon : nav classique (encodeurs)
+  return wheel_ip ~= nil and (util.time() - (wheel_last_t or 0)) < 5
+end
 function wheel_grain() return (page == 27) and WHEEL_GRAIN_HUB or WHEEL_GRAIN_SUB end
 function wheel_update_grain()   -- ajuste l'espacement des crans selon le niveau de menu (envoi si change)
   local g = wheel_grain()
@@ -4274,11 +4277,14 @@ function key(n, z)
   end
   if page == 27 then
     local c = NAV_CATS[home_cursor]
-    if n == 3 then
-      if c then page = c.pg[1] ; wheel_update_grain() end   -- K3 = ENTRER dans la categorie (petit grain molette)
-    elseif n == 1 then
-      if c and c.arm then live_toggle(c.arm) end            -- K1 = armer / couper (deplace de K3)
-    elseif n == 2 then mgen_freeze = not mgen_freeze end     -- K2 = FREEZE des patterns MGEN
+    if wheel_present() then                                  -- MOLETTE : K3 = entrer, K1 = armer
+      if n == 3 then if c then page = c.pg[1] ; wheel_update_grain() end
+      elseif n == 1 then if c and c.arm then live_toggle(c.arm) end
+      elseif n == 2 then mgen_freeze = not mgen_freeze end
+    else                                                     -- CLASSIQUE (pas de molette) : K3 = armer, entree = E3
+      if n == 3 then if c and c.arm then live_toggle(c.arm) end
+      elseif n == 2 then mgen_freeze = not mgen_freeze end
+    end
     redraw() ; return
   end
   if page == 26 then
@@ -4527,7 +4533,7 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MENU")
     if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 in  K1 arm")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right(wheel_present() and "K3 in  K1 arm" or "E3 in  K3 arm")
     local ons = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
                   niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on, samt_on }
     local ys  = { 16, 23, 30, 37, 44, 51, 58 }
