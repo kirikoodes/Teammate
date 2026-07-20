@@ -3209,6 +3209,33 @@ function wheel_position(deg)   -- angle absolu (~20 Hz) : on retient juste la po
   wheel_last_t = util.time() ; wheel_pos = deg
 end
 
+-- ===== VISION OUT : etat de l'agent stream en OSC vers l'app numero-vision =====
+-- Le pont UDP->WebSocket (sur le PC) s'abonne en envoyant /teammate/subscribe [port].
+-- Le Norns apprend alors l'IP de l'app (from) et lui STREAME l'etat + le METABO a 30 Hz.
+-- Rien n'est envoye tant que personne n'est abonne : Teammate reste fluide sans l'app.
+vision_ip     = nil     -- IP de l'app apprise a l'abonnement (numerique = sure a envoyer)
+vision_port   = 9000    -- port d'ecoute du pont sur le PC
+vision_seen_t = 0       -- derniere fois qu'on a entendu l'app (abonnement re-emis en continu)
+function vision_safe_ip()
+  if vision_ip and (util.time() - vision_seen_t) < 15 then return vision_ip end   -- abonnement < 15 s
+  return nil
+end
+function vision_stream()
+  local ip = vision_safe_ip() ; if not ip then return end
+  local dst = { ip, vision_port }
+  local st  = (state == "THINK" and 1) or (state == "REST" and 2) or 0   -- 0=LISTEN 1=THINK 2=REST
+  local M   = metabolik or {} ; local mch = M.ch or {}
+  local mst = (M.state == "PERTURBE" and 1) or (M.state == "MONOTONE" and 2) or 0   -- 0=STABLE 1=PERTURBE 2=MONOTONE
+  -- audio brut que l'agent entend
+  pcall(osc.send, dst, "/teammate/audio",  { rms_smooth or 0, cur_freq or 0, cur_centroid or 0 })
+  -- etat de jeu de l'agent : state, densite, taille corpus, energie impro
+  pcall(osc.send, dst, "/teammate/agent",  { st, p_density or 0, #corpus, impro_energy or 0 })
+  -- METABO : le "vivant" -> on/off, stress percu, croissance cellulaire, energie, pression externe, etat
+  pcall(osc.send, dst, "/teammate/metabo", { (M.on and 1 or 0), M.stressFx or 0, mch.growth or 0, meta_energy or 0, M.ext_press or 0, mst })
+  -- MGEN : moteur generatif -> actif, BPM, energie de la derniere note
+  pcall(osc.send, dst, "/teammate/mgen",   { (mgen_running and 1 or 0), mgen_bpm or 0, mgen_nenergy or 0 })
+end
+
 function live_toggle(i)
   if i == 1 then
     poto_set(not p_poto_on)
@@ -3436,6 +3463,13 @@ function init()
   last_sound_t = util.time()
   -- LORA : reception des messages depuis le pont OSC externe (port OSC du norns : 10111)
   osc.event = function(path, args, from)
+    if path == "/teammate/subscribe" then   -- l'app numero-vision s'abonne : on retient son IP
+      if from then
+        vision_ip = from[1] ; vision_seen_t = util.time()
+        if args and args[1] then vision_port = tonumber(args[1]) or vision_port end
+      end
+      return
+    end
     if type(path) == "string" and path:match("^/in/") then   -- entrees du Pi (ADC)
       if from then osco_ip = from[1] ; osco_seen_t = util.time() end   -- retient SON IP (repondre en OSC OUT sans resoudre le nom)
       -- ANTI-FLOOD : le pont Pi lit a 200 Hz x 16 canaux (entrees flottantes = bruit) -> jusqu'a ~3200 msg/s.
@@ -3870,6 +3904,7 @@ function init()
       else                   -- INPUT : micro / ligne (defaut)
         metabolik.update(cur_rms, cur_freq, cur_centroid, cur_flatness, 1/30)
       end
+      vision_stream()   -- stream l'etat + METABO + MGEN vers l'app numero-vision (no-op si personne n'est abonne)
     end
   end)
 
