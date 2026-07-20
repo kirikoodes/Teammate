@@ -13,10 +13,52 @@ reste le "dernier client" de la wheel pour capter son flux.
 Lancer :  python3 wheel_osc_relay.py
 Options : --wheel-host --norns-host --wheel-out-port(9001) --drive-port(9100)
 """
-import argparse, threading, time
+import argparse, socket, threading, time
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import ThreadingOSCUDPServer
-from pythonosc.udp_client import SimpleUDPClient
+from pythonosc.osc_message_builder import OscMessageBuilder
+
+
+class Safe:
+    """Client OSC UDP resilient : resout l'hote PARESSEUSEMENT (jamais a la construction).
+
+    Indispensable au boot : le service demarre avant que le reseau/mDNS soit pret, donc
+    resoudre tout de suite leverait socket.gaierror et ferait crasher/boucler le service.
+    Ici on reessaie tout seul, et on re-resout si l'hote change d'IP ou revient.
+    """
+
+    def __init__(self, host, port):
+        self.host, self.port = host, port
+        self.sock, self.addr, self.t = None, None, 0.0
+
+    def _resolve(self):
+        try:
+            af, socktype, proto, _, sa = socket.getaddrinfo(
+                self.host, self.port, type=socket.SOCK_DGRAM)[0]
+            s = socket.socket(af, socktype, proto)
+            if self.sock:
+                try:
+                    self.sock.close()
+                except Exception:
+                    pass
+            self.sock, self.addr, self.t = s, sa, time.time()
+            return True
+        except Exception:
+            self.t = time.time()
+            return False
+
+    def send_message(self, address, val):
+        try:
+            if self.sock is None or self.addr is None:
+                if time.time() - self.t < 2.0:      # backoff : ne pas marteler la resolution
+                    return
+                if not self._resolve():
+                    return
+            b = OscMessageBuilder(address=address)
+            b.add_arg(val)
+            self.sock.sendto(b.build().dgram, self.addr)
+        except Exception:
+            self.sock = None                        # forcera une re-resolution (IP changee / hote parti)
 
 
 def main():
@@ -30,18 +72,9 @@ def main():
     ap.add_argument("--keepalive", type=float, default=2.0, help="s entre deux poke (reste le dernier client)")
     args = ap.parse_args()
 
-    # clients : on passe les hostnames -> sendto re-resout a chaque envoi (adapte au DHCP)
-    _wheel = SimpleUDPClient(args.wheel_host, args.wheel_port)
-    _norns = SimpleUDPClient(args.norns_host, args.norns_port)
-
-    class Safe:
-        def __init__(self, c): self.c = c
-        def send_message(self, addr, val):
-            try: self.c.send_message(addr, val)   # si l'hote n'est pas resolvable (eteint), on ignore
-            except Exception: pass
-
-    to_wheel = Safe(_wheel)
-    to_norns = Safe(_norns)
+    # clients resilients : aucune resolution au demarrage (le reseau peut ne pas etre pret)
+    to_wheel = Safe(args.wheel_host, args.wheel_port)
+    to_norns = Safe(args.norns_host, args.norns_port)
 
     # etat courant (pour keepalive sans perturber le mode/rpm)
     state = {"force": 1.0}
