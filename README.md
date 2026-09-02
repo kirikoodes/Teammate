@@ -59,6 +59,24 @@ Tourne sur un Monome Norns. Lua + SuperCollider. Porté depuis un original Pytho
 
 ---
 
+## What's new / Nouveautés
+
+**Startup mode** — on boot, choose **RECHERCHE** (K2 — free navigation) or **PERFORMANCE** (K3 — auto-paging that follows the action). The choice is remembered and the modes you had open are restored. Reopen this menu anytime with **K2 + K3**.
+
+**WHEEL — haptic SmartKnob (OSC)** — an optional motorized knob becomes an *organ of the agent*: it **spins with METABO** (speed ∝ its energy), gets **jolts on the improviser's attacks**, and turning it **backwards** shuffles MGEN (new theme). Auto-detected — without it, classic encoder navigation is unchanged.
+
+**VISION OUT** — Teammate streams its live state (audio it hears, agent state, METABO, MGEN) over OSC at 30 Hz to an external app that subscribes (`/teammate/subscribe`). Nothing is sent until something subscribes — no effect on the performance otherwise.
+
+**Robust external MIDI clock** — locks onto a **single** MIDI port (no double-counting when a device like the **OP-XY** exposes several ports), **smooths** the BPM, accepts **30–300 BPM**, and falls back to internal clock automatically if the pulses stop. MGEN shows the clock-source device.
+
+**CV / OSC OUT** — 8 outputs (**CV / TRIG / GATE**) sent over OSC to an external Eurorack module, each drivable by any Teammate source (impro, MGEN, METABO, PERU, audio→CV…).
+
+**Cleaner corpus clear** — clearing the corpus now also wipes the remembered phrases and cuts the grains in flight, so the agent **immediately stops replaying** the erased material.
+
+*Au démarrage : choix **RECHERCHE** (K2, nav libre) ou **PERFORMANCE** (K3, auto-paging qui suit l'action) — mémorisé, modes ouverts restaurés ; rouvrir le menu à tout moment avec **K2 + K3**. **Molette haptique (SmartKnob, OSC)** : un bouton motorisé optionnel devient un organe de l'agent — il **tourne avec METABO** (vitesse ∝ énergie), reçoit des **à-coups sur les attaques de l'impro**, et **tourné à contre-sens** relance un nouveau thème MGEN ; auto-détectée, sinon la nav classique est inchangée. **VISION OUT** : le Norns streame son état (audio entendu, agent, METABO, MGEN) en OSC à 30 Hz vers une app externe qui s'abonne (`/teammate/subscribe`) — rien n'est envoyé sans abonné. **Horloge MIDI externe robuste** : verrouillage sur **un seul port** (anti double-comptage type OP-XY), BPM **lissé**, plage **30–300**, retour auto à l'horloge interne si les pulses s'arrêtent ; le device source est affiché sur MGEN. **CV / OSC OUT** : 8 sorties **CV / TRIG / GATE** en OSC vers un module Eurorack externe, pilotables par n'importe quelle source. **Clear corpus** : vide aussi les phrases mémorisées et coupe les grains en cours → l'agent **arrête net** de rejouer le corpus effacé.*
+
+---
+
 ## Install
 
 From **MAIDEN** (Norns web editor), type in the bottom console:
