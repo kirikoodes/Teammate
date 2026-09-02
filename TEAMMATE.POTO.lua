@@ -4434,6 +4434,8 @@ function key(n, z)
   if n == 3 then
     if page == 1 then
       corpus = {} ; count = 0 ; head = 1 ; last_slot = 0
+      motifs = {} ; recent_slots = {} ; phrase_buf = {}          -- vide phrases + historique : l'agent n'a plus rien du vieux corpus a rejouer
+      for _, v in ipairs(PLY_V) do pcall(softcut.play, v, 0) end  -- coupe net les grains impro en cours
     elseif page == 2 then
       if count >= MIN_CORPUS and state == "LISTEN" then
         state = "THINK"
