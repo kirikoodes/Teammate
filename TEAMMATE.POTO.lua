@@ -53,6 +53,7 @@ local last_slot   = 0
 -- MODE au demarrage : RECHERCHE (nav libre, normal) ou PERFORMANCE (auto-paging agent/corpus/PERU)
 perf_mode = false ; boot_choose = false
 gk2_down = false ; gk3_down = false   -- combo K2+K3 : rouvre l'ecran de choix RECHERCHE/PERFORMANCE a tout moment
+nav_exit = false ; nav_exit_cat = 0 ; nav_exit_yes = false   -- ecran SORTIR ? OUI/NON au bout d'un mode (pas de sortie accidentelle vers le menu)
 perf_last_input = 0 ; perf_last_count = 0 ; perf_corpus_t = 0 ; perf_had_diamonds = false
 
 local phrase_buf      = {}
@@ -3510,7 +3511,7 @@ function init()
   clock.run(function()
     while true do
       clock.sleep(0.1)
-      if perf_mode and not boot_choose and not splash_active then
+      if perf_mode and not boot_choose and not splash_active and not nav_exit then
         local now = util.time()
         local diamonds = peru_on and #peru_dia > 0
         if count > perf_last_count then perf_last_count = count ; perf_corpus_t = now ; perf_last_input = 0 end   -- nouveau son capte
@@ -3992,16 +3993,25 @@ end
 function enc(n, d)
   if boot_choose then return end                                  -- ecran de choix : ignore les encodeurs
   if perf_mode then perf_last_input = util.time() end             -- input manuel = grace anti-yank
+  if nav_exit then                                                -- ECRAN SORTIR : E1 revient dans les pages ; E2/E3 choisissent OUI/NON
+    if n == 2 or n == 3 then nav_exit_yes = (d > 0)               -- droite = OUI, gauche = NON
+    elseif n == 1 then
+      local c = NAV_CATS[nav_exit_cat]
+      if c then nav_exit = false ; page = (d < 0) and c.pg[#c.pg] or c.pg[1] end   -- quitte l'ecran sans sortir du mode
+    end
+    redraw() ; return
+  end
   if n == 1 then
     if page == 27 then
       home_cursor = ((home_cursor - 1 + d) % #NAV_CATS) + 1        -- HUB : deplace le curseur
     else
-      local _, c = nav_cat_of(page)
+      local ci, c = nav_cat_of(page)
       if not c then page = 27 else
         local i = 1
         for k, pg in ipairs(c.pg) do if pg == page then i = k end end
         i = i + d
-        if i < 1 or i > #c.pg then page = 27 else page = c.pg[i] end  -- au bout de la zone : retour au HUB
+        if i < 1 or i > #c.pg then nav_exit = true ; nav_exit_cat = ci ; nav_exit_yes = false  -- au bout du mode : ecran SORTIR ? (jamais de sortie accidentelle)
+        else page = c.pg[i] end
       end
     end
   elseif n == 2 then
@@ -4050,8 +4060,6 @@ function enc(n, d)
       niakaby.enc_src(2, d)
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
-    elseif page == 27 then
-      home_cursor = ((home_cursor - 1 + d) % #NAV_CATS) + 1
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4205,6 +4213,14 @@ function key(n, z)
     splash_active = false ; boot_choose = true    -- affiche l'ecran de choix (K2 = Recherche, K3 = Performance)
     redraw() ; return
   end
+  if nav_exit then                          -- ECRAN SORTIR : K3 = valider (OUI->menu / NON->reste), K2 = rester
+    if z == 1 then
+      local c = NAV_CATS[nav_exit_cat]
+      if n == 3 then nav_exit = false ; page = nav_exit_yes and 27 or (c and c.pg[1] or 27)
+      elseif n == 2 then nav_exit = false ; page = c and c.pg[1] or 27 end
+    end
+    redraw() ; return
+  end
   if perf_mode and z == 1 then perf_last_input = util.time() end   -- toute touche = input manuel (grace anti-yank)
   if page == PERU_PAGE and n == 2 then      -- K2 : tap = react ; maintenu + E3 = threshold SAMT
     if z == 1 then peru_k2_down = true ; peru_k2_moved = false
@@ -4310,10 +4326,10 @@ function key(n, z)
   if page == 27 then
     local c = NAV_CATS[home_cursor]
     if n == 3 then
-      if c and c.arm then live_toggle(c.arm) end             -- K3 = ARMER / couper (retabli pour TOUS les modes)
-    elseif n == 1 then
-      if c then page = c.pg[1] end                             -- K1 = entrer dans la categorie (E3 entre aussi)
-    elseif n == 2 then mgen_freeze = not mgen_freeze end      -- K2 = FREEZE des patterns MGEN
+      if c then page = c.pg[1] end                             -- K3 = ENTRER dans le mode
+    elseif n == 2 then
+      if c and c.arm then live_toggle(c.arm) end               -- K2 = armer / couper
+    elseif n == 1 then mgen_freeze = not mgen_freeze end       -- K1 = FREEZE des patterns MGEN
     redraw() ; return
   end
   if page == 26 then
@@ -4527,6 +4543,16 @@ function redraw()
     screen.update() ; return
   end
 
+  if nav_exit then                          -- ECRAN SORTIR ? OUI / NON (bout de mode)
+    local c = NAV_CATS[nav_exit_cat] ; local nm = (c and c.n) or "?"
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(64, 18) ; screen.text_center("SORTIR ? (" .. nm .. ")")
+    screen.level(nav_exit_yes and 15 or 4) ; screen.move(42, 40) ; screen.text_center(nav_exit_yes and "[OUI]" or "OUI")
+    screen.level(nav_exit_yes and 4 or 15) ; screen.move(86, 40) ; screen.text_center(nav_exit_yes and "NON" or "[NON]")
+    screen.level(4)  ; screen.move(64, 60) ; screen.text_center("E2 choisir   K3 ok   E1 pages")
+    screen.update() ; return
+  end
+
   if page == 26 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN TASTE")
@@ -4564,7 +4590,7 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("MENU")
     if mgen_freeze then screen.level(15) ; screen.move(40, 8) ; screen.text("FRZ") end   -- patterns figes
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K1 in  K3 arm")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("K3 in  K2 arm")
     local ons = { p_poto_on, os8_mode ~= "OFF", mgen_running, spat.on, metabolik.on,
                   niakaby.on, audio_midi_on, comp_on, wifi.on, cc_on, peru_on, samt_on }
     local ys  = { 16, 23, 30, 37, 44, 51, 58 }
