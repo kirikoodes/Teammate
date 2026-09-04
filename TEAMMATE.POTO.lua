@@ -2596,10 +2596,10 @@ samt_cur   = 1                             -- slot selectionne sur la page
 samt_mon_off = 0                           -- MONITOR (page 43) : offset de defilement de la liste des axes
 samt_mon_cur = 1                           -- MONITOR : curseur d'axe (pour assigner TRIG/PITCH depuis la liste)
 samt_mon_cur_t = 0                          -- MONITOR : quand le curseur a atterri sur l'axe (dwell -> defilement du nom complet)
-function scroll_text(s, w)                  -- marquee : fait defiler s dans une fenetre de w caracteres (boucle)
+function scroll_text(s, w, spd)             -- marquee : fait defiler s dans une fenetre de w caracteres (boucle)
   if #s <= w then return s end
-  local full = s .. "   .   "
-  local pos = math.floor(util.time() * 4) % #full
+  local full = s .. "     .     "
+  local pos = math.floor(util.time() * (spd or 4)) % #full
   return (full .. full):sub(pos + 1, pos + w)
 end
 -- SNOT (page 44) : instrument gestuel -> 1 axe declenche une note, 1 axe donne la hauteur, vers un device/canal MIDI.
@@ -4761,7 +4761,7 @@ function redraw()
     screen.level(sn.on and 15 or 7) ; screen.move(50, 8) ; screen.text("S" .. samt_note_cur .. (sn.on and "*" or ""))   -- SNOT cible (E3)
     local live = (util.time() - (samt_last.t or 0)) < 0.5
     screen.level(samt_on and 15 or (live and 12 or 4)) ; screen.move(126, 8)
-    screen.text_right(samt_on and "arme" or (live and "rx" or "no rx"))
+    screen.text_right(samt_on and "arme" or (live and "recoit" or "rien recu"))
     local rows = 5
     samt_mon_cur = util.clamp(samt_mon_cur, 1, math.max(1, nax))
     if samt_mon_cur <= samt_mon_off then samt_mon_off = samt_mon_cur - 1 end
@@ -4789,7 +4789,7 @@ function redraw()
         end
       end
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("K2>T K3>P K1on E3snot")
+    screen.level(5) ; screen.move(2, 63) ; screen.text(scroll_text("K2 = axe vers TRIGGER    K3 = axe vers PITCH    K1 = SNOT on/off    E3 = choisir le SNOT    (rappui = effacer)", 21, 3))
     screen.update() ; return
   end
   if page == 44 then
