@@ -2594,6 +2594,7 @@ SAMT_DEST  = { "cc", "X", "Y", "ROT" }     -- destination : cc / axe X PERU / ax
 samt_learn = 0                             -- >0 : le prochain axe qui bouge se lie a ce slot
 samt_cur   = 1                             -- slot selectionne sur la page
 samt_mon_off = 0                           -- MONITOR (page 43) : offset de defilement de la liste des axes
+samt_mon_cur = 1                           -- MONITOR : curseur d'axe (pour assigner TRIG/PITCH depuis la liste)
 -- SNOT (page 44) : instrument gestuel -> 1 axe declenche une note, 1 axe donne la hauteur, vers un device/canal MIDI.
 -- 4 SNOT INDEPENDANTS = un par capteur/danseur (chacun son axe trigger, son axe hauteur, son device/canal, sa plage).
 samt_notes = {
@@ -4082,7 +4083,8 @@ function enc(n, d)
     elseif page == 41 then
       samt_cur = util.clamp(samt_cur + d, 1, 4)              -- SAMT : slot MO selectionne
     elseif page == 43 then
-      samt_mon_off = math.max(0, samt_mon_off + d)          -- MONITOR : defiler la liste des axes
+      local nax = 0 ; for _ in pairs(samt_mon) do nax = nax + 1 end
+      samt_mon_cur = util.clamp(samt_mon_cur + d, 1, math.max(1, nax))   -- MONITOR : curseur d'axe (E2)
     elseif page == 44 then
       samt_note_fld = util.clamp(samt_note_fld + d, 1, 8)   -- SNOT : champ selectionne (1=SNOT# ...)
     elseif page == 45 then
@@ -4094,6 +4096,7 @@ function enc(n, d)
     end
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
+    if page == 43 then samt_note_cur = util.clamp(samt_note_cur + d, 1, 4) end   -- MONITOR : choisit le SNOT cible (E3)
     if page == 35 then wifi_midi_ch = util.clamp(wifi_midi_ch + d, 1, 16) end
     if page == 37 then
       if cc_k1_down and cc_cursor >= 1 then
@@ -4377,6 +4380,18 @@ function key(n, z)
         local ip = osco_safe_ip() ; local dest = ip and { ip, osco_port }
         for i = 1, OSCO_N do if dest then pcall(osc.send, dest, "/cv/" .. (i - 1), { 0.0 }) ; pcall(osc.send, dest, "/gate/" .. (i - 1), { 0.0 }) end ; osco_lanes[i].val = 0 ; osco_lanes[i].ghi = false end
       end
+    end
+    redraw() ; return
+  end
+  if page == 43 then                                      -- MONITOR : assigne l'axe surligne au SNOT courant
+    local keys = {} ; for k in pairs(samt_mon) do keys[#keys + 1] = k end ; table.sort(keys)
+    local key = keys[samt_mon_cur] ; local sn = samt_notes[samt_note_cur]
+    if n == 1 then                                        -- K1 : arme / coupe le SNOT
+      sn.on = not sn.on
+      if not sn.on and sn.playing then local out = midi_outs[sn.dev] ; if out then out:note_off(sn.playing, 0, sn.ch) end ; sn.playing = nil end
+    elseif key then
+      if n == 2 then sn.trig = key ; sn.on = true          -- K2 : axe surligne -> TRIG (+ arme le SNOT)
+      elseif n == 3 then sn.pitch = key end                -- K3 : axe surligne -> PITCH
     end
     redraw() ; return
   end
@@ -4726,45 +4741,45 @@ function redraw()
     screen.update() ; return
   end
   if page == 43 then
-    -- MONITOR : TOUS les axes de TOUS les capteurs en direct (defilable, pas juste les 4 slots)
+    -- MONITOR : tous les axes en direct + ASSIGNATION TRIG/PITCH au SNOT courant
     screen.clear() ; screen.font_size(8)
     local keys = {}
     for k in pairs(samt_mon) do keys[#keys + 1] = k end
     table.sort(keys)
     local nax = #keys
+    local sn = samt_notes[samt_note_cur]
     screen.level(15) ; screen.move(2, 8) ; screen.text("MON")
-    screen.level(6)  ; screen.move(30, 8) ; screen.text(nax .. " ax")
+    screen.level(6)  ; screen.move(26, 8) ; screen.text(nax .. "ax")
+    screen.level(sn.on and 15 or 7) ; screen.move(50, 8) ; screen.text("S" .. samt_note_cur .. (sn.on and "*" or ""))   -- SNOT cible (E3)
     local live = (util.time() - (samt_last.t or 0)) < 0.5
     screen.level(samt_on and 15 or (live and 12 or 4)) ; screen.move(126, 8)
     screen.text_right(samt_on and "arme" or (live and "rx" or "no rx"))
-    local rows = 6
-    if samt_mon_off > math.max(0, nax - rows) then samt_mon_off = math.max(0, nax - rows) end
+    local rows = 5
+    samt_mon_cur = util.clamp(samt_mon_cur, 1, math.max(1, nax))
+    if samt_mon_cur <= samt_mon_off then samt_mon_off = samt_mon_cur - 1 end
+    if samt_mon_cur >  samt_mon_off + rows then samt_mon_off = samt_mon_cur - rows end
+    samt_mon_off = math.max(0, math.min(samt_mon_off, math.max(0, nax - rows)))
     if nax == 0 then
-      screen.level(5) ; screen.move(2, 34) ; screen.text("aucun capteur.")
-      screen.level(4) ; screen.move(2, 44) ; screen.text("envoie OSC -> norns.local:10111")
+      screen.level(5) ; screen.move(2, 32) ; screen.text("aucun capteur.")
+      screen.level(4) ; screen.move(2, 42) ; screen.text("OSC -> norns.local:10111")
     else
       for r = 1, rows do
-        local k = keys[samt_mon_off + r]
+        local idx = samt_mon_off + r ; local k = keys[idx]
         if k then
-          local a = samt_mon[k]
-          local y = 8 + r * 8
+          local a = samt_mon[k] ; local y = 8 + r * 9
           local fresh = a and (util.time() - (a.t or 0)) < 0.3
-          local tag = "" ; for s = 1, 4 do if samt_slot[s].key == k then tag = "M" .. s end end
-          if tag ~= "" then screen.level(15) ; screen.move(2, y) ; screen.text(tag)   -- axe deja mappe -> MOn
-          else screen.level(3) ; screen.move(2, y) ; screen.text("-") end
-          screen.level(fresh and 15 or 7) ; screen.move(20, y) ; screen.text(k:gsub("^/", ""):sub(1, 12))
+          local sel  = (idx == samt_mon_cur)
+          local role = (sn.trig == k) and "T" or ((sn.pitch == k) and "P" or "")
+          screen.level(sel and 15 or 4) ; screen.move(2, y) ; screen.text(sel and ">" or (role ~= "" and role or "-"))
+          screen.level(sel and 15 or (fresh and 12 or 7)) ; screen.move(12, y) ; screen.text(k:gsub("^/", ""):sub(1, 11))
+          if role ~= "" then screen.level(13) ; screen.move(86, y) ; screen.text_right(role) end
           local v = a and a.val or 0
-          screen.level(6) ; screen.move(92, y) ; screen.text_right(math.floor(v * 100))
           screen.level(4) ; screen.rect(96, y - 4, 28, 3) ; screen.stroke()
           screen.level(fresh and 12 or 8) ; screen.rect(96, y - 4, 28 * math.max(0, math.min(1, v)), 3) ; screen.fill()
         end
       end
-      if nax > rows then   -- indicateur de position dans la liste
-        screen.level(5) ; screen.move(126, 63)
-        screen.text_right((samt_mon_off + 1) .. "-" .. math.min(nax, samt_mon_off + rows) .. "/" .. nax)
-      end
     end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 defiler  Mn=mappe")
+    screen.level(4) ; screen.move(2, 63) ; screen.text("K2>T K3>P K1on E3snot")
     screen.update() ; return
   end
   if page == 44 then
