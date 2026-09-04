@@ -2604,13 +2604,12 @@ function scroll_text(s, w, spd)             -- marquee : fait defiler s dans une
 end
 -- SNOT (page 44) : instrument gestuel -> 1 axe declenche une note, 1 axe donne la hauteur, vers un device/canal MIDI.
 -- 4 SNOT INDEPENDANTS = un par capteur/danseur (chacun son axe trigger, son axe hauteur, son device/canal, sa plage).
-samt_notes = {
-  { trig = nil, pitch = nil, dev = 1, ch = 1, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
-  { trig = nil, pitch = nil, dev = 1, ch = 2, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
-  { trig = nil, pitch = nil, dev = 1, ch = 3, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
-  { trig = nil, pitch = nil, dev = 1, ch = 4, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 },
-}
-samt_note_cur = 1   -- SNOT selectionne (1..4)
+SNOT_N = 8          -- nombre d'instruments SNOT
+samt_notes = {}
+for _i = 1, SNOT_N do
+  samt_notes[_i] = { trig = nil, pitch = nil, dev = 1, ch = _i, lo = 36, hi = 84, thr = 0.30, on = false, learn = 0, pv = 0, last_t = 0, play_t = 0 }
+end
+samt_note_cur = 1   -- SNOT selectionne (1..SNOT_N)
 samt_note_fld = 1   -- champ : 1=SNOT# 2=TRIG 3=PITCH 4=DEV 5=CH 6=LO 7=HI 8=THR
 samt_on    = false                         -- arme depuis LIVE : ON = les capteurs pilotent les sources MO
 samt_energy = 0                            -- energie de mouvement globale (0..1, decroit) — le danseur
@@ -2645,7 +2644,7 @@ function samt_rx(path, args)
       samt_last = { key = key, val = a.val, t = a.t }
       if samt_learn >= 1 and span > 0.05 then samt_slot[samt_learn].key = key ; samt_learn = 0 end  -- LEARN slot MO
       if span > 0.05 then   -- LEARN SNOT : lie l'axe qui bouge au TRIG (1) ou PITCH (2) du SNOT en apprentissage
-        for ni = 1, 4 do local sn = samt_notes[ni]
+        for ni = 1, SNOT_N do local sn = samt_notes[ni]
           if sn.learn == 1 then sn.trig = key ; sn.learn = 0
           elseif sn.learn == 2 then sn.pitch = key ; sn.learn = 0 end
         end
@@ -3338,7 +3337,7 @@ function state_save()
     local samt = {}
     for s = 1, 4 do samt[s] = { key = samt_slot[s].key, dest = samt_slot[s].dest } end   -- mappings capteurs
     local snots = {}
-    for s = 1, 4 do local sn = samt_notes[s]                                              -- 4 instruments SNOT
+    for s = 1, SNOT_N do local sn = samt_notes[s]                                          -- SNOT instruments
       snots[s] = { trig = sn.trig, pitch = sn.pitch, dev = sn.dev, ch = sn.ch, lo = sn.lo, hi = sn.hi, thr = sn.thr } end
     local osco = { host = osco_host, port = osco_port, armed = osco_on, src = {}, on = {}, tmode = {} } -- config OSC OUT (armed persiste)
     for i = 1, OSCO_N do osco.src[i] = osco_lanes[i].src ; osco.on[i] = osco_lanes[i].on ; osco.tmode[i] = osco_lanes[i].tmode end
@@ -3414,7 +3413,7 @@ function state_load()
     if type(st.samt)=="table" then for s=1,4 do if st.samt[s] then samt_slot[s].key=st.samt[s].key ; samt_slot[s].dest=st.samt[s].dest or 1 end end end
     peru_grav=g(st.peru_grav,peru_grav) ; peru_sel=g(st.peru_sel,peru_sel) ; samt_thr=g(st.samt_thr,samt_thr)
     if st.samt_mind_on ~= nil then samt_mind_on = st.samt_mind_on end
-    if type(st.samt_notes)=="table" then for s=1,4 do local d=st.samt_notes[s] ; local sn=samt_notes[s]
+    if type(st.samt_notes)=="table" then for s=1,SNOT_N do local d=st.samt_notes[s] ; local sn=samt_notes[s]
       if d then sn.trig=d.trig ; sn.pitch=d.pitch
         sn.dev=g(d.dev,sn.dev) ; sn.ch=g(d.ch,sn.ch)
         sn.lo=g(d.lo,sn.lo) ; sn.hi=g(d.hi,sn.hi) ; sn.thr=g(d.thr,sn.thr) end end end
@@ -3721,7 +3720,7 @@ function init()
         end
       end end
       -- SNOT x4 : pour chaque instrument, geste sur son axe TRIG -> note MIDI ; hauteur depuis son axe PITCH
-      for ni = 1, 4 do
+      for ni = 1, SNOT_N do
         local sn = samt_notes[ni]
         if sn.on and sn.trig and samt_mon[sn.trig] then
           local ta = samt_mon[sn.trig]
@@ -4104,7 +4103,7 @@ function enc(n, d)
     end
     if page == 28 then os8_mod_src = util.clamp(os8_mod_src + d, 1, #MOD_SRC_NAMES) end
     if page == 29 then poto_mod_src = util.clamp(poto_mod_src + d, 1, #MOD_SRC_NAMES) end
-    if page == 43 then samt_note_cur = util.clamp(samt_note_cur + d, 1, 4) end   -- MONITOR : choisit le SNOT cible (E3)
+    if page == 43 then samt_note_cur = util.clamp(samt_note_cur + d, 1, SNOT_N) end   -- MONITOR : choisit le SNOT cible (E3)
     if page == 35 then wifi_midi_ch = util.clamp(wifi_midi_ch + d, 1, 16) end
     if page == 37 then
       if cc_k1_down and cc_cursor >= 1 then
@@ -4193,7 +4192,7 @@ function enc(n, d)
       samt_thr = util.clamp(samt_thr + d * 0.01, 0, 0.4)   -- SAMT : threshold / deadzone (anti-bruit)
     elseif page == 44 then                                 -- SNOT : regle le champ du SNOT selectionne
       local c = samt_note_fld ; local sn = samt_notes[samt_note_cur]
-      if     c == 1 then samt_note_cur = util.clamp(samt_note_cur + d, 1, 4)   -- choisit le SNOT (1..4)
+      if     c == 1 then samt_note_cur = util.clamp(samt_note_cur + d, 1, SNOT_N)   -- choisit le SNOT (1..SNOT_N)
       elseif c == 4 then sn.dev = util.clamp(sn.dev + d, 1, 4)
       elseif c == 5 then sn.ch  = util.clamp(sn.ch  + d, 1, 16)
       elseif c == 6 then sn.lo  = util.clamp(sn.lo  + d, 0, 127)
@@ -4798,13 +4797,14 @@ function redraw()
     local sn = samt_notes[samt_note_cur]
     local f = samt_note_fld
     local function fld(i) return (f == i) and 15 or 5 end
-    -- en-tete : SNOT# (champ 1) + etat des 4 (pastille = arme, pleine = joue)
+    -- en-tete : SNOT# (champ 1) + etat des SNOT (pastille = arme, pleine = joue, cerclee = selectionne)
     screen.level(fld(1)) ; screen.move(2, 8) ; screen.text((f == 1 and ">" or " ") .. "SNOT" .. samt_note_cur)
-    for i = 1, 4 do
-      local s = samt_notes[i] ; local x = 44 + i * 9
+    for i = 1, SNOT_N do
+      local s = samt_notes[i] ; local x = 38 + i * 7
       if s.playing then screen.level(15) ; screen.circle(x, 5, 3) ; screen.fill()
       elseif s.on then screen.level(10) ; screen.circle(x, 5, 3) ; screen.stroke()
       else screen.level(3) ; screen.circle(x, 5, 2) ; screen.stroke() end
+      if i == samt_note_cur then screen.level(15) ; screen.circle(x, 5, 4) ; screen.stroke() end   -- SNOT courant
     end
     screen.level(sn.on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(sn.on and "ARME" or "off")
     -- TRIG (champ 2)
