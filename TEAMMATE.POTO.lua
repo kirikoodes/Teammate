@@ -2595,6 +2595,13 @@ samt_learn = 0                             -- >0 : le prochain axe qui bouge se 
 samt_cur   = 1                             -- slot selectionne sur la page
 samt_mon_off = 0                           -- MONITOR (page 43) : offset de defilement de la liste des axes
 samt_mon_cur = 1                           -- MONITOR : curseur d'axe (pour assigner TRIG/PITCH depuis la liste)
+samt_mon_cur_t = 0                          -- MONITOR : quand le curseur a atterri sur l'axe (dwell -> defilement du nom complet)
+function scroll_text(s, w)                  -- marquee : fait defiler s dans une fenetre de w caracteres (boucle)
+  if #s <= w then return s end
+  local full = s .. "   .   "
+  local pos = math.floor(util.time() * 4) % #full
+  return (full .. full):sub(pos + 1, pos + w)
+end
 -- SNOT (page 44) : instrument gestuel -> 1 axe declenche une note, 1 axe donne la hauteur, vers un device/canal MIDI.
 -- 4 SNOT INDEPENDANTS = un par capteur/danseur (chacun son axe trigger, son axe hauteur, son device/canal, sa plage).
 samt_notes = {
@@ -4085,6 +4092,7 @@ function enc(n, d)
     elseif page == 43 then
       local nax = 0 ; for _ in pairs(samt_mon) do nax = nax + 1 end
       samt_mon_cur = util.clamp(samt_mon_cur + d, 1, math.max(1, nax))   -- MONITOR : curseur d'axe (E2)
+      samt_mon_cur_t = util.time()                                       -- redemarre le dwell (defilement du nom)
     elseif page == 44 then
       samt_note_fld = util.clamp(samt_note_fld + d, 1, 8)   -- SNOT : champ selectionne (1=SNOT# ...)
     elseif page == 45 then
@@ -4771,7 +4779,9 @@ function redraw()
           local sel  = (idx == samt_mon_cur)
           local role = (sn.trig == k) and "T" or ((sn.pitch == k) and "P" or "")
           screen.level(sel and 15 or 4) ; screen.move(2, y) ; screen.text(sel and ">" or (role ~= "" and role or "-"))
-          screen.level(sel and 15 or (fresh and 12 or 7)) ; screen.move(12, y) ; screen.text(k:gsub("^/", ""):sub(1, 11))
+          local nm = k:gsub("^/", "")
+          local disp = (sel and (util.time() - (samt_mon_cur_t or 0)) > 1.0) and scroll_text(nm, 12) or nm:sub(1, 12)
+          screen.level(sel and 15 or (fresh and 12 or 7)) ; screen.move(12, y) ; screen.text(disp)
           if role ~= "" then screen.level(13) ; screen.move(86, y) ; screen.text_right(role) end
           local v = a and a.val or 0
           screen.level(4) ; screen.rect(96, y - 4, 28, 3) ; screen.stroke()
