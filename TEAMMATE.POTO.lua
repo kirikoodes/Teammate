@@ -4398,8 +4398,8 @@ function key(n, z)
       sn.on = not sn.on
       if not sn.on and sn.playing then local out = midi_outs[sn.dev] ; if out then out:note_off(sn.playing, 0, sn.ch) end ; sn.playing = nil end
     elseif key then
-      if n == 2 then sn.trig = key ; sn.on = true          -- K2 : axe surligne -> TRIG (+ arme le SNOT)
-      elseif n == 3 then sn.pitch = key end                -- K3 : axe surligne -> PITCH
+      if n == 2 then sn.trig = (sn.trig == key) and nil or key ; if sn.trig then sn.on = true end  -- K2 : TRIG (rappui sur le meme axe = EFFACE)
+      elseif n == 3 then sn.pitch = (sn.pitch == key) and nil or key end                            -- K3 : PITCH (rappui = EFFACE)
     end
     redraw() ; return
   end
