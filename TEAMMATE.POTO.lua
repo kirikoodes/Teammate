@@ -275,12 +275,10 @@ local MGEN_MUT_RATES = {0, 0.05, 0.12, 0.22, 0.40}
 local mgen_mut_rate  = MGEN_MUT_RATES[mgen_mut_idx]
 mgen_evo_meta        = false   -- Evo pilote par METABO (mode META, global)
 mgen_freeze          = false   -- FREEZE : fige les patterns (stop mutation + regen auto), global
--- ===== MGEN : longueur de sequence + feel (sortir du 2 mesures / 4-4) =====
+-- ===== MGEN : longueur de sequence PAR PISTE (sortir du 2 mesures / 4-4) =====
 MGEN_LEN_MULT  = {1, 2, 4, 8, 16}                  -- multiplie la longueur de base du genre (16/32 pas) : x16 -> jusqu'a 32 mesures
 MGEN_LEN_NAMES = {"COURT", "x2", "x4", "x8", "LONG"}
-mgen_len_idx   = 1                                 -- 1 = comportement d'origine (court)
-mgen_poly      = false                             -- FEEL : longueurs desynchronisees par piste -> phasing, moins 4-4
-MGEN_POLY_FAC  = {1, 1.5, 0.75, 1.25, 2, 0.5, 1.75, 1.125, 1.33, 0.66, 2.5, 0.875, 1.6, 3, 0.625, 2.25}  -- facteur par piste (16)
+MGEN_LEN_SPREAD = {1,3,2,4,1,5,2,3,4,2,5,1,3,2,4,1}  -- SPREAD (K2) : longueurs variees par piste -> polymetrie
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -302,6 +300,7 @@ for i = 1, 16 do
     step_cur  = 1,
     brk       = false,
     brk_type  = 1,
+    len_idx   = 1,    -- longueur de sequence PAR PISTE (index dans MGEN_LEN_MULT)
   }
 end
 
@@ -1432,8 +1431,7 @@ local function mgen_gen_seq(ci)
   local def = MGEN_STYLE_DEF[sn]
   local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
   -- octave inchange : fixe par gen_all a l'init ou par E3 (page 15)
-  local lmult = MGEN_LEN_MULT[mgen_len_idx] or 1
-  if mgen_poly then lmult = lmult * (MGEN_POLY_FAC[ci] or 1) end   -- longueurs differentes par piste -> phasing, moins 4-4
+  local lmult = MGEN_LEN_MULT[ch.len_idx or 1] or 1                -- longueur PROPRE a la piste
   ch.steps  = math.max(4, math.min(512, math.floor(def.steps * lmult + 0.5)))   -- 512 pas = 32 mesures max
   ch.seq    = {}
   local root    = mgen_root + (ch.octave - 4) * 12
@@ -3341,8 +3339,8 @@ function state_save()
   pcall(function()
     if not (norns and norns.state and norns.state.data) then return end
     util.make_dir(norns.state.data)
-    local mon, mmch = {}, {}
-    for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch end
+    local mon, mmch, mlen = {}, {}, {}
+    for i = 1, 16 do mon[i] = mgen_ch[i].on ; mmch[i] = mgen_ch[i].midi_ch ; mlen[i] = mgen_ch[i].len_idx end
     local cc_src, cc_lon, cc_num, cc_tmd = {}, {}, {}, {}
     for i = 1, 16 do cc_src[i] = cc_lanes[i].src ; cc_lon[i] = cc_lanes[i].on ; cc_num[i] = cc_lanes[i].num ; cc_tmd[i] = cc_lanes[i].tmode end
     local samt = {}
@@ -3371,7 +3369,7 @@ function state_save()
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
-      mgen_len_idx=mgen_len_idx, mgen_poly=mgen_poly,
+      mgen_len=mlen,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3448,12 +3446,11 @@ function state_load()
     if st.mgen_mut_idx then mgen_mut_idx=st.mgen_mut_idx ; mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx] or mgen_mut_rate end
     mgen_evo_meta=g(st.mgen_evo_meta,mgen_evo_meta) ; mgen_recall=g(st.mgen_recall,mgen_recall)
     if st.mgen_freeze ~= nil then mgen_freeze = st.mgen_freeze end
-    if st.mgen_len_idx then mgen_len_idx = util.clamp(st.mgen_len_idx, 1, #MGEN_LEN_MULT) end
-    if st.mgen_poly ~= nil then mgen_poly = st.mgen_poly end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
       if st.mgen_mch and st.mgen_mch[i] then mgen_ch[i].midi_ch=st.mgen_mch[i] end
+      if st.mgen_len and st.mgen_len[i] then mgen_ch[i].len_idx = util.clamp(st.mgen_len[i], 1, #MGEN_LEN_MULT) end
     end end
     if type(st.midi_route)=="table" then for s=1,8 do if type(st.midi_route[s])=="table" and midi_route[s] then
       for d=1,4 do if st.midi_route[s][d]~=nil then midi_route[s][d]=st.midi_route[s][d] end end end end end
@@ -4099,8 +4096,9 @@ function enc(n, d)
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
     elseif page == 38 then
-      mgen_len_idx = util.clamp(mgen_len_idx + d, 1, #MGEN_LEN_MULT)   -- E2 : longueur de sequence
-      if mgen_running then mgen_gen_all(true) end                     -- applique tout de suite
+      local ch = mgen_ch[mgen_sel_ch]                                 -- E2 : longueur de LA PISTE selectionnee
+      ch.len_idx = util.clamp((ch.len_idx or 1) + d, 1, #MGEN_LEN_MULT)
+      mgen_gen_seq(mgen_sel_ch)                                        -- regenere cette piste avec sa nouvelle longueur
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4203,6 +4201,8 @@ function enc(n, d)
       local ch = mgen_ch[mgen_sel_ch]
       ch.octave = util.clamp(ch.octave + d, 1, 7)
       mgen_gen_seq(mgen_sel_ch)
+    elseif page == 38 then
+      mgen_sel_ch = util.clamp(mgen_sel_ch + d, 1, 16)   -- E3 : choisit la piste a rallonger/raccourcir
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4291,9 +4291,12 @@ function key(n, z)
     elseif n == 3 then meta_shake_mgen() end
     redraw() ; return
   end
-  if page == 38 then                                   -- MGEN LONGUEUR / FEEL
-    if n == 2 then mgen_poly = not mgen_poly ; if mgen_running then mgen_gen_all(true) end   -- K2 : feel DROIT / POLY
-    elseif n == 3 then if mgen_running then mgen_gen_all(true) else mgen_gen_all() end end    -- K3 : nouvelle sequence
+  if page == 38 then                                   -- MGEN LONGUEUR PAR PISTE
+    if n == 2 then                                      -- K2 : SPREAD = longueurs variees sur toutes les pistes (polymetrie)
+      for i = 1, 16 do mgen_ch[i].len_idx = MGEN_LEN_SPREAD[i] or 1 ; mgen_gen_seq(i) end
+    elseif n == 3 then                                  -- K3 : nouvelle sequence
+      if mgen_running then mgen_gen_all(true) else mgen_gen_all() end
+    end
     redraw() ; return
   end
   if page == 28 then
@@ -4923,23 +4926,26 @@ function redraw()
   if page == 24 then niakaby.redraw_src() ; return end
   if page == 38 then
     screen.clear() ; screen.font_size(8)
+    local ch = mgen_ch[mgen_sel_ch]
+    local li = ch and ch.len_idx or 1
     screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN LONGUEUR")
     screen.level(8)  ; screen.move(126, 8) ; screen.text_right(mgen_running and "RUN" or "off")
-    screen.level(4)  ; screen.move(2, 22) ; screen.text("E2 LONGUEUR")
-    screen.level(15) ; screen.move(126, 22) ; screen.text_right(MGEN_LEN_NAMES[mgen_len_idx])
-    -- barre proportionnelle a la longueur
-    screen.level(4)  ; screen.rect(2, 25, 124, 2) ; screen.stroke()
-    screen.level(12) ; screen.rect(2, 25, 124 * (mgen_len_idx - 1) / (#MGEN_LEN_MULT - 1), 2) ; screen.fill()
-    -- mesures de la piste selectionnee (concret)
-    local ch = mgen_ch[mgen_sel_ch]
+    -- piste ciblee (E3) + sa longueur (E2)
+    screen.level(4)  ; screen.move(2, 22) ; screen.text("E3 PISTE")
+    screen.level(15) ; screen.move(126, 22) ; screen.text_right(string.format("ch%02d %s", mgen_sel_ch, (ch and ch.on) and "[X]" or "[ ]"))
+    screen.level(4)  ; screen.move(2, 34) ; screen.text("E2 LONGUEUR")
     local bars = (ch and ch.steps or 16) / 16
-    screen.level(6)  ; screen.move(2, 36)
-    screen.text(string.format("piste %d : %.3g mes.", mgen_sel_ch, bars))
-    screen.level(4)  ; screen.move(2, 48) ; screen.text("K2 FEEL")
-    screen.level(mgen_poly and 15 or 8) ; screen.move(126, 48)
-    screen.text_right(mgen_poly and "POLY (desync)" or "DROIT (4-4)")
-    screen.level(3)  ; screen.move(2, 58) ; screen.text(mgen_poly and "pistes desynchro = moins repetitif" or "toutes les pistes alignees")
-    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 nouvelle sequence")
+    screen.level(15) ; screen.move(126, 34) ; screen.text_right(string.format("%s  %.3g mes.", MGEN_LEN_NAMES[li], bars))
+    screen.level(4)  ; screen.rect(2, 37, 124, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 37, 124 * (li - 1) / (#MGEN_LEN_MULT - 1), 2) ; screen.fill()
+    -- apercu des longueurs de toutes les pistes (barres)
+    for i = 1, 16 do
+      local x = 2 + (i - 1) * 7.7
+      local h = 2 + 9 * ((mgen_ch[i].len_idx or 1) - 1) / (#MGEN_LEN_MULT - 1)
+      screen.level(i == mgen_sel_ch and 15 or (mgen_ch[i].on and 8 or 3))
+      screen.rect(x, 52 - h, 5, h) ; screen.fill()
+    end
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K2 SPREAD (polymetrie)  K3 new")
     screen.update() ; return
   end
   if page == 25 then
