@@ -1650,6 +1650,7 @@ local function mgen_start()
               mgen_nfreq = 440 * 2 ^ ((nn - 69) / 12)
               if vel / 127 > mgen_nenergy then mgen_nenergy = vel / 127 end
               if vel / 127 > (ch.energy or 0) then ch.energy = vel / 127 end   -- activite PAR PISTE (sources MG1-8)
+              ch.trig_t = util.time()   -- horodatage du dernier pas joue -> clignotant visuel (page 38)
               if niakaby and niakaby.hear then niakaby.hear("mgen", nn) end     -- memoire harmonique NIAKABY (si ecoute MGEN)
               for d = 1, 4 do
                 if midi_route[4][d] and midi_outs[d] then
@@ -4973,14 +4974,20 @@ function redraw()
     -- piste (E3)
     screen.level(4)  ; screen.move(2, 44) ; screen.text("E3 PISTE")
     screen.level((ch and ch.on) and 12 or 5) ; screen.move(126, 44) ; screen.text_right((ch and ch.on) and "ON" or "off")
-    -- apercu des longueurs des 16 pistes (barres)
+    -- apercu des 16 pistes : barre = longueur, CLIGNOTE (pleine + vif) a chaque pas joue
+    local nowt = util.time()
     for i = 1, 16 do
+      local c = mgen_ch[i]
       local x = 2 + (i - 1) * 7.7
-      local h = 2 + 7 * ((mgen_ch[i].len_idx or 1) - 1) / (#MGEN_LEN_MULT - 1)
-      screen.level(i == mgen_sel_ch and 15 or (mgen_ch[i].on and 8 or 3))
-      screen.rect(x, 55 - h, 5, h) ; screen.fill()
+      local h = 2 + 7 * ((c.len_idx or 1) - 1) / (#MGEN_LEN_MULT - 1)
+      local flash = c.on and (nowt - (c.trig_t or 0) < 0.12)   -- vient de jouer une note
+      local hh = flash and 9 or h
+      screen.level((not c.on) and 3 or (flash and 15 or (i == mgen_sel_ch and 11 or 6)))
+      screen.rect(x, 55 - hh, 5, hh) ; screen.fill()
     end
-    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 nouvelle sequence")
+    -- position de lecture de la piste selectionnee (playhead chiffre)
+    screen.level(4)  ; screen.move(2, 64) ; screen.text(string.format("pas %d/%d", ch and ch.step_cur or 0, ch and ch.steps or 0))
+    screen.level(4)  ; screen.move(126, 64) ; screen.text_right("K3 new")
     screen.update() ; return
   end
   if page == 25 then
