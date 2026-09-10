@@ -530,6 +530,7 @@ local function play_event(ev, rate_mult, mstream, pan)
   local imp_vel  = math.max(1, math.min(127, math.floor(ev.rms * 800)))
   if style.on then imp_vel = style.vel_scale(imp_vel) end   -- STYLE : ta dynamique
   midi_note_on(mstream or 1, imp_note, imp_vel)         -- stream 1 = IMPRO ; 8 = PERU
+  if niakaby and niakaby.hear then niakaby.hear((mstream or 1) == 1 and "comp" or nil, imp_note) end  -- memoire harmonique NIAKABY (COMP = impro)
   companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
   if (mstream or 1) == 1 then impro_energy = math.max(impro_energy, imp_vel / 127) end   -- suivi d'enveloppe de l'impro (pour PERU src=IMPRO, continu)
 
@@ -1617,6 +1618,7 @@ local function mgen_start()
               mgen_nfreq = 440 * 2 ^ ((nn - 69) / 12)
               if vel / 127 > mgen_nenergy then mgen_nenergy = vel / 127 end
               if vel / 127 > (ch.energy or 0) then ch.energy = vel / 127 end   -- activite PAR PISTE (sources MG1-8)
+              if niakaby and niakaby.hear then niakaby.hear("mgen", nn) end     -- memoire harmonique NIAKABY (si ecoute MGEN)
               for d = 1, 4 do
                 if midi_route[4][d] and midi_outs[d] then
                   local out = midi_outs[d]
@@ -2358,6 +2360,7 @@ else
     on = false, scale_idx = 1, octave = 0, chord_idx = 1,
     src = { input = true, metabo = false, comp = false, mgen = false },
     src_keys = {"input","metabo","comp","mgen"}, src_cursor = 1,
+    mode = 1, hear = function() end, harmonic_step = function() end,
     update = function() end,
     enc    = function() end,
     key    = function() end,
@@ -3367,6 +3370,7 @@ function state_save()
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
       m_react=metabolik.react, m_infl=metabolik.influence_idx,
       n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
+      n_mode=niakaby.mode, n_prog=niakaby.prog_idx,
     }
     tab.save(st, norns.state.data .. "state.data")
   end)
@@ -3453,6 +3457,7 @@ function state_load()
     metabolik.react=g(st.m_react,metabolik.react) ; metabolik.influence_idx=g(st.m_infl,metabolik.influence_idx)
     niakaby.scale_idx=g(st.n_scale,niakaby.scale_idx) ; niakaby.octave=g(st.n_oct,niakaby.octave)
     niakaby.chord_idx=g(st.n_chord,niakaby.chord_idx)
+    niakaby.mode=g(st.n_mode,niakaby.mode) ; niakaby.prog_idx=g(st.n_prog,niakaby.prog_idx)
     if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
   end)
 end
@@ -3737,6 +3742,7 @@ function init()
             if out then
               if sn.playing then out:note_off(sn.playing, 0, sn.ch) end
               out:note_on(note, vel, sn.ch)
+              if niakaby and niakaby.hear then niakaby.hear("snot", note) end  -- memoire harmonique NIAKABY (SNOT)
               sn.playing = note ; sn.play_t = now
             end
           end
@@ -3843,6 +3849,7 @@ function init()
   -- AVATAR METABOLIK (mode METABO) : voix routee par la MATRICE (stream 6) + maj ~30 Hz
   metabolik.note_on  = function(note, vel)
     midi_note_on(6, note, vel)
+    niakaby.hear("metabo", note)                    -- memoire harmonique NIAKABY (si ecoute METABO)
     meta_freq = 440 * 2 ^ ((note - 69) / 12)        -- capture pour NIAKABY (source METABO)
     if vel / 127 > meta_energy then meta_energy = vel / 127 end
     if peru_on and #peru_dia > 0 then               -- PERU : chaque note de METABO fait chanter un diamant (musical)
@@ -3857,6 +3864,14 @@ function init()
   niakaby.note_on  = function(note, vel) midi_note_on(7, note, vel) end
   niakaby.note_off = function(note)      midi_note_off(7, note) end
   niakaby.metabo   = metabolik           -- lecture stress/croissance pour colorer les accords
+  niakaby.mgen_key = function() return mgen_root, MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]] end  -- FOLLOW/AUTO/BLEND cales sur gamme+tonique MGEN
+  -- PROGRESSION NIAKABY (FOLLOW/AUTO/BLEND) : 1 pas harmonique par mesure, cale sur l'horloge (BPM MGEN / clock externe)
+  clock.run(function()
+    while true do
+      clock.sync(4)
+      if niakaby.on and niakaby.harmonic_step and (niakaby.mode or 1) ~= 1 then pcall(niakaby.harmonic_step, 78) end
+    end
+  end)
 
   -- METABO >>> MGEN : secousses aleatoires, frequence = intensite x stress de la cellule
   clock.run(function()
@@ -3882,6 +3897,11 @@ function init()
       if s.comp   and comp_rms     > br and (comp_freq  or 0) > 30 then br=comp_rms ;     bf=comp_freq ;  bc=comp_centroid ; bfl=comp_flatness end
       if s.mgen   and mgen_nenergy > br and (mgen_nfreq or 0) > 30 then br=mgen_nenergy ; bf=mgen_nfreq ; bc=mgen_nfreq * 3 ; bfl=0.05 end
       niakaby.update(br, bf, bc, bfl, 1/30)
+      -- memoire harmonique (FOLLOW/BLEND) : l'INPUT nourrit le chroma une fois par hauteur distincte (equilibre avec les notes)
+      if s.input and (cur_gate or 0) > 0.5 and (cur_freq or 0) > 30 then
+        local im = freq_to_midi(cur_freq)
+        if im and im ~= niaka_last_in then niaka_last_in = im ; niakaby.hear("input", im) end
+      else niaka_last_in = nil end
     end
   end)
   clock.run(function()
