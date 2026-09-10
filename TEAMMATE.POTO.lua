@@ -275,6 +275,12 @@ local MGEN_MUT_RATES = {0, 0.05, 0.12, 0.22, 0.40}
 local mgen_mut_rate  = MGEN_MUT_RATES[mgen_mut_idx]
 mgen_evo_meta        = false   -- Evo pilote par METABO (mode META, global)
 mgen_freeze          = false   -- FREEZE : fige les patterns (stop mutation + regen auto), global
+-- ===== MGEN : longueur de sequence + feel (sortir du 2 mesures / 4-4) =====
+MGEN_LEN_MULT  = {1, 2, 4, 8, 16}                  -- multiplie la longueur de base du genre (16/32 pas) : x16 -> jusqu'a 32 mesures
+MGEN_LEN_NAMES = {"COURT", "x2", "x4", "x8", "LONG"}
+mgen_len_idx   = 1                                 -- 1 = comportement d'origine (court)
+mgen_poly      = false                             -- FEEL : longueurs desynchronisees par piste -> phasing, moins 4-4
+MGEN_POLY_FAC  = {1, 1.5, 0.75, 1.25, 2, 0.5, 1.75, 1.125, 1.33, 0.66, 2.5, 0.875, 1.6, 3, 0.625, 2.25}  -- facteur par piste (16)
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -1426,7 +1432,9 @@ local function mgen_gen_seq(ci)
   local def = MGEN_STYLE_DEF[sn]
   local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
   -- octave inchange : fixe par gen_all a l'init ou par E3 (page 15)
-  ch.steps  = def.steps
+  local lmult = MGEN_LEN_MULT[mgen_len_idx] or 1
+  if mgen_poly then lmult = lmult * (MGEN_POLY_FAC[ci] or 1) end   -- longueurs differentes par piste -> phasing, moins 4-4
+  ch.steps  = math.max(4, math.min(512, math.floor(def.steps * lmult + 0.5)))   -- 512 pas = 32 mesures max
   ch.seq    = {}
   local root    = mgen_root + (ch.octave - 4) * 12
   local cur_deg = math.random(#sc)
@@ -3181,7 +3189,7 @@ NAV_CATS = {
   { n = "IMPRO",  pg = {1,2,3,4},        arm = 8  },
   { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
   { n = "8OS",    pg = {6,8,28},         arm = 2  },
-  { n = "MGEN",   pg = {13,14,15,25,26}, arm = 3  },
+  { n = "MGEN",   pg = {13,14,15,38,25,26}, arm = 3  },
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
@@ -3363,6 +3371,7 @@ function state_save()
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
+      mgen_len_idx=mgen_len_idx, mgen_poly=mgen_poly,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3439,6 +3448,8 @@ function state_load()
     if st.mgen_mut_idx then mgen_mut_idx=st.mgen_mut_idx ; mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx] or mgen_mut_rate end
     mgen_evo_meta=g(st.mgen_evo_meta,mgen_evo_meta) ; mgen_recall=g(st.mgen_recall,mgen_recall)
     if st.mgen_freeze ~= nil then mgen_freeze = st.mgen_freeze end
+    if st.mgen_len_idx then mgen_len_idx = util.clamp(st.mgen_len_idx, 1, #MGEN_LEN_MULT) end
+    if st.mgen_poly ~= nil then mgen_poly = st.mgen_poly end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -4087,6 +4098,9 @@ function enc(n, d)
       niakaby.enc_src(2, d)
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
+    elseif page == 38 then
+      mgen_len_idx = util.clamp(mgen_len_idx + d, 1, #MGEN_LEN_MULT)   -- E2 : longueur de sequence
+      if mgen_running then mgen_gen_all(true) end                     -- applique tout de suite
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4275,6 +4289,11 @@ function key(n, z)
   if page == 25 then
     if n == 2 then meta_mgen_scope = (meta_mgen_scope == 1) and 2 or 1
     elseif n == 3 then meta_shake_mgen() end
+    redraw() ; return
+  end
+  if page == 38 then                                   -- MGEN LONGUEUR / FEEL
+    if n == 2 then mgen_poly = not mgen_poly ; if mgen_running then mgen_gen_all(true) end   -- K2 : feel DROIT / POLY
+    elseif n == 3 then if mgen_running then mgen_gen_all(true) else mgen_gen_all() end end    -- K3 : nouvelle sequence
     redraw() ; return
   end
   if page == 28 then
@@ -4902,6 +4921,27 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 38 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("MGEN LONGUEUR")
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right(mgen_running and "RUN" or "off")
+    screen.level(4)  ; screen.move(2, 22) ; screen.text("E2 LONGUEUR")
+    screen.level(15) ; screen.move(126, 22) ; screen.text_right(MGEN_LEN_NAMES[mgen_len_idx])
+    -- barre proportionnelle a la longueur
+    screen.level(4)  ; screen.rect(2, 25, 124, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 25, 124 * (mgen_len_idx - 1) / (#MGEN_LEN_MULT - 1), 2) ; screen.fill()
+    -- mesures de la piste selectionnee (concret)
+    local ch = mgen_ch[mgen_sel_ch]
+    local bars = (ch and ch.steps or 16) / 16
+    screen.level(6)  ; screen.move(2, 36)
+    screen.text(string.format("piste %d : %.3g mes.", mgen_sel_ch, bars))
+    screen.level(4)  ; screen.move(2, 48) ; screen.text("K2 FEEL")
+    screen.level(mgen_poly and 15 or 8) ; screen.move(126, 48)
+    screen.text_right(mgen_poly and "POLY (desync)" or "DROIT (4-4)")
+    screen.level(3)  ; screen.move(2, 58) ; screen.text(mgen_poly and "pistes desynchro = moins repetitif" or "toutes les pistes alignees")
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 nouvelle sequence")
+    screen.update() ; return
+  end
   if page == 25 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("METABO>MGEN")
