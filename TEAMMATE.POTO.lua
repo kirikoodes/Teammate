@@ -1461,6 +1461,44 @@ local function mgen_gen_seq(ci)
   ch.step_cur = 1
 end
 
+-- change la LONGUEUR d'une piste SANS re-randomiser la melodie existante :
+-- on TRONQUE (garde le debut) ou on ETEND (garde tout + continue la marche sur le reste).
+-- Seul K3 (nouvelle sequence) ou un changement de style re-genere la melodie.
+function mgen_resize_seq(ci)   -- global (evite la limite de 200 locals du chunk principal)
+  local ch  = mgen_ch[ci]
+  local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[ch.style_idx]]
+  local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
+  local lmult  = MGEN_LEN_MULT[ch.len_idx or 1] or 1
+  local nsteps = math.max(4, math.min(512, math.floor(def.steps * lmult + 0.5)))
+  local old = ch.seq
+  if not old or #old == 0 then mgen_gen_seq(ci) ; return end    -- rien a garder : genere
+  if nsteps <= #old then
+    for s = #old, nsteps + 1, -1 do old[s] = nil end            -- tronque (debut intact)
+  else
+    local root = mgen_root + (ch.octave - 4) * 12
+    -- retrouve le degre du dernier pas pour continuer la marche sans rupture
+    local last = old[#old] and old[#old].note or root
+    local cur_deg, bd = 1, math.huge
+    for d = 1, #sc do for o = -3, 4 do
+      local nn = root + o * 12 + sc[d] ; if math.abs(nn - last) < bd then bd = math.abs(nn - last) ; cur_deg = d end
+    end end
+    for s = #old + 1, nsteps do
+      local note = math.max(0, math.min(127, root + sc[cur_deg]))
+      old[s] = { active = math.random() < def.density, note = note, vel = def.vel(s), gate = def.gate }
+      if math.random() < 0.55 then
+        local iv = def.intervals[math.random(#def.intervals)] ; if math.random() < 0.5 then iv = -iv end
+        local tgt, b2, b2d = note + iv, math.huge, cur_deg
+        for d2, semi in ipairs(sc) do for o = -2, 2 do
+          local nn = root + semi + o * 12 ; if math.abs(nn - tgt) < b2 then b2 = math.abs(nn - tgt) ; b2d = d2 end
+        end end
+        cur_deg = b2d
+      end
+    end
+  end
+  ch.steps = nsteps
+  if ch.step_cur > nsteps then ch.step_cur = ((ch.step_cur - 1) % nsteps) + 1 end
+end
+
 local function mgen_gen_all(keep_pos)
   -- soit on RAPPELLE une combinaison aimee (avec une legere variation), soit theme frais diversifie
   local recall = (#mgen_liked > 0 and mgen_recall > 0 and math.random() < mgen_recall) and mgen_liked[math.random(#mgen_liked)] or nil
@@ -4098,7 +4136,7 @@ function enc(n, d)
     elseif page == 38 then
       local ch = mgen_ch[mgen_sel_ch]                                 -- E2 : longueur de LA PISTE selectionnee
       ch.len_idx = util.clamp((ch.len_idx or 1) + d, 1, #MGEN_LEN_MULT)
-      mgen_gen_seq(mgen_sel_ch)                                        -- regenere cette piste avec sa nouvelle longueur
+      mgen_resize_seq(mgen_sel_ch)                                     -- redimensionne SANS changer la melodie existante
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4199,8 +4237,10 @@ function enc(n, d)
       mgen_gen_seq(mgen_sel_ch)
     elseif page == 15 then
       local ch = mgen_ch[mgen_sel_ch]
+      local oo = ch.octave
       ch.octave = util.clamp(ch.octave + d, 1, 7)
-      mgen_gen_seq(mgen_sel_ch)
+      local sh = (ch.octave - oo) * 12                                 -- transpose la melodie existante (pas de re-randomisation)
+      if sh ~= 0 and ch.seq then for _, st in ipairs(ch.seq) do st.note = math.max(0, math.min(127, st.note + sh)) end end
     elseif page == 38 then
       mgen_sel_ch = util.clamp(mgen_sel_ch + d, 1, 16)   -- E3 : choisit la piste a rallonger/raccourcir
     elseif page == 18 then
@@ -4292,8 +4332,8 @@ function key(n, z)
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN LONGUEUR PAR PISTE
-    if n == 2 then                                      -- K2 : SPREAD = longueurs variees sur toutes les pistes (polymetrie)
-      for i = 1, 16 do mgen_ch[i].len_idx = MGEN_LEN_SPREAD[i] or 1 ; mgen_gen_seq(i) end
+    if n == 2 then                                      -- K2 : SPREAD = longueurs variees sur toutes les pistes (polymetrie) SANS re-randomiser
+      for i = 1, 16 do mgen_ch[i].len_idx = MGEN_LEN_SPREAD[i] or 1 ; mgen_resize_seq(i) end
     elseif n == 3 then                                  -- K3 : nouvelle sequence
       if mgen_running then mgen_gen_all(true) else mgen_gen_all() end
     end
