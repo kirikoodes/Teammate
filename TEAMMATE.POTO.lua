@@ -4990,6 +4990,10 @@ function redraw()
         screen.rect(x, 55 - hh, 5, hh) ; screen.fill()
       end
     end
+    -- repere de SELECTION sous le slider en cours d'edition (pour ne pas le perdre avec le clignotant)
+    do local sx = 2 + (mgen_sel_ch - 1) * 7.7
+       screen.level(15) ; screen.rect(sx, 57, 5, 2) ; screen.fill()
+       screen.rect(sx + 2, 56, 1, 1) ; screen.fill() end
     -- position de lecture de la piste selectionnee (playhead chiffre)
     screen.level(4)  ; screen.move(2, 64) ; screen.text(string.format("pas %d/%d", ch and ch.step_cur or 0, ch and ch.steps or 0))
     screen.level(4)  ; screen.move(126, 64) ; screen.text_right("K3 new")
