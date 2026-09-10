@@ -45,7 +45,7 @@ M.prog_names = { "I-V-vi-IV", "I-vi-IV-V", "I-IV-V", "vi-IV-I-V", "ii-V-I", "I-i
 M.prog_idx   = 1
 
 -- ce que NIAKABY ecoute (combinable) -> harmonisation (NOTE) et memoire harmonique (FOLLOW/BLEND)
-M.src        = { input = true, metabo = false, comp = false, mgen = false, snot = false }
+M.src        = { input = true, metabo = false, comp = false, mgen = true, snot = false }  -- ecoute MGEN par defaut (FOLLOW suit MGEN)
 M.src_keys   = { "input", "metabo", "comp", "mgen", "snot" }
 M.src_labels = { "INPUT", "METABO", "COMP", "MGEN", "SNOT" }
 M.src_cursor = 1
@@ -168,26 +168,41 @@ function M.harmonic_step(vel)
   if not M.on or M.mode == 1 then return end   -- NOTE : gere par M.update
   vel = vel or 78
   local root, sc = key_now() ; local L = #sc
+  -- energie harmonique reellement entendue cette mesure (FOLLOW/BLEND)
+  local tot = 0 ; for i = 0, 11 do tot = tot + (M.chroma[i] or 0) end
   local deg
+  local restrike = true                         -- AUTO : re-declenche a chaque mesure (progression rythmee)
   if M.mode == 3 then                          -- AUTO : progression programmee
     local pr = M.progs[M.prog_idx]
     deg = ((pr[prog_pos] - 1) % L) + 1
     prog_pos = (prog_pos % #pr) + 1
   elseif M.mode == 2 then                       -- FOLLOW : deduit du chroma (hysteresis)
-    local best, bs = cur_deg or 1, -1
-    for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
-    local cs = cur_deg and chord_score(root, sc, cur_deg) or -1
-    deg = (not cur_deg or bs > cs * 1.25) and best or cur_deg
+    restrike = false                            -- FOLLOW : pad tenu, ne re-declenche QUE si l'accord change
+    if tot < 0.75 then
+      deg = cur_deg or 1                         -- rien d'audible : on TIENT l'accord (pas de saut arbitraire)
+    else
+      local best, bs = cur_deg or 1, -1
+      for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
+      local cs = cur_deg and chord_score(root, sc, cur_deg) or -1
+      deg = (not cur_deg or bs > cs * 1.25) and best or cur_deg
+    end
   else                                          -- BLEND : trame AUTO, corrigee si l'oreille est nette
     local pr = M.progs[M.prog_idx]
     local auto_deg = ((pr[prog_pos] - 1) % L) + 1
     prog_pos = (prog_pos % #pr) + 1
-    local best, bs = auto_deg, -1
-    for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
-    local as = chord_score(root, sc, auto_deg)
-    deg = (bs > math.max(as * 1.4, 1.5)) and best or auto_deg
+    if tot < 0.75 then
+      deg = auto_deg
+    else
+      local best, bs = auto_deg, -1
+      for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
+      local as = chord_score(root, sc, auto_deg)
+      deg = (bs > math.max(as * 1.4, 1.5)) and best or auto_deg
+    end
   end
-  play_chord(deg, 0, vel, root, sc)
+  -- ne re-declenche PAS un accord inchange (pad tenu -> ne casse pas le rythme)
+  if restrike or deg ~= cur_deg or not sounding then
+    play_chord(deg, 0, vel, root, sc)
+  end
   M.last_root = root + sc[((deg - 1) % L) + 1]
   for i = 0, 11 do M.chroma[i] = (M.chroma[i] or 0) * 0.35 end   -- oubli progressif
 end
