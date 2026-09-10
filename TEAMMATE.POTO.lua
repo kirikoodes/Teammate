@@ -1437,12 +1437,16 @@ local function mgen_gen_seq(ci)
   local def = MGEN_STYLE_DEF[sn]
   local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
   -- octave inchange : fixe par gen_all a l'init ou par E3 (page 15)
-  local lmult = MGEN_LEN_MULT[ch.len_idx or 1] or 1                -- longueur PROPRE a la piste
-  ch.steps  = math.max(4, math.min(512, math.floor(def.steps * lmult + 0.5)))   -- 512 pas = 32 mesures max
+  -- on genere TOUJOURS une sequence MAITRESSE longue (jusqu'a 512 pas = 32 mesures) ;
+  -- la longueur (ch.len_idx) n'est qu'une FENETRE dessus -> rallonger/raccourcir ne
+  -- re-tire JAMAIS de notes, ca montre juste plus ou moins de la meme sequence.
+  local master = math.max(4, math.min(512, def.steps * #MGEN_LEN_MULT))   -- def.steps * 16
+  local lmult  = MGEN_LEN_MULT[ch.len_idx or 1] or 1
+  ch.steps  = math.max(4, math.min(master, math.floor(def.steps * lmult + 0.5)))   -- fenetre de lecture
   ch.seq    = {}
   local root    = mgen_root + (ch.octave - 4) * 12
   local cur_deg = math.random(#sc)
-  for s = 1, def.steps do
+  for s = 1, master do
     local note = math.max(0, math.min(127, root + sc[cur_deg]))
     table.insert(ch.seq, {
       active = math.random() < def.density,
@@ -1467,42 +1471,18 @@ local function mgen_gen_seq(ci)
   ch.step_cur = 1
 end
 
--- change la LONGUEUR d'une piste SANS re-randomiser la melodie existante :
--- on TRONQUE (garde le debut) ou on ETEND (garde tout + continue la marche sur le reste).
--- Seul K3 (nouvelle sequence) ou un changement de style re-genere la melodie.
+-- change la LONGUEUR d'une piste = deplace juste la FENETRE de lecture sur la
+-- sequence maitresse. NE re-tire JAMAIS de notes : rallonger/raccourcir montre
+-- plus ou moins de la MEME sequence. (K3 / changement de style = seule regen.)
 function mgen_resize_seq(ci)   -- global (evite la limite de 200 locals du chunk principal)
   local ch  = mgen_ch[ci]
   local def = MGEN_STYLE_DEF[MGEN_STYLE_NAMES[ch.style_idx]]
-  local sc  = MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]]
-  local lmult  = MGEN_LEN_MULT[ch.len_idx or 1] or 1
-  local nsteps = math.max(4, math.min(512, math.floor(def.steps * lmult + 0.5)))
-  local old = ch.seq
-  if not old or #old == 0 then mgen_gen_seq(ci) ; return end    -- rien a garder : genere
-  if nsteps <= #old then
-    for s = #old, nsteps + 1, -1 do old[s] = nil end            -- tronque (debut intact)
-  else
-    local root = mgen_root + (ch.octave - 4) * 12
-    -- retrouve le degre du dernier pas pour continuer la marche sans rupture
-    local last = old[#old] and old[#old].note or root
-    local cur_deg, bd = 1, math.huge
-    for d = 1, #sc do for o = -3, 4 do
-      local nn = root + o * 12 + sc[d] ; if math.abs(nn - last) < bd then bd = math.abs(nn - last) ; cur_deg = d end
-    end end
-    for s = #old + 1, nsteps do
-      local note = math.max(0, math.min(127, root + sc[cur_deg]))
-      old[s] = { active = math.random() < def.density, note = note, vel = def.vel(s), gate = def.gate }
-      if math.random() < 0.55 then
-        local iv = def.intervals[math.random(#def.intervals)] ; if math.random() < 0.5 then iv = -iv end
-        local tgt, b2, b2d = note + iv, math.huge, cur_deg
-        for d2, semi in ipairs(sc) do for o = -2, 2 do
-          local nn = root + semi + o * 12 ; if math.abs(nn - tgt) < b2 then b2 = math.abs(nn - tgt) ; b2d = d2 end
-        end end
-        cur_deg = b2d
-      end
-    end
-  end
-  ch.steps = nsteps
-  if ch.step_cur > nsteps then ch.step_cur = ((ch.step_cur - 1) % nsteps) + 1 end
+  local lmult = MGEN_LEN_MULT[ch.len_idx or 1] or 1
+  local want  = math.max(4, math.min(512, math.floor(def.steps * lmult + 0.5)))
+  if not ch.seq or #ch.seq == 0 then mgen_gen_seq(ci) ; return end      -- rien : genere
+  if #ch.seq < want then mgen_gen_seq(ci) ; return end                  -- maitresse trop courte (etat ancien) : regenere au max
+  ch.steps = want                                                       -- simple fenetre : melodie inchangee
+  if ch.step_cur > ch.steps then ch.step_cur = ((ch.step_cur - 1) % ch.steps) + 1 end
 end
 
 local function mgen_gen_all(keep_pos)
