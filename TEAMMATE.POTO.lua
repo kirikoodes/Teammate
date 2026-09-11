@@ -283,12 +283,18 @@ MGEN_LEN_SPREAD = {1,3,2,4,1,5,2,3,4,2,5,1,3,2,4,1}  -- SPREAD (K2) : longueurs 
 MGEN_DIV_NAMES  = {"1/4","1/4T","1/8","1/8T","1/16","1/16T","1/32"}
 MGEN_DIV_PULSES = { 24,    16,    12,    8,     6,      4,      3 }   -- ...T = triolet ("en tiers")
 -- (defaut = 1/16 = index 5 = 6 pulses = comportement d'origine)
--- ===== FRAG : fragmenteur d'evenements MIDI (page 34) - 3 caracteres = les pyramides =====
-FRAG_NAMES = { "KHEOPS", "KHEPHREN", "MYKERINOS" }   -- KHEOPS=ratchets, KHEPHREN=clics Ikeda, MYKERINOS=bursts
-frag_on    = false
-frag_char  = 1        -- 1..3
-frag_amt   = 0.5      -- intensite 0..1
-frag_rand  = false    -- navigue aleatoirement entre les 3 caracteres
+-- ===== FRAG : SLICER MIDI global (page 34) - decoupe TOUT le MIDI (tous les channels) =====
+-- Le flux MIDI est gate par tranches : la barre est divisee en N tranches, et chaque
+-- caractere (les 3 pyramides) decide quelles tranches passent / sont coupees.
+FRAG_NAMES   = { "KHEOPS", "KHEPHREN", "MYKERINOS" }   -- KHEOPS=chaos, KHEPHREN=pointilliste (Ikeda), MYKERINOS=salves
+FRAG_SLICES  = { 1, 2, 4, 6, 8, 16, 32 }               -- nombre de tranches par barre
+frag_on         = false
+frag_char       = 1        -- 1..3
+frag_slices_idx = 5        -- index dans FRAG_SLICES (5 = 8 tranches)
+frag_amt        = 0.6      -- densite de decoupe 0..1 (interne pour l'instant)
+frag_rand       = false    -- navigue aleatoirement entre les 3 caracteres
+frag_open       = true     -- etat courant du gate (true = laisse passer)
+frag_idx        = 0        -- tranche courante (0..N-1) pour l'affichage
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -415,6 +421,7 @@ local function freq_to_midi(freq)
 end
 
 local function midi_note_on(stream, note, vel)
+  if frag_on and not frag_open then return end   -- SLICER : tranche coupee -> aucune note ne sort (tous les channels)
   for d = 1, 4 do
     if midi_route[stream][d] and midi_outs[d] then
       midi_outs[d]:note_on(note, vel, midi_ch[stream][d])
@@ -439,6 +446,7 @@ local function midi_cc_all(stream, cc, val)
   end
 end
 local function audio_midi_note_on(note, vel)
+  if frag_on and not frag_open then return end   -- SLICER : tranche coupee
   for d = 1, 4 do
     if midi_route[5][d] and midi_outs[d] then
       midi_outs[d]:note_on(note, vel, midi_ch_audio[d])
@@ -1562,48 +1570,31 @@ local function mgen_stop()
   end
 end
 
--- FRAG : joue une note MGEN, eventuellement FRAGMENTEE selon le caractere courant.
--- 1 coroutine par note (enchaine les sous-coups en interne) -> tient dans la duree du pas.
+-- SLICER : etat d'une tranche selon le caractere (pyramide). "mute" = coupe, sinon passe.
+-- Placeholders jouables (l'utilisateur affinera la decoupe de chaque mode).
+function frag_slice_state(c, idx, N, amt)   -- global (limite 200 locals)
+  if c == 1 then          -- KHEOPS : chaos, coupe aleatoire
+    return (math.random() < 0.30 + amt * 0.45) and "mute" or "play"
+  elseif c == 2 then      -- KHEPHREN : pointilliste (Ikeda) - ne laisse passer que des tranches eparses
+    local every = math.max(2, 5 - math.floor(amt * 3))          -- amt haut -> un peu plus dense
+    return (idx % every == 0) and "play" or "mute"
+  else                    -- MYKERINOS : salves (Nobuto) - passe en debut de demi-barre puis coupe
+    local half = math.max(1, math.floor(N / 2))
+    local pos  = idx % half
+    return (pos < math.max(1, math.floor(half * (0.7 - amt * 0.4)))) and "play" or "mute"
+  end
+end
+
+-- Sortie d'une note MGEN, coupee par le slicer si la tranche courante est mute.
 function frag_play(note, vel, ch, step_dur, gate)   -- global (limite 200 locals)
+  if frag_on and not frag_open then return end                  -- tranche coupee : rien ne sort
   local outs = {}
   for d = 1, 4 do if midi_route[4][d] and midi_outs[d] then outs[#outs + 1] = midi_outs[d] end end
   if #outs == 0 then return end
-  local function on(n, v)  for _, o in ipairs(outs) do o:note_on(n, v, ch) end end
-  local function off(n)    for _, o in ipairs(outs) do o:note_off(n, 0, ch) end end
-  if not frag_on or (frag_amt or 0) <= 0 then                    -- FRAG off : note normale
-    on(note, vel) ; clock.run(function() clock.sleep(step_dur * gate) ; off(note) end) ; return
-  end
-  local c   = frag_char
-  local amt = frag_amt
+  for _, o in ipairs(outs) do o:note_on(note, vel, ch) end
   clock.run(function()
-    if c == 1 then                                               -- KHEOPS : ratchet / roll (Aphex)
-      local n   = 2 + math.floor(amt * 6 + 0.5)                  -- 2..8 sous-coups
-      local sub = step_dur / n
-      for i = 1, n do
-        local nn = note + ((math.random() < amt * 0.3) and 12 * math.random(0, 1) or 0)  -- sauts d'octave
-        local vv = math.max(20, math.min(127, math.floor(vel * (0.55 + 0.55 * i / n))))  -- vel qui rampe
-        on(nn, vv) ; clock.sleep(sub * 0.8) ; off(nn) ; clock.sleep(sub * 0.2)
-      end
-    elseif c == 2 then                                           -- KHEPHREN : clics minimalistes (Ikeda), pointilliste
-      local n   = 4 + math.floor(amt * 12)                       -- jusqu'a 16 fenetres
-      local sub = step_dur / n
-      for i = 1, n do
-        if math.random() < (0.35 + amt * 0.45) then              -- beaucoup de silences (pointillisme)
-          local cl = math.min(sub * 0.4, 0.015)                  -- clic tres court
-          on(note, math.random(80, 124)) ; clock.sleep(cl) ; off(note) ; clock.sleep(sub - cl)
-        else
-          clock.sleep(sub)
-        end
-      end
-    else                                                          -- MYKERINOS : bursts / coupes (Nobuto)
-      if math.random() < (0.5 - amt * 0.3) then                  -- parfois : note nette qui passe
-        on(note, vel) ; clock.sleep(step_dur * gate) ; off(note)
-      else                                                        -- sinon : rafale dense sur la 1ere moitie puis silence
-        local n   = 3 + math.floor(amt * 9)
-        local sub = step_dur * 0.5 / n
-        for i = 1, n do on(note, math.random(60, 127)) ; clock.sleep(sub * 0.7) ; off(note) ; clock.sleep(sub * 0.3) end
-      end
-    end
+    clock.sleep(step_dur * gate)
+    for _, o in ipairs(outs) do o:note_off(note, 0, ch) end
   end)
 end
 
@@ -3440,7 +3431,7 @@ function state_save()
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       mgen_len=mlen, mgen_div=mdiv,
-      frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand,
+      frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_slices_idx=frag_slices_idx,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3521,6 +3512,7 @@ function state_load()
     if st.frag_char then frag_char = util.clamp(st.frag_char, 1, #FRAG_NAMES) end
     if st.frag_amt then frag_amt = util.clamp(st.frag_amt, 0, 1) end
     if st.frag_rand ~= nil then frag_rand = st.frag_rand end
+    if st.frag_slices_idx then frag_slices_idx = util.clamp(st.frag_slices_idx, 1, #FRAG_SLICES) end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -3823,7 +3815,7 @@ function init()
             local note = math.floor(lo + pv * (hi - lo) + 0.5)
             local vel  = math.floor(util.clamp(dv * 260, 64, 127))   -- velocite : plancher 64
             local out  = midi_outs[sn.dev]
-            if out then
+            if out and not (frag_on and not frag_open) then   -- SLICER : tranche coupee -> SNOT muet
               if sn.playing then out:note_off(sn.playing, 0, sn.ch) end
               out:note_on(note, vel, sn.ch)
               if niakaby and niakaby.hear then niakaby.hear("snot", note) end  -- memoire harmonique NIAKABY (SNOT)
@@ -3957,11 +3949,21 @@ function init()
     end
   end)
 
-  -- FRAG RANDOM : quand actif, erre entre les 3 caracteres (change parfois toutes les 2 mesures)
+  -- SLICER FRAG : gate tout le MIDI par tranches. La barre est divisee en N tranches ;
+  -- chaque tranche passe ou est coupee selon le caractere. RANDOM : erre entre les 3 a chaque barre.
   clock.run(function()
     while true do
-      clock.sync(8)
-      if frag_on and frag_rand and math.random() < 0.6 then frag_char = math.random(#FRAG_NAMES) end
+      local N = FRAG_SLICES[frag_slices_idx] or 8
+      clock.sync(4 / N)                                   -- grille de tranche (cale sur l'horloge)
+      if not frag_on then
+        frag_open = true ; frag_idx = 0
+      else
+        if frag_idx == 0 and frag_rand and math.random() < 0.5 then
+          frag_char = math.random(#FRAG_NAMES)            -- morph aleatoire entre les pyramides (par barre)
+        end
+        frag_open = (frag_slice_state(frag_char, frag_idx, N, frag_amt) ~= "mute")
+        frag_idx  = (frag_idx + 1) % N
+      end
     end
   end)
 
@@ -4184,7 +4186,7 @@ function enc(n, d)
       ch.len_idx = util.clamp((ch.len_idx or 1) + d, 1, #MGEN_LEN_MULT)
       mgen_resize_seq(mgen_sel_ch)                                     -- redimensionne SANS changer la melodie existante
     elseif page == 34 then
-      frag_amt = util.clamp(frag_amt + d * 0.05, 0, 1)                 -- FRAG : intensite
+      frag_slices_idx = util.clamp(frag_slices_idx + d, 1, #FRAG_SLICES)   -- FRAG : nombre de tranches
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -5023,23 +5025,31 @@ function redraw()
   if page == 24 then niakaby.redraw_src() ; return end
   if page == 34 then
     screen.clear() ; screen.font_size(8)
-    screen.level(15) ; screen.move(2, 8) ; screen.text("FRAGMENT")
+    local N = FRAG_SLICES[frag_slices_idx] or 8
+    screen.level(15) ; screen.move(2, 8) ; screen.text("FRAG SLICER")
     screen.level(frag_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(frag_on and "ON" or "off")
-    -- caractere (E3) : les 3 pyramides, le courant surligne
-    local ys = { 22, 32, 42 }
+    -- tranches (E2)
+    screen.level(4)  ; screen.move(2, 20) ; screen.text("E2 TRANCHES")
+    screen.level(15) ; screen.move(126, 20) ; screen.text_right(tostring(N))
+    -- rangee de cellules = les tranches ; la tranche courante est surlignee (playhead)
+    local cw = math.min(7.6, 124 / N)
+    for i = 0, N - 1 do
+      local x = 2 + i * cw
+      local cur = (i == frag_idx)
+      screen.level((not frag_on) and 3 or (cur and (frag_open and 15 or 8) or 5))
+      screen.rect(x, 24, math.max(2, cw - 1), 5) ; if cur then screen.fill() else screen.stroke() end
+    end
+    -- caractere (E3) : les 3 pyramides, courant surligne
+    local xs = { 2, 46, 92 }
     for i = 1, #FRAG_NAMES do
       local sel = (i == frag_char)
       screen.level((not frag_on) and 3 or (sel and 15 or 5))
-      screen.move(2, ys[i]) ; screen.text((sel and "> " or "  ") .. FRAG_NAMES[i])
-      if sel and frag_rand then screen.level(12) ; screen.move(126, ys[i]) ; screen.text_right("RND") end
+      screen.move(xs[i], 42) ; screen.text((sel and ">" or "") .. FRAG_NAMES[i])
     end
-    -- intensite (E2)
-    screen.level(4)  ; screen.move(2, 54) ; screen.text("E2 INTENS")
-    screen.level(15) ; screen.move(126, 54) ; screen.text_right(string.format("%d%%", math.floor(frag_amt * 100)))
-    screen.level(4)  ; screen.rect(2, 57, 124, 2) ; screen.stroke()
-    screen.level(12) ; screen.rect(2, 57, 124 * frag_amt, 2) ; screen.fill()
-    screen.level(4)  ; screen.move(2, 64) ; screen.text("E3 caractere")
-    screen.level(frag_rand and 15 or 4) ; screen.move(126, 64) ; screen.text_right("K2 RANDOM  K3 on")
+    screen.level(4)  ; screen.move(2, 54) ; screen.text("E3 caractere")
+    if frag_rand then screen.level(15) ; screen.move(126, 54) ; screen.text_right("RANDOM") end
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K2 random")
+    screen.level(4)  ; screen.move(126, 64) ; screen.text_right("K3 on/off")
     screen.update() ; return
   end
   if page == 38 then
