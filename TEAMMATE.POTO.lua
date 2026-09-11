@@ -5132,9 +5132,15 @@ function redraw()
     local cw = math.min(7.6, 124 / N)
     for i = 0, N - 1 do
       local x = 2 + i * cw
-      local cur = (i == frag_idx)
-      screen.level((not frag_on) and 3 or (cur and (frag_open and 15 or 8) or 5))
-      screen.rect(x, 24, math.max(2, cw - 1), 5) ; if cur then screen.fill() else screen.stroke() end
+      local w = math.max(2, cw - 1)
+      local cur   = (i == frag_idx)
+      local plays = frag_on and (frag_slice_state(frag_char, i, N, frag_amt) ~= "mute")   -- le vrai motif de l'entite
+      if plays then
+        screen.level(cur and 15 or 9) ; screen.rect(x, 24, w, 5) ; screen.fill()          -- tranche qui passe = pleine
+      else
+        screen.level(cur and 8 or 3)  ; screen.rect(x, 24, w, 5) ; screen.stroke()         -- tranche coupee = vide
+      end
+      if cur then screen.level(15) ; screen.rect(x, 31, w, 1) ; screen.fill() end          -- playhead dessous
     end
     -- caractere (E3) : les 3 pyramides, courant surligne
     local xs = { 2, 46, 92 }
