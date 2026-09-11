@@ -283,6 +283,12 @@ MGEN_LEN_SPREAD = {1,3,2,4,1,5,2,3,4,2,5,1,3,2,4,1}  -- SPREAD (K2) : longueurs 
 MGEN_DIV_NAMES  = {"1/4","1/4T","1/8","1/8T","1/16","1/16T","1/32"}
 MGEN_DIV_PULSES = { 24,    16,    12,    8,     6,      4,      3 }   -- ...T = triolet ("en tiers")
 -- (defaut = 1/16 = index 5 = 6 pulses = comportement d'origine)
+-- ===== FRAG : fragmenteur d'evenements MIDI (page 34) - 3 caracteres = les pyramides =====
+FRAG_NAMES = { "KHEOPS", "KHEPHREN", "MYKERINOS" }   -- KHEOPS=ratchets, KHEPHREN=clics Ikeda, MYKERINOS=bursts
+frag_on    = false
+frag_char  = 1        -- 1..3
+frag_amt   = 0.5      -- intensite 0..1
+frag_rand  = false    -- navigue aleatoirement entre les 3 caracteres
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -1556,6 +1562,51 @@ local function mgen_stop()
   end
 end
 
+-- FRAG : joue une note MGEN, eventuellement FRAGMENTEE selon le caractere courant.
+-- 1 coroutine par note (enchaine les sous-coups en interne) -> tient dans la duree du pas.
+function frag_play(note, vel, ch, step_dur, gate)   -- global (limite 200 locals)
+  local outs = {}
+  for d = 1, 4 do if midi_route[4][d] and midi_outs[d] then outs[#outs + 1] = midi_outs[d] end end
+  if #outs == 0 then return end
+  local function on(n, v)  for _, o in ipairs(outs) do o:note_on(n, v, ch) end end
+  local function off(n)    for _, o in ipairs(outs) do o:note_off(n, 0, ch) end end
+  if not frag_on or (frag_amt or 0) <= 0 then                    -- FRAG off : note normale
+    on(note, vel) ; clock.run(function() clock.sleep(step_dur * gate) ; off(note) end) ; return
+  end
+  local c   = frag_char
+  local amt = frag_amt
+  clock.run(function()
+    if c == 1 then                                               -- KHEOPS : ratchet / roll (Aphex)
+      local n   = 2 + math.floor(amt * 6 + 0.5)                  -- 2..8 sous-coups
+      local sub = step_dur / n
+      for i = 1, n do
+        local nn = note + ((math.random() < amt * 0.3) and 12 * math.random(0, 1) or 0)  -- sauts d'octave
+        local vv = math.max(20, math.min(127, math.floor(vel * (0.55 + 0.55 * i / n))))  -- vel qui rampe
+        on(nn, vv) ; clock.sleep(sub * 0.8) ; off(nn) ; clock.sleep(sub * 0.2)
+      end
+    elseif c == 2 then                                           -- KHEPHREN : clics minimalistes (Ikeda), pointilliste
+      local n   = 4 + math.floor(amt * 12)                       -- jusqu'a 16 fenetres
+      local sub = step_dur / n
+      for i = 1, n do
+        if math.random() < (0.35 + amt * 0.45) then              -- beaucoup de silences (pointillisme)
+          local cl = math.min(sub * 0.4, 0.015)                  -- clic tres court
+          on(note, math.random(80, 124)) ; clock.sleep(cl) ; off(note) ; clock.sleep(sub - cl)
+        else
+          clock.sleep(sub)
+        end
+      end
+    else                                                          -- MYKERINOS : bursts / coupes (Nobuto)
+      if math.random() < (0.5 - amt * 0.3) then                  -- parfois : note nette qui passe
+        on(note, vel) ; clock.sleep(step_dur * gate) ; off(note)
+      else                                                        -- sinon : rafale dense sur la 1ere moitie puis silence
+        local n   = 3 + math.floor(amt * 9)
+        local sub = step_dur * 0.5 / n
+        for i = 1, n do on(note, math.random(60, 127)) ; clock.sleep(sub * 0.7) ; off(note) ; clock.sleep(sub * 0.3) end
+      end
+    end
+  end)
+end
+
 local function mgen_start()
   if mgen_running then return end
   mgen_running = true
@@ -1635,7 +1686,7 @@ local function mgen_start()
               end
             end
             if active then
-              local nn, gd = note, pd * dvp * gate
+              local nn = note
               local mc = ch.midi_ch
               -- METABO impose sa note (recalee gamme MGEN, registre garde) selon meta_note_inf
               if meta_note_inf > 0 and metabolik.on and meta_freq > 30
@@ -1652,16 +1703,7 @@ local function mgen_start()
               if vel / 127 > (ch.energy or 0) then ch.energy = vel / 127 end   -- activite PAR PISTE (sources MG1-8)
               ch.trig_t = util.time()   -- horodatage du dernier pas joue -> clignotant visuel (page 38)
               if niakaby and niakaby.hear then niakaby.hear("mgen", nn) end     -- memoire harmonique NIAKABY (si ecoute MGEN)
-              for d = 1, 4 do
-                if midi_route[4][d] and midi_outs[d] then
-                  local out = midi_outs[d]
-                  out:note_on(nn, vel, mc)
-                  clock.run(function()
-                    clock.sleep(gd)
-                    if out then out:note_off(nn, 0, mc) end
-                  end)
-                end
-              end
+              frag_play(nn, vel, mc, pd * dvp, gate)   -- sortie MGEN (fragmentee si FRAG actif)
             end
           end
           ch.step_cur = (ch.step_cur % ch.steps) + 1
@@ -3215,7 +3257,7 @@ NAV_CATS = {
   { n = "IMPRO",  pg = {1,2,3,4},        arm = 8  },
   { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
   { n = "8OS",    pg = {6,8,28},         arm = 2  },
-  { n = "MGEN",   pg = {13,14,15,38,25,26}, arm = 3  },
+  { n = "MGEN",   pg = {13,14,15,38,34,25,26}, arm = 3  },
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
@@ -3398,6 +3440,7 @@ function state_save()
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       mgen_len=mlen, mgen_div=mdiv,
+      frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3474,6 +3517,10 @@ function state_load()
     if st.mgen_mut_idx then mgen_mut_idx=st.mgen_mut_idx ; mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx] or mgen_mut_rate end
     mgen_evo_meta=g(st.mgen_evo_meta,mgen_evo_meta) ; mgen_recall=g(st.mgen_recall,mgen_recall)
     if st.mgen_freeze ~= nil then mgen_freeze = st.mgen_freeze end
+    if st.frag_on ~= nil then frag_on = st.frag_on end
+    if st.frag_char then frag_char = util.clamp(st.frag_char, 1, #FRAG_NAMES) end
+    if st.frag_amt then frag_amt = util.clamp(st.frag_amt, 0, 1) end
+    if st.frag_rand ~= nil then frag_rand = st.frag_rand end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -3910,6 +3957,14 @@ function init()
     end
   end)
 
+  -- FRAG RANDOM : quand actif, erre entre les 3 caracteres (change parfois toutes les 2 mesures)
+  clock.run(function()
+    while true do
+      clock.sync(8)
+      if frag_on and frag_rand and math.random() < 0.6 then frag_char = math.random(#FRAG_NAMES) end
+    end
+  end)
+
   -- METABO >>> MGEN : secousses aleatoires, frequence = intensite x stress de la cellule
   clock.run(function()
     while true do
@@ -4128,6 +4183,8 @@ function enc(n, d)
       local ch = mgen_ch[mgen_sel_ch]                                 -- E2 : longueur de LA PISTE selectionnee
       ch.len_idx = util.clamp((ch.len_idx or 1) + d, 1, #MGEN_LEN_MULT)
       mgen_resize_seq(mgen_sel_ch)                                     -- redimensionne SANS changer la melodie existante
+    elseif page == 34 then
+      frag_amt = util.clamp(frag_amt + d * 0.05, 0, 1)                 -- FRAG : intensite
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4234,6 +4291,9 @@ function enc(n, d)
       if sh ~= 0 and ch.seq then for _, st in ipairs(ch.seq) do st.note = math.max(0, math.min(127, st.note + sh)) end end
     elseif page == 38 then
       mgen_sel_ch = util.clamp(mgen_sel_ch + d, 1, 16)   -- E3 : choisit la piste a rallonger/raccourcir
+    elseif page == 34 then
+      frag_char = util.clamp(frag_char + d, 1, #FRAG_NAMES)   -- E3 : choisit le caractere (pyramide)
+      frag_rand = false                                       -- choix manuel : sort du mode random
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4320,6 +4380,11 @@ function key(n, z)
   if page == 25 then
     if n == 2 then meta_mgen_scope = (meta_mgen_scope == 1) and 2 or 1
     elseif n == 3 then meta_shake_mgen() end
+    redraw() ; return
+  end
+  if page == 34 then                                   -- FRAG : fragmenteur MIDI (KHEOPS/KHEPHREN/MYKERINOS)
+    if n == 2 then frag_rand = not frag_rand           -- K2 : RANDOM (erre entre les 3 caracteres)
+    elseif n == 3 then frag_on = not frag_on end       -- K3 : on/off
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -4956,6 +5021,27 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 34 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("FRAGMENT")
+    screen.level(frag_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(frag_on and "ON" or "off")
+    -- caractere (E3) : les 3 pyramides, le courant surligne
+    local ys = { 22, 32, 42 }
+    for i = 1, #FRAG_NAMES do
+      local sel = (i == frag_char)
+      screen.level((not frag_on) and 3 or (sel and 15 or 5))
+      screen.move(2, ys[i]) ; screen.text((sel and "> " or "  ") .. FRAG_NAMES[i])
+      if sel and frag_rand then screen.level(12) ; screen.move(126, ys[i]) ; screen.text_right("RND") end
+    end
+    -- intensite (E2)
+    screen.level(4)  ; screen.move(2, 54) ; screen.text("E2 INTENS")
+    screen.level(15) ; screen.move(126, 54) ; screen.text_right(string.format("%d%%", math.floor(frag_amt * 100)))
+    screen.level(4)  ; screen.rect(2, 57, 124, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 57, 124 * frag_amt, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("E3 caractere")
+    screen.level(frag_rand and 15 or 4) ; screen.move(126, 64) ; screen.text_right("K2 RANDOM  K3 on")
+    screen.update() ; return
+  end
   if page == 38 then
     screen.clear() ; screen.font_size(8)
     local ch = mgen_ch[mgen_sel_ch]
