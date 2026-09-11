@@ -295,6 +295,15 @@ frag_amt        = 0.6      -- densite de decoupe 0..1 (interne pour l'instant)
 frag_rand       = false    -- navigue aleatoirement entre les 3 caracteres
 frag_open       = true     -- etat courant du gate (true = laisse passer)
 frag_idx        = 0        -- tranche courante (0..N-1) pour l'affichage
+-- ===== REP : REPETITEUR MIDI global (page 46) - 3 entites = le TEMPS grec =====
+-- Repete/roule chaque note qui sort (tous les channels). Le nombre de repetitions
+-- est LIE AU SON (velocite de la note). Meme grille que le slicer.
+REP_NAMES   = { "CHRONOS", "AION", "CHAOS" }   -- CHRONOS=regulier, AION=roulement qui enfle (cyclique), CHAOS=aleatoire
+REP_DIV     = { 1, 2, 4, 6, 8, 16, 32 }        -- vitesse des repetitions (par barre)
+rep_on      = false
+rep_char    = 1        -- 1..3
+rep_div_idx = 6        -- index dans REP_DIV (6 = 16 = double-croches)
+rep_rand    = false    -- erre entre les 3 entites
 local mclk_t           = {}   -- MIDI clock in : horodatages des pulses recus
 local mclk_active      = false
 local mclk_pulse_count = 0    -- compteur brut de pulses 0xF8 recus
@@ -422,13 +431,18 @@ end
 
 local function midi_note_on(stream, note, vel)
   if frag_on and not frag_open then return end   -- SLICER : tranche coupee -> aucune note ne sort (tous les channels)
+  if stream_energy and stream_energy[stream] then   -- suit l'activite du mode (meme sans device MIDI) -> source CC/OSC
+    stream_energy[stream] = math.max(stream_energy[stream], (vel or 0) / 127)
+  end
+  if rep_on then                                    -- REPETITEUR : roule la note (tous les channels)
+    local list = {}
+    for d = 1, 4 do if midi_route[stream][d] and midi_outs[d] then list[#list + 1] = { out = midi_outs[d], ch = midi_ch[stream][d] } end end
+    rep_fire(list, note, vel) ; return
+  end
   for d = 1, 4 do
     if midi_route[stream][d] and midi_outs[d] then
       midi_outs[d]:note_on(note, vel, midi_ch[stream][d])
     end
-  end
-  if stream_energy and stream_energy[stream] then   -- suit l'activite du mode (meme sans device MIDI) -> source CC/OSC
-    stream_energy[stream] = math.max(stream_energy[stream], (vel or 0) / 127)
   end
 end
 local function midi_note_off(stream, note)
@@ -447,6 +461,11 @@ local function midi_cc_all(stream, cc, val)
 end
 local function audio_midi_note_on(note, vel)
   if frag_on and not frag_open then return end   -- SLICER : tranche coupee
+  if rep_on then                                 -- REPETITEUR
+    local list = {}
+    for d = 1, 4 do if midi_route[5][d] and midi_outs[d] then list[#list + 1] = { out = midi_outs[d], ch = midi_ch_audio[d] } end end
+    rep_fire(list, note, vel) ; return
+  end
   for d = 1, 4 do
     if midi_route[5][d] and midi_outs[d] then
       midi_outs[d]:note_on(note, vel, midi_ch_audio[d])
@@ -1573,28 +1592,62 @@ end
 -- SLICER : etat d'une tranche selon le caractere (pyramide). "mute" = coupe, sinon passe.
 -- Placeholders jouables (l'utilisateur affinera la decoupe de chaque mode).
 function frag_slice_state(c, idx, N, amt)   -- global (limite 200 locals)
-  if c == 1 then          -- KHEOPS : chaos, coupe aleatoire
-    return (math.random() < 0.30 + amt * 0.45) and "mute" or "play"
-  elseif c == 2 then      -- KHEPHREN : pointilliste (Ikeda) - ne laisse passer que des tranches eparses
-    local every = math.max(2, 5 - math.floor(amt * 3))          -- amt haut -> un peu plus dense
-    return (idx % every == 0) and "play" or "mute"
-  else                    -- MYKERINOS : salves (Nobuto) - passe en debut de demi-barre puis coupe
-    local half = math.max(1, math.floor(N / 2))
-    local pos  = idx % half
-    return (pos < math.max(1, math.floor(half * (0.7 - amt * 0.4)))) and "play" or "mute"
+  if c == 1 then          -- KHEOPS : chaos - dispersion aleatoire dense, imprevisible
+    return (math.random() < 0.4) and "mute" or "play"
+  elseif c == 2 then      -- KHEPHREN : pointilliste (Ikeda) - points isoles tres espaces, tres vide
+    local step = math.max(2, math.floor(N / 2))                 -- ~2 impacts par barre
+    return (idx % step == 0) and "play" or "mute"
+  else                    -- MYKERINOS : salves - BLOCS contigus qui passent puis silence
+    local half = math.max(2, math.floor(N / 2))
+    local q    = math.max(1, math.floor(N / 4))
+    return ((idx % half) < q) and "play" or "mute"
   end
+end
+
+-- REPETITEUR : joue une note repetee selon l'entite (le temps grec). list = { {out=, ch=}, ... }.
+-- Le NOMBRE de repetitions est lie au SON (velocite). 1 coroutine/note.
+function rep_fire(list, note, vel)   -- global (limite 200 locals)
+  if #list == 0 then return end
+  local function on(n, v) for _, e in ipairs(list) do e.out:note_on(n, v, e.ch) end end
+  local function off(n)   for _, e in ipairs(list) do e.out:note_off(n, 0, e.ch) end end
+  local N    = REP_DIV[rep_div_idx] or 16
+  local bpm  = (mgen_bpm and mgen_bpm > 0) and mgen_bpm or 120
+  local rate = (60.0 / bpm) * (4 / N)                     -- duree d'une repetition (1 tranche)
+  local sv   = (vel or 90) / 127                          -- lien au son : plus fort = plus de repetitions
+  local c    = rep_char
+  clock.run(function()
+    if c == 1 then                                        -- CHRONOS : repetitions regulieres, mesurees
+      local k = 2 + math.floor(sv * 4)                    -- 2..6
+      for i = 1, k do on(note, vel) ; clock.sleep(rate * 0.9) ; off(note) ; clock.sleep(rate * 0.1) end
+    elseif c == 2 then                                    -- AION : roulement qui enfle et accelere (cyclique)
+      local k = 3 + math.floor(sv * 6)                    -- 3..9
+      for i = 1, k do
+        local v = math.min(127, math.floor(vel * (0.5 + 0.6 * i / k)))   -- crescendo
+        local r = rate * (1 - 0.45 * (i - 1) / k)                         -- accelere
+        on(note, v) ; clock.sleep(r * 0.9) ; off(note) ; clock.sleep(r * 0.1)
+      end
+    else                                                  -- CHAOS : repetitions aleatoires
+      local k = 2 + math.random(0, 3 + math.floor(sv * 5))
+      for i = 1, k do
+        local v = math.random(45, 127)
+        local r = rate * (0.4 + math.random() * 1.3)
+        on(note, v) ; clock.sleep(r * 0.85) ; off(note) ; clock.sleep(r * 0.15)
+      end
+    end
+  end)
 end
 
 -- Sortie d'une note MGEN, coupee par le slicer si la tranche courante est mute.
 function frag_play(note, vel, ch, step_dur, gate)   -- global (limite 200 locals)
   if frag_on and not frag_open then return end                  -- tranche coupee : rien ne sort
-  local outs = {}
-  for d = 1, 4 do if midi_route[4][d] and midi_outs[d] then outs[#outs + 1] = midi_outs[d] end end
-  if #outs == 0 then return end
-  for _, o in ipairs(outs) do o:note_on(note, vel, ch) end
+  local list = {}
+  for d = 1, 4 do if midi_route[4][d] and midi_outs[d] then list[#list + 1] = { out = midi_outs[d], ch = ch } end end
+  if #list == 0 then return end
+  if rep_on then rep_fire(list, note, vel) ; return end          -- REPETITEUR
+  for _, e in ipairs(list) do e.out:note_on(note, vel, e.ch) end
   clock.run(function()
     clock.sleep(step_dur * gate)
-    for _, o in ipairs(outs) do o:note_off(note, 0, ch) end
+    for _, e in ipairs(list) do e.out:note_off(note, 0, e.ch) end
   end)
 end
 
@@ -3248,7 +3301,7 @@ NAV_CATS = {
   { n = "IMPRO",  pg = {1,2,3,4},        arm = 8  },
   { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
   { n = "8OS",    pg = {6,8,28},         arm = 2  },
-  { n = "MGEN",   pg = {13,14,15,38,34,25,26}, arm = 3  },
+  { n = "MGEN",   pg = {13,14,15,38,34,46,25,26}, arm = 3  },
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
@@ -3432,6 +3485,7 @@ function state_save()
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       mgen_len=mlen, mgen_div=mdiv,
       frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_slices_idx=frag_slices_idx,
+      rep_on=rep_on, rep_char=rep_char, rep_div_idx=rep_div_idx, rep_rand=rep_rand,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3513,6 +3567,10 @@ function state_load()
     if st.frag_amt then frag_amt = util.clamp(st.frag_amt, 0, 1) end
     if st.frag_rand ~= nil then frag_rand = st.frag_rand end
     if st.frag_slices_idx then frag_slices_idx = util.clamp(st.frag_slices_idx, 1, #FRAG_SLICES) end
+    if st.rep_on ~= nil then rep_on = st.rep_on end
+    if st.rep_char then rep_char = util.clamp(st.rep_char, 1, #REP_NAMES) end
+    if st.rep_div_idx then rep_div_idx = util.clamp(st.rep_div_idx, 1, #REP_DIV) end
+    if st.rep_rand ~= nil then rep_rand = st.rep_rand end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -3817,9 +3875,9 @@ function init()
             local out  = midi_outs[sn.dev]
             if out and not (frag_on and not frag_open) then   -- SLICER : tranche coupee -> SNOT muet
               if sn.playing then out:note_off(sn.playing, 0, sn.ch) end
-              out:note_on(note, vel, sn.ch)
+              if rep_on then rep_fire({ { out = out, ch = sn.ch } }, note, vel) ; sn.playing = nil   -- REPETITEUR gere ses offs
+              else out:note_on(note, vel, sn.ch) ; sn.playing = note ; sn.play_t = now end
               if niakaby and niakaby.hear then niakaby.hear("snot", note) end  -- memoire harmonique NIAKABY (SNOT)
-              sn.playing = note ; sn.play_t = now
             end
           end
           if sn.playing and (util.time() - (sn.play_t or 0)) > 0.30 then   -- gate court
@@ -3964,6 +4022,14 @@ function init()
         frag_open = (frag_slice_state(frag_char, frag_idx, N, frag_amt) ~= "mute")
         frag_idx  = (frag_idx + 1) % N
       end
+    end
+  end)
+
+  -- REP RANDOM : erre entre les 3 entites du temps (par barre)
+  clock.run(function()
+    while true do
+      clock.sync(4)
+      if rep_on and rep_rand and math.random() < 0.5 then rep_char = math.random(#REP_NAMES) end
     end
   end)
 
@@ -4187,6 +4253,8 @@ function enc(n, d)
       mgen_resize_seq(mgen_sel_ch)                                     -- redimensionne SANS changer la melodie existante
     elseif page == 34 then
       frag_slices_idx = util.clamp(frag_slices_idx + d, 1, #FRAG_SLICES)   -- FRAG : nombre de tranches
+    elseif page == 46 then
+      rep_div_idx = util.clamp(rep_div_idx + d, 1, #REP_DIV)               -- REP : vitesse des repetitions
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4296,6 +4364,9 @@ function enc(n, d)
     elseif page == 34 then
       frag_char = util.clamp(frag_char + d, 1, #FRAG_NAMES)   -- E3 : choisit le caractere (pyramide)
       frag_rand = false                                       -- choix manuel : sort du mode random
+    elseif page == 46 then
+      rep_char = util.clamp(rep_char + d, 1, #REP_NAMES)      -- E3 : choisit l'entite (temps grec)
+      rep_rand = false
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4387,6 +4458,11 @@ function key(n, z)
   if page == 34 then                                   -- FRAG : fragmenteur MIDI (KHEOPS/KHEPHREN/MYKERINOS)
     if n == 2 then frag_rand = not frag_rand           -- K2 : RANDOM (erre entre les 3 caracteres)
     elseif n == 3 then frag_on = not frag_on end       -- K3 : on/off
+    redraw() ; return
+  end
+  if page == 46 then                                   -- REP : repetiteur MIDI (CHRONOS/AION/CHAOS)
+    if n == 2 then rep_rand = not rep_rand             -- K2 : RANDOM (erre entre les 3 entites)
+    elseif n == 3 then rep_on = not rep_on end         -- K3 : on/off
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -5023,6 +5099,27 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 46 then
+    screen.clear() ; screen.font_size(8)
+    local N = REP_DIV[rep_div_idx] or 16
+    screen.level(15) ; screen.move(2, 8) ; screen.text("REPETITEUR")
+    screen.level(rep_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(rep_on and "ON" or "off")
+    -- vitesse (E2)
+    screen.level(4)  ; screen.move(2, 20) ; screen.text("E2 VITESSE")
+    screen.level(15) ; screen.move(126, 20) ; screen.text_right(tostring(N) .. "/barre")
+    -- entites du temps (E3), courante surlignee
+    local xs = { 2, 48, 92 }
+    for i = 1, #REP_NAMES do
+      local sel = (i == rep_char)
+      screen.level((not rep_on) and 3 or (sel and 15 or 5))
+      screen.move(xs[i], 40) ; screen.text((sel and ">" or "") .. REP_NAMES[i])
+    end
+    screen.level(4)  ; screen.move(2, 52) ; screen.text("E3 entite (repetitions liees au son)")
+    screen.level(4)  ; screen.move(2, 62) ; screen.text("K2 random")
+    if rep_rand then screen.level(15) ; screen.move(64, 62) ; screen.text("RANDOM") end
+    screen.level(4)  ; screen.move(126, 62) ; screen.text_right("K3 on/off")
+    screen.update() ; return
+  end
   if page == 34 then
     screen.clear() ; screen.font_size(8)
     local N = FRAG_SLICES[frag_slices_idx] or 8
