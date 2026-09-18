@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pose Miroir</title>
+<style>
+  /* ================= Style Macintosh System 7 (début des années 90) ================= */
+  @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap');
+  /* Chicago (ChicagoFLF, domaine public — Robin Casady), fournie avec l'appli */
+  @font-face{font-family:"ChicagoFLF";src:url("fonts/ChicagoFLF.ttf") format("truetype");font-display:block}
+  :root{
+    --ink:#000; --paper:#fff; --grey:#bbb; --dim:#808080;
+    --chicago:"ChicagoFLF","Chicago","Charcoal","Pixelify Sans",system-ui,sans-serif;
+    --geneva:"Geneva","Verdana","Tahoma",sans-serif;
+    /* trame grise du bureau (damier 1 px) */
+    --dither: repeating-conic-gradient(#000 0 25%, #fff 0 50%) 0 0/2px 2px;
+    --dither-light: repeating-conic-gradient(#9a9a9a 0 25%, #fff 0 50%) 0 0/2px 2px;
+    --x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1 1L11 11M11 1L1 11' stroke='black' stroke-width='1.2' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+    --tri-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0H10L5 6Z'/%3E%3C/svg%3E");
+    --tri-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 6H10L5 0Z' fill='none' stroke='black'/%3E%3C/svg%3E");
+    --tri-dn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0H10L5 6Z' fill='none' stroke='black'/%3E%3C/svg%3E");
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;color:var(--ink);font:11px/1.45 var(--geneva);overflow:hidden;
+    background:#8c8c8c var(--dither-light);-webkit-font-smoothing:none;font-smooth:never}
+  body{display:flex;flex-direction:column}
+
+  /* ---------- barre de menus ---------- */
+  #menubar{flex:0 0 20px;height:20px;background:var(--paper);border-bottom:1px solid var(--ink);display:flex;align-items:stretch;
+    font:12px var(--chicago);user-select:none;position:relative;z-index:50}
+  #menubar .menu{position:relative;padding:0 10px;display:flex;align-items:center;cursor:default}
+  #menubar .menu.open,#menubar .menu:has(.drop:hover){background:var(--ink);color:var(--paper)}
+  #menubar .logo{padding:0 12px}
+  #menubar .logo i{display:block;width:14px;height:14px;border:1px solid var(--ink);border-radius:3px;
+    background:linear-gradient(#5ebd3e 0 17%,#ffb900 17% 33%,#f78200 33% 50%,#e23838 50% 67%,#973999 67% 83%,#009cdf 83%)}
+  #menubar .drop{display:none;position:absolute;left:0;top:19px;min-width:220px;background:var(--paper);color:var(--ink);
+    border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);padding:2px 0}
+  #menubar .menu.open .drop{display:block}
+  #menubar .drop div{padding:1px 18px;white-space:nowrap;display:flex;justify-content:space-between;gap:24px}
+  #menubar .drop div:hover{background:var(--ink);color:var(--paper)}
+  #menubar .drop div.dis{color:var(--dim);background:none}
+  #menubar .drop div.check::before{content:"✓";position:absolute;left:5px}
+  #menubar .drop hr{border:0;border-top:1px dotted var(--dim);margin:2px 0}
+  #menubar .drop kbd{font:inherit;opacity:.8}
+  #menubar .spacer{flex:1}
+  #clock{padding:0 12px;display:flex;align-items:center}
+
+  /* ---------- fenêtres ---------- */
+  #app{flex:1;display:flex;gap:12px;padding:12px;min-height:0}
+  .win{background:var(--paper);border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);display:flex;flex-direction:column;min-height:0}
+  .titlebar{flex:0 0 19px;height:19px;position:relative;border-bottom:1px solid var(--ink);background:var(--paper);
+    display:flex;align-items:center;justify-content:center;user-select:none}
+  .titlebar::before{content:"";position:absolute;left:2px;right:2px;top:3px;bottom:3px;
+    background:repeating-linear-gradient(var(--ink) 0 1px,var(--paper) 1px 2px)}
+  .titlebar .ttl{position:relative;background:var(--paper);padding:0 8px;font:12px var(--chicago);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
+  .titlebar .box{position:absolute;top:3px;width:13px;height:13px;border:1px solid var(--ink);background:var(--paper);
+    box-shadow:0 0 0 1px var(--paper);cursor:pointer;z-index:1}
+  .titlebar .box:active{background:var(--ink)}
+  .titlebar .close{left:8px}
+  .titlebar .zoom{right:8px}
+  .titlebar .zoom::after{content:"";position:absolute;left:1px;top:1px;width:6px;height:6px;border:1px solid var(--ink)}
+
+  #stage{flex:1;position:relative;min-width:0}
+  #stage .content{flex:1;position:relative;display:flex;flex-direction:column;min-height:0;background:#000}
+  #out{flex:1;width:100%;min-height:0;display:block}
+  #timeline{height:22px;width:100%;display:block;cursor:pointer;border-top:1px solid var(--ink)}
+  #hud{position:absolute;left:8px;top:8px;font:11px var(--chicago);color:var(--ink);background:var(--paper);
+    border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);padding:2px 7px;pointer-events:none;white-space:pre}
+  #hud:empty{display:none}
+  #count{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;
+    font:700 24vh var(--chicago);color:var(--paper);-webkit-text-stroke:4px var(--ink);paint-order:stroke}
+  #recDot{position:absolute;right:8px;top:8px;display:none;font:11px var(--chicago);background:var(--ink);color:var(--paper);
+    padding:2px 8px;border:1px solid var(--paper);animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{background:var(--paper);color:var(--ink);border-color:var(--ink)}}
+  /* boîte de dialogue d'accueil */
+  #msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:88%;pointer-events:none;
+    background:var(--paper);color:var(--ink);border:1px solid var(--ink);outline:3px solid var(--paper);
+    box-shadow:0 0 0 4px var(--ink),5px 5px 0 4px var(--ink);padding:14px 18px 14px 64px;line-height:1.7;font:12px/1.7 var(--geneva)}
+  /* petit Macintosh souriant */
+  #msg::before{content:"";position:absolute;left:18px;top:16px;width:30px;height:36px;border:2px solid var(--ink);border-radius:3px;
+    background:var(--paper);box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--ink),inset 0 -12px 0 0 var(--paper)}
+  #msg::after{content:"☺";position:absolute;left:25px;top:18px;font:15px/1 var(--chicago)}
+  #msg b{font:13px var(--chicago)}
+
+  #panel{width:340px;flex:0 0 340px}
+  #panel .pbody{flex:1;overflow-y:auto;padding:10px 12px 24px}
+  body.clean #panel{display:none}
+  @media (max-width:760px){
+    html,body{overflow:auto}
+    body{height:auto}
+    #app{flex-direction:column;height:auto}
+    #stage{height:60vh;flex:0 0 auto}
+    #panel{width:100%;flex:0 0 auto}
+    #panel .pbody{overflow:visible}
+    #menubar .menu:not(.logo){padding:0 6px}
+  }
+
+  /* ---------- contenu du panneau ---------- */
+  .about{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .about i{flex:0 0 28px;height:28px;border:1px solid var(--ink);border-radius:5px;box-shadow:1px 1px 0 var(--ink);
+    background:linear-gradient(#5ebd3e 0 17%,#ffb900 17% 33%,#f78200 33% 50%,#e23838 50% 67%,#973999 67% 83%,#009cdf 83%)}
+  h1{font:14px var(--chicago);margin:0}
+  .sub{font-size:10px;color:var(--dim)}
+  .live{position:relative;background:#000;border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);overflow:hidden;aspect-ratio:16/9}
+  .live canvas{width:100%;height:100%;display:block;object-fit:contain}
+  .live.flip canvas{transform:scaleX(-1)}
+  #cam,#scr{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+  body:not(.in-screen) .only-screen, body.in-screen .only-cam{display:none}
+  body:not(.mode-face) .only-face, body.mode-face .only-body{display:none}
+  .live.editing{cursor:crosshair;outline:2px dashed var(--ink);outline-offset:2px;animation:ants .6s steps(2) infinite}
+  @keyframes ants{50%{outline-color:var(--dim)}}
+  #status{font-size:10px;margin:5px 0 2px;min-height:15px}
+  h2{font:12px var(--chicago);margin:16px 0 6px;padding:0 0 2px;border-bottom:1px solid var(--ink);display:flex;gap:6px}
+  select,button{font:inherit}
+
+  /* boutons arrondis ; clic = inversion */
+  .row{display:flex;gap:8px;margin-bottom:8px}
+  .btn{flex:1;background:var(--paper);color:var(--ink);border:1px solid var(--ink);border-radius:7px;
+    padding:3px 6px;min-height:22px;font:12px var(--chicago);cursor:pointer;line-height:1.2}
+  .btn:active:not(:disabled),.btn.on{background:var(--ink);color:var(--paper)}
+  .btn:disabled{color:var(--dim);border-color:var(--dim);cursor:default}
+  /* bouton par défaut : double contour épais */
+  .btn.play{margin:4px 4px 2px;width:calc(100% - 8px) !important;min-height:30px;font-size:14px;border-radius:8px;
+    box-shadow:0 0 0 2px var(--paper),0 0 0 5px var(--ink)}
+  .btn.play:disabled{box-shadow:0 0 0 2px var(--paper),0 0 0 5px var(--dim)}
+  /* groupes de choix exclusifs (Corps/Visage, Caméra/Écran) */
+  .seg{display:flex;border:1px solid var(--ink);border-radius:7px;overflow:hidden;margin-bottom:10px;box-shadow:1px 1px 0 var(--ink)}
+  .seg button{flex:1;background:var(--paper);color:var(--ink);border:0;border-left:1px solid var(--ink);padding:4px 6px;cursor:pointer;font:12px var(--chicago)}
+  .seg button:first-child{border-left:0}
+  .seg button.on{background:var(--ink);color:var(--paper)}
+  .seg.small button{font-size:11px;padding:3px 4px}
+
+  /* menu local (popup) */
+  select{width:100%;appearance:none;-webkit-appearance:none;background:var(--paper) var(--tri-down) no-repeat right 8px center/9px 6px;
+    color:var(--ink);border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);border-radius:0;padding:2px 24px 2px 6px;margin-top:8px;font:12px var(--chicago)}
+
+  /* curseurs */
+  .sl{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:6px;font-size:11px;margin:4px 0}
+  .sl output{text-align:right;font:11px var(--chicago)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:transparent;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;background:var(--dither-light);border:1px solid var(--ink)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:16px;margin-top:-6px;background:var(--paper);
+    border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);border-radius:1px}
+  input[type=range]:active::-webkit-slider-thumb{background:var(--ink)}
+  input[type=range]::-moz-range-track{height:6px;background:var(--dither-light);border:1px solid var(--ink)}
+  input[type=range]::-moz-range-thumb{width:10px;height:15px;background:var(--paper);border:1px solid var(--ink);border-radius:1px}
+
+  /* cases à cocher : carré blanc, croix quand coché */
+  .ck{display:flex;align-items:flex-start;gap:7px;font-size:11px;margin:5px 0;cursor:pointer}
+  input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:0 0 12px;width:12px;height:12px;margin:2px 0 0;
+    border:1px solid var(--ink);background:var(--paper);cursor:pointer}
+  input[type=checkbox]:checked{background:var(--paper) var(--x) center/100% no-repeat}
+  input[type=checkbox]:active{border-width:2px}
+
+  /* barre de progression */
+  #prog{height:12px;border:1px solid var(--ink);background:var(--paper);margin:6px 0;display:none}
+  #prog i{display:block;height:100%;width:0;background:var(--ink)}
+
+  #info{font-size:11px;line-height:1.5}
+  .help{font-size:10px;color:#333;line-height:1.55;margin-top:5px}
+  .help kbd{font:10px var(--chicago);border:1px solid var(--ink);border-radius:3px;padding:0 3px;background:var(--paper);box-shadow:1px 1px 0 var(--ink)}
+
+  /* barres de défilement */
+  .pbody::-webkit-scrollbar{width:16px}
+  .pbody::-webkit-scrollbar-track{background:var(--dither-light);border-left:1px solid var(--ink)}
+  .pbody::-webkit-scrollbar-thumb{background:var(--paper);border:1px solid var(--ink);border-right:0}
+  .pbody::-webkit-scrollbar-button:single-button{display:block;height:16px;background:var(--paper) no-repeat center/9px 6px;border:1px solid var(--ink);border-right:0}
+  .pbody::-webkit-scrollbar-button:single-button:vertical:decrement{background-image:var(--tri-up)}
+  .pbody::-webkit-scrollbar-button:single-button:vertical:increment{background-image:var(--tri-dn)}
+  .pbody::-webkit-scrollbar-button:active{background-color:var(--ink)}
+  #menubar .drop div{position:relative}
+</style>
+</head>
+<body>
+<nav id="menubar">
+  <div class="menu logo" title="Pose Miroir"><i></i>
+    <div class="drop">
+      <div data-key="h">Réglages…</div>
+      <hr><div class="dis">Pose Miroir 1.0</div>
+    </div>
+  </div>
+  <div class="menu">Fichier
+    <div class="drop">
+      <div data-sel="#bImport">Importer une vidéo…</div>
+      <div data-sel="#bLoad">Ouvrir une séquence…</div>
+      <div data-sel="#bSave">Enregistrer la séquence</div>
+      <hr>
+      <div data-sel="#bRec">Filmer <kbd>R</kbd></div>
+    </div>
+  </div>
+  <div class="menu">Séquence
+    <div class="drop">
+      <div data-sel="#bPlay">Jouer / Arrêter <kbd>Espace</kbd></div>
+      <div data-sel="#bEnrich" data-on="#bEnrich">Enrichir en continu <kbd>E</kbd></div>
+      <div data-sel="#bUndoEnr">Annuler le dernier ajout</div>
+    </div>
+  </div>
+  <div class="menu">Mode
+    <div class="drop">
+      <div data-sel="[data-mode=body]" data-on="[data-mode=body]">Corps</div>
+      <div data-sel="[data-mode=face]" data-on="[data-mode=face]">Visage <kbd>V</kbd></div>
+      <hr>
+      <div data-sel="[data-in=cam]" data-on="[data-in=cam]">Entrée caméra</div>
+      <div data-sel="[data-in=screen]" data-on="[data-in=screen]">Entrée écran / onglet…</div>
+    </div>
+  </div>
+  <div class="menu">Affichage
+    <div class="drop">
+      <div data-key="f">Plein écran <kbd>F</kbd></div>
+      <div data-key="h">Afficher / masquer les réglages <kbd>H</kbd></div>
+      <hr>
+      <div data-chk="morph">Morphing</div>
+      <div data-chk="bridge">Images intermédiaires</div>
+      <div data-chk="skel">Tracés</div>
+      <div data-chk="flipOut">Retourner la sortie</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div id="clock"></div>
+</nav>
+<div id="app">
+  <main id="stage" class="win">
+    <div class="titlebar"><span class="box close" data-key="h" title="Afficher / masquer les réglages"></span><span class="ttl">Pose Miroir — Sortie</span><span class="box zoom" data-key="f" title="Plein écran"></span></div>
+    <div class="content">
+    <canvas id="out"></canvas>
+    <canvas id="timeline" title="Clic : aller à cette image (hors mode jeu)"></canvas>
+    <div id="hud"></div>
+    <div id="recDot">● REC</div>
+    <div id="count"></div>
+    <div id="msg"><b>Pose Miroir</b> · mode <span id="msgMode">CORPS</span><br>1. Filmez (ou importez) une séquence.<br>2. Choisissez « Jouer » : votre <span id="msgWhat">corps</span> pilote la vidéo.</div>
+    </div>
+  </main>
+
+  <aside id="panel" class="win">
+    <div class="titlebar"><span class="box close" data-key="h" title="Masquer les réglages"></span><span class="ttl">Réglages</span></div>
+    <div class="pbody">
+    <div class="about"><i></i><div><h1>Pose Miroir</h1><div class="sub">Tu bouges, la vidéo danse.</div></div></div>
+
+    <div class="seg" id="modeSeg">
+      <button data-mode="body">Corps</button>
+      <button data-mode="face">Visage</button>
+    </div>
+
+    <div class="live" id="liveBox"><canvas id="liveCv"></canvas></div>
+    <video id="cam" playsinline muted></video>
+    <div id="status">chargement du modèle…</div>
+    <video id="scr" playsinline muted></video>
+    <div class="seg small" id="inSeg" style="margin-top:8px">
+      <button data-in="cam">Caméra</button>
+      <button data-in="screen" title="Capturer un onglet (YouTube…), une fenêtre ou l'écran">Écran / onglet</button>
+    </div>
+    <select id="camSel" class="only-cam"></select>
+    <div class="row only-screen">
+      <button class="btn" id="bCrop" title="Tracer un rectangle sur l'aperçu autour de la vidéo / du danseur">Recadrer</button>
+      <button class="btn" id="bCropReset">Plein cadre</button>
+      <button class="btn" id="bScreenAgain" title="Choisir un autre onglet ou une autre fenêtre">Changer</button>
+    </div>
+
+    <h2>1 · Séquence <span id="h2Mode"></span></h2>
+    <div class="row">
+      <button class="btn rec" id="bRec" disabled>Filmer</button>
+      <button class="btn" id="bImport" disabled>Importer vidéo</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="bSave" disabled>Sauver</button>
+      <button class="btn" id="bLoad" disabled>Charger</button>
+    </div>
+    <div class="row">
+      <button class="btn enr" id="bEnrich" disabled title="Filme en continu et n'ajoute que les mouvements nouveaux (touche E)">Enrichir en continu</button>
+      <button class="btn" id="bUndoEnr" disabled title="Retire le dernier passage ajouté">Annuler ajout</button>
+    </div>
+    <div class="sl"><span>Nouveau si &lt; %</span><input type="range" id="novelty" min="50" max="99" step="1" value="88" title="Un mouvement est ajouté si sa ressemblance avec tout le corpus est sous ce seuil"><output></output></div>
+    <div class="help" id="enrInfo"></div>
+    <div id="prog"><i></i></div>
+    <div id="info">aucune séquence</div>
+
+    <h2>2 · Jeu</h2>
+    <button class="btn play" id="bPlay" disabled>Jouer</button>
+
+    <h2>Réglages</h2>
+    <div class="sl"><span>Inertie</span><input type="range" id="inertia" min="0" max="0.5" step="0.01" value="0.08"><output></output></div>
+    <div class="sl"><span>Mémoire geste</span><input type="range" id="window" min="1" max="6" step="1" value="3"><output></output></div>
+    <div class="sl"><span>Lissage</span><input type="range" id="smooth" min="0" max="0.9" step="0.05" value="0.35"><output></output></div>
+    <div class="sl"><span>Fondu image</span><input type="range" id="fade" min="0" max="0.9" step="0.05" value="0"><output></output></div>
+    <label class="ck"><input type="checkbox" id="morph" checked> Morphing entre les images (déformation guidée par les points)</label>
+    <div class="sl"><span>Durée morph</span><input type="range" id="morphMs" min="60" max="1500" step="20" value="400"><output></output></div>
+    <div class="sl"><span>Présence morph</span><input type="range" id="morphAmt" min="0" max="1" step="0.05" value="0.8" title="0 = fondu rapide ; 1 = l'image se déforme longtemps avant de se fondre dans la suivante"><output></output></div>
+    <label class="ck"><input type="checkbox" id="bridge" checked> Transitions par images intermédiaires (chemin de poses proches dans le corpus)</label>
+    <div class="sl"><span>Durée transition</span><input type="range" id="bridgeMs" min="150" max="1500" step="50" value="500"><output></output></div>
+    <div class="help" id="bridgeInfo"></div>
+    <div class="sl only-body"><span>Profondeur z</span><input type="range" id="zw" min="0" max="1" step="0.05" value="0.35"><output></output></div>
+    <div class="sl only-body"><span>Poids bras</span><input type="range" id="wArms" min="0" max="2" step="0.1" value="1.2"><output></output></div>
+    <div class="sl only-body"><span>Poids jambes</span><input type="range" id="wLegs" min="0" max="2" step="0.1" value="1"><output></output></div>
+    <div class="sl only-body"><span>Poids tronc</span><input type="range" id="wTorso" min="0" max="2" step="0.1" value="0.8"><output></output></div>
+    <div class="sl only-body"><span>Poids tête</span><input type="range" id="wHead" min="0" max="2" step="0.1" value="0.4"><output></output></div>
+    <div class="sl only-face"><span>Poids bouche</span><input type="range" id="wMouth" min="0" max="2" step="0.1" value="1.2"><output></output></div>
+    <div class="sl only-face"><span>Poids yeux</span><input type="range" id="wEyes" min="0" max="2" step="0.1" value="0.8"><output></output></div>
+    <div class="sl only-face"><span>Poids tête</span><input type="range" id="wHeadF" min="0" max="2" step="0.1" value="1"><output></output></div>
+    <label class="ck only-face"><input type="checkbox" id="faceZoom" checked> Zoom sur le visage (sortie)</label>
+    <div class="sl only-face"><span>Marge zoom</span><input type="range" id="faceMargin" min="1.2" max="5" step="0.1" value="2.2"><output></output></div>
+    <label class="ck only-face"><input type="checkbox" id="faceAutoZoom" checked> Auto-zoom visage sur l'entrée (trouve les petits visages, l'aperçu suit le visage)</label>
+    <label class="ck only-face"><input type="checkbox" id="faceFocus" checked> Focus visage à l'enregistrement (gros plan qui suit le visage, images sans visage ignorées)</label>
+    <div class="sl only-face"><span>Marge focus</span><input type="range" id="recMargin" min="1.2" max="4" step="0.1" value="1.9"><output></output></div>
+    <h2 class="only-face">Calage entre visages</h2>
+    <label class="ck only-face"><input type="checkbox" id="faceCal" checked> Caler les deux visages (neutre + amplitude de chacun)</label>
+    <div class="sl only-face"><span>Gain expr.</span><input type="range" id="exprGain" min="0.5" max="2.5" step="0.1" value="1"><output></output></div>
+    <div class="row only-face">
+      <button class="btn" id="bCalib" title="3 s : visage détendu, regarde la caméra">Calibrer mon neutre</button>
+      <button class="btn" id="bSeqNeutral" title="L'image affichée devient le visage neutre de la séquence (re-clic : automatique)">Neutre séquence</button>
+    </div>
+    <div class="row only-face"><button class="btn" id="bCalReset">Oublier mon calage</button></div>
+    <div class="help only-face" id="calInfo"></div>
+    <label class="ck"><input type="checkbox" id="mirror"> Miroir gauche↔droite (je tourne à droite → elle tourne à gauche)</label>
+    <label class="ck"><input type="checkbox" id="flipOut"> Retourner la vidéo de sortie</label>
+    <label class="ck"><input type="checkbox" id="flipLive" checked> Aperçu caméra en miroir</label>
+    <label class="ck"><input type="checkbox" id="skel"> Tracés sur la sortie (cyan = vidéo, rose = toi)</label>
+    <div class="sl"><span>FPS import</span><input type="range" id="impFps" min="10" max="60" step="5" value="30"><output></output></div>
+
+    <div class="help">
+      <kbd>V</kbd> corps/visage · <kbd>Espace</kbd> jouer/stop · <kbd>R</kbd> enregistrer/stop · <kbd>F</kbd> plein écran · <kbd>H</kbd> masquer le panneau · <kbd>←</kbd><kbd>→</kbd> parcourir la séquence
+    </div>
+    </div>
+  </aside>
+</div>
+<!-- pas de display:none : requestVideoFrameCallback ne tourne que sur une vidéo rendue -->
+<video id="impVid" muted playsinline style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
+<input type="file" id="fVid" accept="video/*" hidden>
+<input type="file" id="fSeq" accept=".poseseq" hidden>
+
+<script type="module">
+import { PoseLandmarker, FaceLandmarker, FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+import Delaunator from "https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm";
+
+const $ = id => document.getElementById(id);
+const VISION = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+/* ============================================================
+   MODE CORPS : os comparés (directions 3D normalisées)
+   -> invariant à la taille, à la position dans l'image et aux
+      proportions du corps : seules comptent les orientations.
+   ============================================================ */
+const SWAP = Array.from({length:33}, (_, i) => i);
+[[1,4],[2,5],[3,6],[7,8],[9,10],[11,12],[13,14],[15,16],[17,18],[19,20],[21,22],
+ [23,24],[25,26],[27,28],[29,30],[31,32]].forEach(([a,b]) => { SWAP[a]=b; SWAP[b]=a; });
+const G = {ARMS:0, LEGS:1, TORSO:2, HEAD:3};
+const BONES = [
+  [11,13,G.ARMS],[13,15,G.ARMS],[12,14,G.ARMS],[14,16,G.ARMS],[15,19,G.ARMS],[16,20,G.ARMS],
+  [23,25,G.LEGS],[25,27,G.LEGS],[24,26,G.LEGS],[26,28,G.LEGS],[27,31,G.LEGS],[28,32,G.LEGS],
+  [11,12,G.TORSO],[23,24,G.TORSO],[11,23,G.TORSO],[12,24,G.TORSO],
+  [11,0,G.HEAD],[12,0,G.HEAD],
+];
+const NB = BONES.length;
+const BODY_LINKS = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],
+  [24,26],[26,28],[27,31],[28,32],[27,29],[28,30],[15,19],[16,20],[0,11],[0,12]];
+const LM = 6; // par point : wx, wy, wz, visibilité, x image, y image
+
+function packPose(res){
+  if (!res || !res.landmarks || !res.landmarks.length) return null;
+  const img = res.landmarks[0], w = res.worldLandmarks[0];
+  const a = new Float32Array(33 * LM);
+  for (let i = 0; i < 33; i++){
+    const o = i * LM;
+    a[o] = w[i].x; a[o+1] = w[i].y; a[o+2] = w[i].z;
+    a[o+3] = img[i].visibility ?? 1;
+    a[o+4] = img[i].x; a[o+5] = img[i].y;
+  }
+  return a;
+}
+
+/* direction normalisée de chaque os -> f[b*3..], confiance -> v[b] */
+function boneFeatures(lm, mirror, f, fo, v, vo){
+  const zw = S.zw;
+  for (let b = 0; b < NB; b++){
+    let [p, q] = BONES[b];
+    if (mirror){ p = SWAP[p]; q = SWAP[q]; }
+    const P = p * LM, Q = q * LM;
+    let dx = lm[Q] - lm[P], dy = lm[Q+1] - lm[P+1], dz = (lm[Q+2] - lm[P+2]) * zw;
+    if (mirror) dx = -dx;
+    const n = Math.hypot(dx, dy, dz) || 1;
+    f[fo + b*3] = dx / n; f[fo + b*3 + 1] = dy / n; f[fo + b*3 + 2] = dz / n;
+    v[vo + b] = Math.min(lm[P+3], lm[Q+3]);
+  }
+}
+
+/* ============================================================
+   MODE VISAGE : 52 coefficients d'expression (blendshapes ARKit :
+   bouche, mâchoire, yeux, sourcils…) + orientation de la tête
+   (lacet / tangage / roulis). Indépendant de la taille du visage
+   et de sa place dans l'image.
+   ============================================================ */
+const BS_NAMES = ['_neutral','browDownLeft','browDownRight','browInnerUp','browOuterUpLeft','browOuterUpRight',
+  'cheekPuff','cheekSquintLeft','cheekSquintRight','eyeBlinkLeft','eyeBlinkRight','eyeLookDownLeft',
+  'eyeLookDownRight','eyeLookInLeft','eyeLookInRight','eyeLookOutLeft','eyeLookOutRight','eyeLookUpLeft',
+  'eyeLookUpRight','eyeSquintLeft','eyeSquintRight','eyeWideLeft','eyeWideRight','jawForward','jawLeft',
+  'jawOpen','jawRight','mouthClose','mouthDimpleLeft','mouthDimpleRight','mouthFrownLeft','mouthFrownRight',
+  'mouthFunnel','mouthLeft','mouthLowerDownLeft','mouthLowerDownRight','mouthPressLeft','mouthPressRight',
+  'mouthPucker','mouthRight','mouthRollLower','mouthRollUpper','mouthShrugLower','mouthShrugUpper',
+  'mouthSmileLeft','mouthSmileRight','mouthStretchLeft','mouthStretchRight','mouthUpperUpLeft',
+  'mouthUpperUpRight','noseSneerLeft','noseSneerRight'];
+const NBS = BS_NAMES.length;                        // 52
+const BS_INDEX = new Map(BS_NAMES.map((n, i) => [n, i]));
+const BS_SWAP = BS_NAMES.map((n, i) => {
+  const m = n.endsWith('Left') ? n.slice(0, -4) + 'Right' : n.endsWith('Right') ? n.slice(0, -5) + 'Left' : n;
+  const j = BS_NAMES.indexOf(m); return j < 0 ? i : j;
+});
+const EYE_IDX = [], MOUTH_IDX = [];
+BS_NAMES.forEach((n, i) => {
+  if (/^(eye|brow)/.test(n)) EYE_IDX.push(i);
+  else if (/^(mouth|jaw|cheek|nose)/.test(n)) MOUTH_IDX.push(i);
+});
+const F_ANG = NBS;              // lacet, tangage, roulis
+const F_BOX = NBS + 3;          // x0, y0, x1, y1 (image normalisée)
+const F_PTS = NBS + 7;          // points de contour (x, y) pour le tracé
+const FD = NBS + 3;             // dimension du vecteur comparé
+const FACE_CONN = ['FACE_LANDMARKS_FACE_OVAL','FACE_LANDMARKS_LIPS','FACE_LANDMARKS_LEFT_EYE','FACE_LANDMARKS_RIGHT_EYE',
+  'FACE_LANDMARKS_LEFT_EYEBROW','FACE_LANDMARKS_RIGHT_EYEBROW','FACE_LANDMARKS_LEFT_IRIS','FACE_LANDMARKS_RIGHT_IRIS']
+  .flatMap(k => FaceLandmarker[k] || []);
+const FACE_IDX = [...new Set(FACE_CONN.flatMap(c => [c.start, c.end]))].sort((a, b) => a - b);
+const FACE_SLOT = new Map(FACE_IDX.map((idx, k) => [idx, k]));
+const FACE_LINKS = FACE_CONN.map(c => [FACE_SLOT.get(c.start), FACE_SLOT.get(c.end)]);
+
+function packFace(res){
+  if (!res || !res.faceLandmarks || !res.faceLandmarks.length) return null;
+  const pts = res.faceLandmarks[0];
+  const a = new Float32Array(F_PTS + FACE_IDX.length * 2);
+  // rangé par nom (robuste si l'ordre du modèle change)
+  (res.faceBlendshapes?.[0]?.categories || []).forEach((c, i) => {
+    const k = BS_INDEX.get(c.categoryName) ?? (i < NBS ? i : -1); if (k >= 0) a[k] = c.score;
+  });
+  const m = res.facialTransformationMatrixes?.[0]?.data;
+  if (m){ // colonne-major : r(ligne i, colonne j) = m[j*4 + i]
+    a[F_ANG]   = Math.asin(Math.max(-1, Math.min(1, -m[2])));   // lacet
+    a[F_ANG+1] = Math.atan2(m[6], m[10]);                       // tangage
+    a[F_ANG+2] = Math.atan2(m[1], m[0]);                        // roulis
+  }
+  let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+  for (const p of pts){ if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; }
+  a[F_BOX] = x0; a[F_BOX+1] = y0; a[F_BOX+2] = x1; a[F_BOX+3] = y1;
+  FACE_IDX.forEach((idx, k) => { a[F_PTS + 2*k] = pts[idx].x; a[F_PTS + 2*k + 1] = pts[idx].y; });
+  return a;
+}
+
+/* ---------- calage entre visages ----------
+   Chaque visage a son neutre (bouche un peu ouverte, sourcils bas…) et son
+   amplitude (très expressif ou pas). On ramène chaque coefficient à
+   (valeur - neutre) / amplitude, séparément pour la séquence et pour le live :
+   le sourire "à fond" de l'un correspond au sourire "à fond" de l'autre,
+   et la tête "droite" de chacun (caméra placée différemment) se correspond.
+   Neutre = 10e centile (expressions) / médiane (tête), ou une calibration.
+   Amplitude = 95e centile - neutre, avec un plancher contre le bruit.        */
+const MIN_RANGE_BS = 0.12, MIN_RANGE_ANG = 0.15;
+const pct = (sorted, p) => sorted[Math.round(p * (sorted.length - 1))];
+function faceStats(vecs, neutral){
+  if (vecs.length < 10) return null;
+  const base = new Float32Array(FD), range = new Float32Array(FD), col = new Float32Array(vecs.length);
+  for (let k = 0; k < FD; k++){
+    for (let i = 0; i < vecs.length; i++) col[i] = vecs[i][k];
+    col.sort();
+    if (k < NBS){
+      const b = neutral ? neutral[k] : pct(col, 0.1);
+      base[k] = b; range[k] = Math.max(MIN_RANGE_BS, pct(col, 0.95) - b);
+    } else {
+      const b = neutral ? neutral[k] : pct(col, 0.5);
+      base[k] = b; range[k] = Math.max(MIN_RANGE_ANG, pct(col, 0.95) - b, b - pct(col, 0.05));
+    }
+  }
+  return { base, range };
+}
+
+/* st = stats de calage (ou null : valeurs brutes), gain = exagère les expressions live */
+function faceFeatures(lm, mirror, f, fo, st, gain = 1){
+  const val = k => {
+    if (!st) return k < NBS ? lm[k] : lm[k] / 0.35;
+    const n = (lm[k] - st.base[k]) / st.range[k];
+    return k < NBS ? Math.max(-1, Math.min(2, n * gain)) : Math.max(-3, Math.min(3, n));
+  };
+  for (let i = 0; i < NBS; i++) f[fo + i] = val(mirror ? BS_SWAP[i] : i);
+  f[fo + F_ANG]   = mirror ? -val(F_ANG)   : val(F_ANG);
+  f[fo + F_ANG+1] = val(F_ANG+1);
+  f[fo + F_ANG+2] = mirror ? -val(F_ANG+2) : val(F_ANG+2);
+}
+
+/* état du calage live */
+const liveFace = { buf: [], neutral: null, stats: null, collect: null, lastCalc: 0 };
+const calOn = () => S.faceCal && !!corpora.face.stats;
+function liveFaceStats(){
+  if (!calOn()) return null;
+  // tant qu'on n'a pas assez vu la personne : son neutre calibré + amplitude de la séquence,
+  // sinon le calage de la séquence (= pas de correction)
+  if (liveFace.stats) return liveFace.stats;
+  if (liveFace.neutral) return { base: liveFace.neutral, range: corpora.face.stats.range };
+  return corpora.face.stats;
+}
+function recalcLiveFace(){
+  liveFace.lastCalc = performance.now();
+  liveFace.stats = liveFace.buf.length >= 45 ? faceStats(liveFace.buf.map(e => e.v), liveFace.neutral) : null;
+  updateCalInfo();
+}
+function updateCalInfo(){
+  const c = corpora.face, b = liveFace.buf;
+  const secs = b.length > 1 ? (b[b.length - 1].t - b[0].t) / 1000 : 0;
+  $('calInfo').textContent = !S.faceCal ? 'calage désactivé : valeurs brutes comparées'
+    : !c.stats ? "calage : en attente d'une séquence visage"
+    : `séquence : neutre ${c.neutralIdx != null ? 'image ' + (c.neutralIdx + 1) : 'auto'} · toi : neutre ${liveFace.neutral ? 'calibré' : 'auto'}, amplitude ${liveFace.stats ? 'apprise sur ' + secs.toFixed(0) + ' s' : 'en apprentissage (' + secs.toFixed(0) + ' s)'}`;
+  $('bSeqNeutral').classList.toggle('on', c.neutralIdx != null);
+}
+
+/* ============================================================
+   Les deux modes derrière la même interface
+   ============================================================ */
+const MODES = {
+  body: {
+    label:'CORPS', what:'corps', noun:'pose détectée', file:'danse',
+    D: NB * 3, hasVis: true,
+    task: 'pose',
+    pack: packPose,
+    feat: (lm, mirror, f, fo, v, vo) => boneFeatures(lm, mirror, f, fo, v, vo),
+    cost(c, j, f, v){
+      const gw = [S.wArms, S.wLegs, S.wTorso, S.wHead];
+      const cf = c.feats, cv = c.vis, fo = j * NB * 3, vo = j * NB;
+      let s = 0, ws = 0;
+      for (let b = 0; b < NB; b++){
+        const w = gw[BONES[b][2]] * v[b] * cv[vo + b];
+        if (w < 0.02) continue;
+        const d = f[b*3] * cf[fo + b*3] + f[b*3+1] * cf[fo + b*3+1] + f[b*3+2] * cf[fo + b*3+2];
+        s += w * (1 - d); ws += w;
+      }
+      return ws > 0.2 ? s / ws : 2;
+    },
+    sim: raw => 1 - raw * 2.5,
+    links: BODY_LINKS,
+    pt: (lm, i) => [lm[i*LM+4], lm[i*LM+5], lm[i*LM+3]],
+    bbox(lm){
+      let x0 = 1, y0 = 1, x1 = 0, y1 = 0, n = 0;
+      for (let i = 0; i < 33; i++){
+        if (lm[i*LM+3] < 0.4) continue;
+        const x = lm[i*LM+4], y = lm[i*LM+5]; n++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      return n > 1 ? [x0, y0, x1, y1] : [0, 0, 1, 1];
+    },
+  },
+  face: {
+    label:'VISAGE', what:'visage', noun:'visage détecté', file:'visage',
+    D: FD, hasVis: false,
+    task: 'face',
+    pack: packFace,
+    feat: (lm, mirror, f, fo, v, vo, st, gain) => faceFeatures(lm, mirror, f, fo, st, gain),
+    cost(c, j, f){
+      const cf = c.feats, o = j * FD;
+      let e = 0, m = 0, h = 0;
+      for (const k of EYE_IDX){ const d = f[k] - cf[o+k]; e += d * d; }
+      for (const k of MOUTH_IDX){ const d = f[k] - cf[o+k]; m += d * d; }
+      for (let k = F_ANG; k < F_ANG + 3; k++){ const d = f[k] - cf[o+k]; h += d * d; }
+      const ws = S.wEyes + S.wMouth + S.wHeadF;
+      if (ws <= 0) return 2;
+      return (S.wEyes * Math.sqrt(e) + S.wMouth * Math.sqrt(m) + S.wHeadF * Math.sqrt(h)) / ws;
+    },
+    sim: raw => 1 - raw * 1.5,
+    links: FACE_LINKS,
+    pt: (lm, k) => [lm[F_PTS + 2*k], lm[F_PTS + 2*k + 1], 1],
+    bbox: lm => [lm[F_BOX], lm[F_BOX+1], lm[F_BOX+2], lm[F_BOX+3]],
+  },
+};
+
+/* ---------------- état ---------------- */
+let fileset = null;
+const detectors = { body:null, face:null }, detLoading = {};
+let tsLast = 0;
+const nextTs = () => (tsLast = Math.max(tsLast + 1, performance.now()));
+let stream = null, busy = false;
+let recording = false, recArming = false, recStart = 0, recPending = [];
+let playing = false;
+const corpora = { body: emptyCorpus('body'), face: emptyCorpus('face') };
+let corpus;
+let curIdx = 0, matchIdx = -1, prevIdx = -1, lastRaw = null, liveLm = null;
+const history = [];               // {t, f, v} poses live récentes
+let smoothF = null;
+
+function emptyCorpus(kind){ return {graph:null, kind, fps:30, w:0, h:0, frames:[], feats:null, vis:null, valid:null, nValid:0, stats:null, neutralIdx:null}; }
+const M = () => MODES[S.mode];
+
+/* ---------------- réglages ---------------- */
+const S = {};
+const SL_IDS = ['inertia','window','smooth','fade','zw','wArms','wLegs','wTorso','wHead','wMouth','wEyes','wHeadF','faceMargin','exprGain','morphMs','morphAmt','bridgeMs','novelty','recMargin','impFps'];
+const CK_IDS = ['mirror','flipOut','flipLive','skel','faceZoom','faceCal','morph','faceFocus','faceAutoZoom','bridge'];
+function loadPrefs(){ try{ return JSON.parse(localStorage.getItem('poseMiroir') || '{}'); }catch{ return {}; } }
+function savePrefs(){ try{ localStorage.setItem('poseMiroir', JSON.stringify(S)); }catch{} }
+const prefs = loadPrefs();
+S.mode = prefs.mode === 'face' ? 'face' : 'body';
+corpus = corpora[S.mode];
+for (const id of SL_IDS){
+  const el = $(id), out = el.nextElementSibling;
+  if (prefs[id] != null) el.value = prefs[id];
+  const upd = () => { S[id] = +el.value; out.textContent = el.value; savePrefs(); if (id === 'zw') computeFeats(corpora.body); };
+  el.addEventListener('input', upd); S[id] = +el.value; out.textContent = el.value;
+}
+for (const id of CK_IDS){
+  const el = $(id);
+  if (prefs[id] != null) el.checked = prefs[id];
+  const upd = () => { S[id] = el.checked; savePrefs(); updateInputUI(); prevIdx = -1; dirtyBg = true; if (id === 'faceCal'){ computeFeats(corpora.face); updateCalInfo(); } if (id === 'faceAutoZoom') autoZoomReset(); };
+  el.addEventListener('change', upd); S[id] = el.checked;
+}
+
+/* ---------------- modèles (chargés à la demande) ---------------- */
+function loadDetector(kind){
+  if (detectors[kind]) return Promise.resolve(detectors[kind]);
+  if (detLoading[kind]) return detLoading[kind];
+  return detLoading[kind] = (async () => {
+    if (!fileset) fileset = await FilesetResolver.forVisionTasks(VISION + "/wasm");
+    const make = delegate => kind === 'body'
+      ? PoseLandmarker.createFromOptions(fileset, {
+          baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task", delegate },
+          runningMode:"VIDEO", numPoses:1,
+          minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5 })
+      : FaceLandmarker.createFromOptions(fileset, {
+          baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate },
+          runningMode:"VIDEO", numFaces:1,
+          outputFaceBlendshapes:true, outputFacialTransformationMatrixes:true,
+          minFaceDetectionConfidence:0.5, minFacePresenceConfidence:0.5, minTrackingConfidence:0.5 });
+    let det;
+    try { det = await make("GPU"); }
+    catch(e){ console.warn('GPU indisponible, CPU', e); det = await make("CPU"); }
+    detectors[kind] = det;
+    return det;
+  })().finally(() => { detLoading[kind] = null; });
+}
+
+async function setMode(m){
+  if (recording || recArming || busy) return;
+  if (m !== S.mode){
+    stopEnrich();
+    setPlaying(false);
+    S.mode = m; savePrefs(); autoZoomReset();
+    corpus = corpora[m];
+    clearCache(); crop = null;
+    history.length = 0; smoothF = null; liveLm = null; prevIdx = -1; lastRaw = null; dirtyBg = true;
+    curIdx = Math.max(0, corpus.valid ? corpus.valid.indexOf(1) : 0);
+  }
+  updateModeUI(); refreshInfo();
+  if (!detectors[m]){
+    setStatus(`chargement du modèle ${MODES[m].what}…`);
+    try { await loadDetector(m); if (S.mode === m) setStatus('prêt'); }
+    catch(e){ setStatus('modèle : ' + e.message); console.error(e); }
+  }
+}
+
+function updateModeUI(){
+  document.body.classList.toggle('mode-face', S.mode === 'face');
+  for (const b of $('modeSeg').children) b.classList.toggle('on', b.dataset.mode === S.mode);
+  $('h2Mode').textContent = '· ' + M().label;
+  $('msgMode').textContent = M().label;
+  $('msgWhat').textContent = M().what;
+}
+for (const b of $('modeSeg').children) b.onclick = () => setMode(b.dataset.mode);
+
+/* ---------------- caméra ---------------- */
+async function startCam(deviceId){
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  const video = { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} };
+  if (deviceId) video.deviceId = { exact: deviceId };
+  stream = await navigator.mediaDevices.getUserMedia({ video, audio:false });
+  const cam = $('cam');
+  cam.srcObject = stream;
+  await cam.play();
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  const cur = stream.getVideoTracks()[0].getSettings().deviceId;
+  $('camSel').innerHTML = devs.map((d, i) =>
+    `<option value="${d.deviceId}" ${d.deviceId === cur ? 'selected' : ''}>${d.label || 'Caméra ' + (i+1)}</option>`).join('');
+}
+$('camSel').addEventListener('change', e => startCam(e.target.value).catch(err => setStatus('caméra : ' + err.message)));
+
+function computeFeats(c = corpus){
+  const N = c.frames.length, md = MODES[c.kind];
+  if (!N){ c.feats = c.vis = c.valid = null; c.nValid = 0; c.stats = null; return; }
+  c.feats = new Float32Array(N * md.D);
+  c.vis = md.hasVis ? new Float32Array(N * NB) : null;
+  c.valid = new Uint8Array(N);
+  c.nValid = 0;
+  if (c.kind === 'face'){
+    const vecs = c.frames.filter(fr => fr.lm).map(fr => fr.lm);
+    const nlm = c.neutralIdx != null ? c.frames[c.neutralIdx]?.lm : null;
+    c.stats = S.faceCal ? faceStats(vecs, nlm) : null;
+  }
+  for (let i = 0; i < N; i++){
+    const lm = c.frames[i].lm;
+    if (!lm) continue;
+    md.feat(lm, false, c.feats, i * md.D, c.vis, i * NB, c.stats, 1);
+    c.valid[i] = 1; c.nValid++;
+  }
+  graphReset(c);
+  if (c === corpus){ smoothF = null; history.length = 0; prevIdx = -1; }
+  if (c.kind === 'face') updateCalInfo();
+}
+
+/* tableaux de features extensibles : le corpus grossit pendant l'enrichissement */
+function ensureCap(c, n){
+  const md = MODES[c.kind], cap = c.valid ? c.valid.length : 0;
+  if (n <= cap) return;
+  const nc = Math.max(256, n * 2);
+  const feats = new Float32Array(nc * md.D); if (c.feats) feats.set(c.feats);
+  const valid = new Uint8Array(nc); if (c.valid) valid.set(c.valid);
+  if (md.hasVis){ const vis = new Float32Array(nc * NB); if (c.vis) vis.set(c.vis); c.vis = vis; }
+  c.feats = feats; c.valid = valid;
+}
+/* ============================================================
+   GRAPHE DE TRANSITIONS ("ponts" d'images intermédiaires)
+   Pour chaque image : ses voisines dans le temps (i-1, i+1 du même passage)
+   + ses K images les plus ressemblantes ailleurs dans le corpus.
+   Quand la cible saute de A à B, on cherche (Dijkstra) le chemin A -> B
+   dont chaque pas est une petite différence de pose, et on le parcourt vite :
+   la transition traverse de vraies poses intermédiaires (+ morph entre chaque).
+   Construit en tâche de fond par petits morceaux (quelques ms par image).
+   ============================================================ */
+const GK = 10;
+function graphReset(c){
+  c.graph = { nb: null, w: null, done: 0, cap: 0 };
+}
+function graphEnsure(c, n){
+  const g = c.graph;
+  if (g.cap >= n) return;
+  const cap = Math.max(256, n * 2);
+  const nb = new Int32Array(cap * GK).fill(-1), w = new Float32Array(cap * GK).fill(Infinity);
+  if (g.nb){ nb.set(g.nb); w.set(g.w); }
+  g.nb = nb; g.w = w; g.cap = cap;
+}
+function pairCost(c, i, j){
+  const md = MODES[c.kind];
+  const f = c.feats.subarray(i * md.D, (i + 1) * md.D);
+  const v = md.hasVis ? c.vis.subarray(i * NB, (i + 1) * NB) : null;
+  return md.cost(c, j, f, v);
+}
+function graphInsert(g, i, j, d){
+  const o = i * GK;
+  if (d >= g.w[o + GK - 1]) return;
+  let k = GK - 1;
+  while (k > 0 && g.w[o + k - 1] > d){ g.w[o + k] = g.w[o + k - 1]; g.nb[o + k] = g.nb[o + k - 1]; k--; }
+  g.w[o + k] = d; g.nb[o + k] = j;
+}
+/* avance la construction pendant ~budget ms ; renvoie la progression 0..1 */
+function graphStep(c, budget){
+  if (!c.graph) graphReset(c);
+  const g = c.graph, N = c.frames.length;
+  if (!c.feats || g.done >= N) return 1;
+  graphEnsure(c, N);
+  const t0 = performance.now();
+  while (g.done < N && performance.now() - t0 < budget){
+    const j = g.done++;
+    if (!c.valid[j]) continue;
+    const sj = c.frames[j].seg || 0;
+    for (let i = 0; i < j; i++){
+      if (!c.valid[i]) continue;
+      if ((c.frames[i].seg || 0) === sj && j - i <= 2) continue;   // déjà voisines dans le temps
+      const d = pairCost(c, j, i);
+      graphInsert(g, j, i, d); graphInsert(g, i, j, d);
+    }
+  }
+  return N ? g.done / N : 1;
+}
+
+/* plus court chemin a -> b ; poids d'un pas = différence de pose, les gros pas coûtent beaucoup plus */
+function findBridge(c, a, b){
+  const g = c.graph, N = c.frames.length;
+  if (!g || g.done < N || !c.valid[a] || !c.valid[b]) return null;
+  const dist = new Map([[a, 0]]), prev = new Map(), heap = [[0, a]], seen = new Set();
+  const push = (d, n) => { heap.push([d, n]); let k = heap.length - 1; while (k > 0){ const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length){ heap[0] = last; let k = 0; for (;;){ const l = 2*k+1, r = l+1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+  const stepW = d => d + d * d * 12 + 0.01;
+  let expanded = 0;
+  while (heap.length && expanded < 6000){
+    const [d, n] = pop();
+    if (seen.has(n)) continue;
+    seen.add(n); expanded++;
+    if (n === b) break;
+    const relax = (m, cost) => {
+      if (m < 0 || m >= N || !c.valid[m] || seen.has(m)) return;
+      const nd = d + stepW(cost);
+      if (nd < (dist.get(m) ?? Infinity)){ dist.set(m, nd); prev.set(m, n); push(nd, m); }
+    };
+    const sn = c.frames[n].seg || 0;
+    for (const m of [n - 1, n + 1]) if (m >= 0 && m < N && (c.frames[m].seg || 0) === sn) relax(m, c.valid[m] ? pairCost(c, n, m) : 1);
+    for (let k = 0; k < GK; k++){ const m = g.nb[n * GK + k]; if (m >= 0) relax(m, g.w[n * GK + k]); }
+  }
+  if (!prev.has(b)) return null;
+  const full = [];
+  for (let n = b; n !== a; n = prev.get(n)) full.push(n);
+  full.reverse();
+  // simplification : on saute les images quasi identiques, on garde celles qui font avancer la pose
+  const path = [];
+  let from = a;
+  for (let k = 0; k < full.length; k++){
+    const last = k === full.length - 1;
+    if (last || pairCost(c, from, full[k + 1]) > 0.06){ path.push(full[k]); from = full[k]; }
+  }
+  // trop long malgré tout : échantillonnage régulier (toujours mieux qu'un saut direct)
+  const MAX = 30;
+  if (path.length <= MAX) return path;
+  return Array.from({ length: MAX }, (_, i) => path[Math.round((i + 1) * path.length / MAX) - 1]);
+}
+
+/* lecteur de ponts : la sortie parcourt le chemin vers la cible */
+const bridge = { target: -1, queue: [], lastStep: 0, stepMs: 40, lastLen: 0, active: false };
+function bridgeTick(now){
+  const c = corpus;
+  if (!S.bridge || !playing || matchIdx < 0){ bridge.queue = []; bridge.active = false; bridge.target = -1; if (matchIdx >= 0 && playing) curIdx = matchIdx; return; }
+  if (matchIdx !== bridge.target && now - (bridge.lastPlan || 0) > 80){   // on replanifie au plus ~12 fois/s
+    bridge.target = matchIdx; bridge.lastPlan = now;
+    const gap = Math.abs(matchIdx - curIdx), sameSeg = (c.frames[matchIdx]?.seg || 0) === (c.frames[curIdx]?.seg || 0);
+    let path = null;
+    if (!(sameSeg && gap <= 2)) path = findBridge(c, curIdx, matchIdx);
+    bridge.queue = path || [matchIdx];
+    bridge.lastLen = bridge.queue.length;
+    bridge.stepMs = Math.max(16, Math.min(90, S.bridgeMs / bridge.queue.length));
+    for (const i of bridge.queue.slice(0, 12)) getBitmap(i);   // pré-décodage
+  }
+  bridge.active = bridge.queue.length > 1;
+  if (bridge.queue.length && now - bridge.lastStep >= bridge.stepMs){
+    const next = bridge.queue[0];
+    // on attend (un peu) que l'image soit décodée plutôt que de la sauter
+    if (cache.has(next) || now - bridge.lastStep > bridge.stepMs + 120){
+      curIdx = bridge.queue.shift(); bridge.lastStep = now;
+      for (const i of bridge.queue.slice(0, 6)) getBitmap(i);
+    }
+  }
+}
+
+function appendFeat(c, i){
+  ensureCap(c, i + 1);
+  const md = MODES[c.kind], lm = c.frames[i].lm;
+  if (!lm){ c.valid[i] = 0; return; }
+  md.feat(lm, false, c.feats, i * md.D, c.vis, i * NB, c.stats, 1);
+  c.valid[i] = 1; c.nValid++;
+}
+
+/* ============================================================
+   ENRICHISSEMENT CONTINU
+   La caméra tourne, chaque image est comparée à TOUT le corpus.
+   Tant que la pose ressemble déjà à quelque chose de connu : rien.
+   Dès qu'elle est nouvelle (ressemblance < seuil) on ouvre un "passage" :
+   on garde ~0,3 s d'avant (pré-roll, pour que le geste démarre proprement),
+   on enregistre tant que c'est nouveau, puis ~0,45 s après. Chaque passage
+   a son numéro (seg) : la mémoire geste ne mélange pas deux passages.
+   Les images du passage en cours ne comptent pas comme "déjà vues"
+   pendant 1 s (sinon chaque image ressemblerait à la précédente).
+   ============================================================ */
+const ENR_PRE_MS = 300, ENR_POST_MS = 450, ENR_SELF_MS = 1000;
+const enrich = { on:false, ring:[], seg:null, lastNovel:0, added:0, passes:0, lastSim:null, lastUi:0,
+  encCv: document.createElement('canvas') };
+
+function noveltySim(lm){
+  const c = corpus, md = MODES[c.kind], N = c.frames.length;
+  if (!c.nValid) return 0;
+  const f = new Float32Array(md.D), v = md.hasVis ? new Float32Array(NB) : null;
+  md.feat(lm, false, f, 0, v, 0, c.stats, 1);
+  const now = performance.now();
+  let best = Infinity;
+  for (let i = 0; i < N; i++){
+    if (!c.valid[i]) continue;
+    const fr = c.frames[i];
+    if (enrich.seg && fr.seg === enrich.seg && now - fr.wall < ENR_SELF_MS) continue;
+    const x = md.cost(c, i, f, v);
+    if (x < best) best = x;
+  }
+  return best === Infinity ? 0 : Math.max(0, md.sim(best));
+}
+
+function enrichStep(cam, lm){
+  const c = corpus, now = performance.now();
+  let shot;
+  if (focusOn()){
+    if (!lm){   // pas de visage : rien à garder, le passage en cours se referme
+      enrich.lastSim = null;
+      if (enrich.seg && now - enrich.lastNovel > ENR_POST_MS) endEnrichSegment();
+      if (now - enrich.lastUi > 200){ enrich.lastUi = now; updateEnrInfo(); }
+      return;
+    }
+    if (!c.frames.length || !c.w){ c.w = c.h = FOCUS_SIZE; }
+    const r = focusRect(lm, cam.width, cam.height, c.w / c.h);
+    shot = { wall: now, lm: remapFace(lm, r, cam.width, cam.height),
+      bmp: createImageBitmap(cam, r.sx, r.sy, r.sw, r.sh, { resizeWidth: c.w, resizeHeight: c.h, resizeQuality: 'medium' }) };
+  } else {
+    if (!c.w){ const sc = Math.min(1, 960 / cam.width); c.w = Math.round(cam.width * sc); c.h = Math.round(cam.height * sc); }
+    shot = { wall: now, lm,
+      bmp: createImageBitmap(cam, { resizeWidth: c.w, resizeHeight: c.h, resizeQuality: 'medium' }) };
+  }
+  shot.bmp.catch(() => {});
+  const sim = lm ? noveltySim(lm) : null;
+  const novel = sim != null && sim < S.novelty / 100;
+  enrich.lastSim = sim;
+  if (!enrich.seg){
+    enrich.ring.push(shot);
+    while (enrich.ring.length && now - enrich.ring[0].wall > ENR_PRE_MS) dropShot(enrich.ring.shift());
+    if (novel){
+      c.segMax = (c.segMax || 0) + 1;
+      enrich.seg = c.segMax; enrich.lastNovel = now; enrich.passes++;
+      for (const sh of enrich.ring) commitShot(sh);
+      enrich.ring = [];
+    }
+  } else {
+    commitShot(shot);
+    if (novel) enrich.lastNovel = now;
+    else if (now - enrich.lastNovel > ENR_POST_MS) endEnrichSegment();
+  }
+  if (now - enrich.lastUi > 200){ enrich.lastUi = now; updateEnrInfo(); }
+}
+function dropShot(sh){ sh.bmp.then(b => b.close(), () => {}); }
+function commitShot(sh){
+  const c = corpus, N = c.frames.length;
+  const fr = { t: N ? c.frames[N - 1].t + 1 / c.fps : 0, blob: null, lm: sh.lm, seg: enrich.seg, wall: sh.wall };
+  c.frames.push(fr);
+  appendFeat(c, N);
+  enrich.added++;
+  sh.bmp.then(b => {
+    const cv = enrich.encCv; cv.width = b.width; cv.height = b.height;
+    cv.getContext('2d').drawImage(b, 0, 0); b.close();
+    cv.toBlob(bl => { fr.blob = bl; }, 'image/jpeg', 0.85);
+  }, () => {});
+}
+function endEnrichSegment(){
+  enrich.seg = null;
+  if (corpus.kind === 'face' && S.faceCal) computeFeats();   // le calage de la séquence évolue avec elle
+  refreshInfo(); updateEnrInfo();
+}
+function startEnrich(){
+  if (enrich.on || recording || recArming || busy || !detectors[S.mode] || !grabInput()) return;
+  Object.assign(enrich, { on:true, ring:[], seg:null, added:0, passes:0, lastSim:null });
+  focus.box = null;
+  $('bEnrich').classList.add('on'); $('bEnrich').textContent = 'Arrêter l\'enrichissement';
+  updateEnrInfo();
+}
+function stopEnrich(){
+  if (!enrich.on) return;
+  if (enrich.seg) endEnrichSegment();
+  enrich.ring.forEach(dropShot); enrich.ring = [];
+  enrich.on = false;
+  $('bEnrich').classList.remove('on'); $('bEnrich').textContent = 'Enrichir en continu';
+  refreshInfo(); updateEnrInfo();
+}
+function updateEnrInfo(){
+  const sim = enrich.lastSim == null ? '--' : Math.round(enrich.lastSim * 100) + '%';
+  $('enrInfo').textContent = !enrich.on
+    ? (corpus.segMax ? `${corpus.frames.filter(f => f.seg).length} images ajoutées en ${corpus.segMax} passages` : '')
+    : `${enrich.seg ? '● AJOUT' : 'écoute'} · plus proche connu : ${sim} (seuil ${S.novelty}%) · +${enrich.added} images, ${enrich.passes} passages`;
+}
+function undoEnrich(){
+  const c = corpus, m = c.segMax;
+  if (!m || enrich.seg) return;
+  const first = c.frames.findIndex(f => f.seg === m);
+  if (first < 0) return;
+  c.frames.length = first;
+  c.segMax = c.frames.reduce((a, f) => Math.max(a, f.seg || 0), 0);
+  computeFeats(); clearCache(); crop = null;
+  curIdx = Math.min(curIdx, Math.max(0, c.frames.length - 1));
+  if (!c.nValid) setPlaying(false);
+  refreshInfo(); updateEnrInfo();
+}
+
+/* ============================================================
+   ENTRÉE : caméra ou écran / onglet (getDisplayMedia)
+   Tout le traitement (détection, aperçu, enregistrement, enrichissement)
+   lit inCv : la zone utile de l'entrée active, recadrée (≤ 1280 px).
+   Pour un onglet YouTube on recadre sur le lecteur / le danseur.
+   ============================================================ */
+const FULL_CROP = { x:0, y:0, w:1, h:1 };
+const inCv = document.createElement('canvas'), inCtx = inCv.getContext('2d');
+let screenStream = null, cropEdit = false, cropDrag = null;
+S.input = 'cam';
+S.cropScreen = prefs.cropScreen || { ...FULL_CROP };
+
+const inputEl = () => S.input === 'screen' && screenStream ? $('scr') : $('cam');
+const inputCrop = () => S.input === 'screen' && screenStream ? S.cropScreen : FULL_CROP;
+
+function grabInput(){
+  const el = inputEl();
+  if (!el.videoWidth) return false;
+  const cr = inputCrop(), roi = autoZoomOn() && autoZoom.roi ? autoZoom.roi : FULL_CROP;
+  autoZoom.used = roi;   // zone réellement lue pour cette image (pour recaler les points)
+  const sx = el.videoWidth * (cr.x + roi.x * cr.w), sy = el.videoHeight * (cr.y + roi.y * cr.h);
+  const sw = el.videoWidth * cr.w * roi.w, sh = el.videoHeight * cr.h * roi.h;
+  // lu directement dans la source pleine résolution ; petite zone agrandie (≥ 640 px) pour la détection
+  const sc = Math.min(1280 / sw, Math.max(1, 640 / sw));
+  const w = Math.max(2, Math.round(sw * sc)), h = Math.max(2, Math.round(sh * sc));
+  if (inCv.width !== w || inCv.height !== h){ inCv.width = w; inCv.height = h; }
+  inCtx.drawImage(el, sx, sy, sw, sh, 0, 0, w, h);
+  return true;
+}
+
+/* ============================================================
+   AUTO-ZOOM VISAGE (mode VISAGE)
+   Sur une capture d'écran le visage est souvent minuscule : le modèle ne
+   le voit pas. 1) RECHERCHE : détecteur rapide (BlazeFace) sur l'image
+   entière puis sur des fenêtres de 1/2 et 1/3 qui se chevauchent, lues en
+   pleine résolution (quelques fenêtres toutes les 150 ms).
+   2) SUIVI : l'entrée est recadrée autour du visage (format 16:9, ~3,2 fois
+   la hauteur du visage), le cadre suit la tête en douceur. L'aperçu, la
+   détection et l'enregistrement travaillent sur ce gros plan net.
+   3) Visage perdu 0,8 s -> retour à la recherche.
+   ============================================================ */
+const autoZoom = { roi:null, used:FULL_CROP, lastSeen:0, lastSearch:0, win:0, windows:[], winKey:'', det:null, loading:null,
+  cv: document.createElement('canvas') };
+const autoZoomOn = () => S.mode === 'face' && S.faceAutoZoom;
+function autoZoomReset(){ autoZoom.roi = null; autoZoom.win = 0; }
+
+function loadFaceSearch(){
+  if (autoZoom.det || autoZoom.loading || !fileset) return;
+  const make = delegate => FaceDetector.createFromOptions(fileset, {
+    baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite", delegate },
+    runningMode:"IMAGE", minDetectionConfidence:0.5 });
+  // CPU : plus rapide que le GPU pour ce petit modèle (pas de relecture GPU) et ne ralentit pas le suivi
+  autoZoom.loading = make("CPU").catch(() => make("GPU"))
+    .then(d => { autoZoom.det = d; }, e => console.warn('recherche visage indisponible', e))
+    .finally(() => { autoZoom.loading = null; });
+}
+
+/* fenêtres de recherche CARRÉES (le détecteur rate les visages dans une image
+   étirée 16:9), des plus grandes aux plus fines, chevauchement de moitié.
+   Il faut que le visage fasse ~20-30 % de la fenêtre : côté 0,22 × hauteur
+   ≈ visage de 50-70 px sur une capture 1080p. Coordonnées en pixels source. */
+function searchWindows(SW, SH){
+  const m = Math.min(SW, SH), w = [];
+  for (const f of [1, 0.5, 0.33, 0.22]){
+    const side = m * f, step = side / 2;
+    const nx = Math.ceil((SW - side) / step - 1e-6) + 1, ny = Math.ceil((SH - side) / step - 1e-6) + 1;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++)
+      w.push({ x: Math.min(SW - side, i * step), y: Math.min(SH - side, j * step), side });
+  }
+  return w;
+}
+
+/* zone d'entrée (normalisée dans le cadre manuel) centrée sur un visage */
+function setRoi(cx, cy, fh, snap){
+  const el = inputEl(), cr = inputCrop();
+  const SW = el.videoWidth * cr.w, SH = el.videoHeight * cr.h;
+  let h = fh * 3.2, w = h * SH / SW * (16 / 9);
+  if (w > 1){ h /= w; w = 1; }
+  if (h > 1){ w /= h; h = 1; }
+  const t = { x: Math.max(0, Math.min(1 - w, cx - w / 2)), y: Math.max(0, Math.min(1 - h, cy - h / 2)), w, h };
+  const r = autoZoom.roi;
+  if (snap || !r){ autoZoom.roi = t; return; }
+  // lissage : on garde le centre et la taille séparément pour éviter le "pompage"
+  const k = 0.35, ks = 0.12;
+  const rcx = r.x + r.w / 2 + (t.x + t.w / 2 - r.x - r.w / 2) * k;
+  const rcy = r.y + r.h / 2 + (t.y + t.h / 2 - r.y - r.h / 2) * k;
+  const nw = r.w + (t.w - r.w) * ks, nh = r.h + (t.h - r.h) * ks;
+  autoZoom.roi = { x: Math.max(0, Math.min(1 - nw, rcx - nw / 2)), y: Math.max(0, Math.min(1 - nh, rcy - nh / 2)), w: nw, h: nh };
+}
+
+function searchFace(){
+  const now = performance.now();
+  if (now - autoZoom.lastSearch < 120) return;
+  autoZoom.lastSearch = now;
+  if (!autoZoom.det){ loadFaceSearch(); return; }
+  const el = inputEl(), cr = inputCrop();
+  const SW = el.videoWidth * cr.w, SH = el.videoHeight * cr.h;
+  const key = Math.round(SW) + 'x' + Math.round(SH);
+  if (autoZoom.winKey !== key){ autoZoom.windows = searchWindows(SW, SH); autoZoom.winKey = key; autoZoom.win = 0; }
+  const cv = autoZoom.cv, ctx = cv.getContext('2d'), R = 192;
+  if (cv.width !== R){ cv.width = cv.height = R; }
+  const ox = el.videoWidth * cr.x, oy = el.videoHeight * cr.y;
+  let best = null;
+  for (let n = 0; !best && n < autoZoom.windows.length && performance.now() - now < 30; n++){   // ~30 ms par passe
+    const win = autoZoom.windows[autoZoom.win++ % autoZoom.windows.length];
+    ctx.drawImage(el, ox + win.x, oy + win.y, win.side, win.side, 0, 0, R, R);
+    let res;
+    try { res = autoZoom.det.detect(cv); } catch(e){ console.warn(e); return; }
+    for (const d of res.detections || []){
+      const b = d.boundingBox, sc = d.categories?.[0]?.score ?? 0, k = win.side / R;
+      const cand = { cx: (win.x + (b.originX + b.width / 2) * k) / SW, cy: (win.y + (b.originY + b.height / 2) * k) / SH,
+        fh: b.height * k / SH, score: sc };
+      if (!best || cand.score > best.score) best = cand;
+    }
+  }
+  if (best){
+    autoZoom.win = 0;                 // prochaine recherche : on repart de l'image entière
+    autoZoom.lastSeen = now;
+    setRoi(best.cx, best.cy, best.fh * 1.25, true);   // boîte BlazeFace un peu plus petite que le visage complet
+    history.length = 0; smoothF = null; focus.box = null;
+  }
+}
+
+async function startScreen(){
+  let st;
+  try {
+    st = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 30 } }, audio: false,
+      selfBrowserSurface: 'exclude', surfaceSwitching: 'include' });
+  } catch(e){ setStatus('capture écran annulée'); return false; }
+  stopScreen();
+  screenStream = st;
+  const v = $('scr'); v.srcObject = st; await v.play().catch(() => {});
+  st.getVideoTracks()[0].addEventListener('ended', () => {
+    if (screenStream !== st) return;
+    stopScreen(); setInput('cam');
+    setStatus('capture écran terminée · retour caméra');
+  });
+  return true;
+}
+function stopScreen(){
+  if (!screenStream) return;
+  screenStream.getTracks().forEach(t => t.stop());
+  screenStream = null; $('scr').srcObject = null;
+}
+function resetLive(){
+  autoZoomReset();
+  history.length = 0; smoothF = null; prevIdx = -1; liveLm = null;
+  liveFace.buf = []; liveFace.stats = null;
+}
+async function setInput(which, forcePick = false){
+  if (recording || recArming || busy) return;
+  if (which === 'screen' && (!screenStream || forcePick)){
+    if (!(await startScreen())) which = screenStream ? 'screen' : 'cam';
+    else { stopEnrich(); resetLive(); }
+  }
+  if (S.input !== which){ stopEnrich(); resetLive(); }
+  S.input = which; cropEdit = false; cropDrag = null;
+  updateInputUI();
+  if (which === 'screen'){
+    $('bRec').disabled = $('bEnrich').disabled = false;
+    setStatus(S.mode === 'face'
+      ? 'entrée écran · mode VISAGE : le visage est cherché et suivi automatiquement'
+      : 'entrée écran · mode CORPS : « Recadrer » sur le danseur (pour suivre un visage, passer en VISAGE)');
+  } else {
+    $('bRec').disabled = $('bEnrich').disabled = !$('cam').videoWidth;
+  }
+}
+function updateInputUI(){
+  const scr = S.input === 'screen';
+  document.body.classList.toggle('in-screen', scr);
+  for (const b of $('inSeg').children) b.classList.toggle('on', b.dataset.in === S.input);
+  $('liveBox').classList.toggle('flip', S.flipLive && !scr);
+  $('liveBox').classList.toggle('editing', cropEdit);
+  $('bCrop').classList.toggle('on', cropEdit);
+}
+for (const b of $('inSeg').children) b.onclick = () => setInput(b.dataset.in);
+$('bScreenAgain').onclick = () => setInput('screen', true);
+$('bCrop').onclick = () => { cropEdit = !cropEdit; cropDrag = null; updateInputUI(); };
+$('bCropReset').onclick = () => { S.cropScreen = { ...FULL_CROP }; savePrefs(); cropEdit = false; resetLive(); updateInputUI(); };
+
+/* tracé du recadrage à la souris sur l'aperçu (image source entière affichée) */
+function liveToNorm(e){
+  const r = liveCv.getBoundingClientRect(), cw = liveCv.width, ch = liveCv.height;
+  const sc = Math.min(r.width / cw, r.height / ch), ox = (r.width - cw * sc) / 2, oy = (r.height - ch * sc) / 2;
+  return [Math.max(0, Math.min(1, (e.clientX - r.left - ox) / (cw * sc))), Math.max(0, Math.min(1, (e.clientY - r.top - oy) / (ch * sc)))];
+}
+$('liveCv').addEventListener('pointerdown', e => {
+  if (!cropEdit) return;
+  const [x, y] = liveToNorm(e); cropDrag = { x0:x, y0:y, x1:x, y1:y };
+  $('liveCv').setPointerCapture(e.pointerId);
+});
+$('liveCv').addEventListener('pointermove', e => {
+  if (!cropEdit || !cropDrag) return;
+  [cropDrag.x1, cropDrag.y1] = liveToNorm(e);
+});
+$('liveCv').addEventListener('pointerup', () => {
+  if (!cropEdit || !cropDrag) return;
+  const d = cropDrag, x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
+  cropDrag = null;
+  if (w > 0.03 && h > 0.03){
+    S.cropScreen = { x, y, w, h }; savePrefs();
+    cropEdit = false; resetLive(); updateInputUI();
+  }
+});
+function drawCropEditor(){
+  const el = inputEl();
+  if (!el.videoWidth) return;
+  if (liveCv.width !== el.videoWidth || liveCv.height !== el.videoHeight){ liveCv.width = el.videoWidth; liveCv.height = el.videoHeight; }
+  const W = liveCv.width, H = liveCv.height;
+  liveCtx.drawImage(el, 0, 0);
+  const r = cropDrag ? { x: Math.min(cropDrag.x0, cropDrag.x1), y: Math.min(cropDrag.y0, cropDrag.y1),
+    w: Math.abs(cropDrag.x1 - cropDrag.x0), h: Math.abs(cropDrag.y1 - cropDrag.y0) } : S.cropScreen;
+  liveCtx.save();
+  liveCtx.fillStyle = 'rgba(0,0,0,0.55)';
+  liveCtx.beginPath(); liveCtx.rect(0, 0, W, H); liveCtx.rect(r.x * W, r.y * H, r.w * W, r.h * H); liveCtx.fill('evenodd');
+  liveCtx.strokeStyle = '#ffd23f'; liveCtx.lineWidth = Math.max(2, W / 400);
+  liveCtx.strokeRect(r.x * W, r.y * H, r.w * W, r.h * H);
+  liveCtx.restore();
+}
+
+/* ============================================================
+   FOCUS VISAGE À L'ENREGISTREMENT
+   En mode VISAGE, l'enregistrement et l'enrichissement ne gardent pas
+   l'image entière : un cadre suit le visage (centre et taille lissés),
+   l'image stockée est ce gros plan et les points du visage sont recalculés
+   dans ce cadre. Pas de visage = pas d'image enregistrée.
+   ============================================================ */
+const FOCUS_SIZE = 768;
+const focus = { box: null, seenAt: 0 };
+const focusOn = () => S.mode === 'face' && S.faceFocus;
+
+/* cadre (pixels de inCv) au format ar = largeur / hauteur voulu */
+function focusRect(lm, W, H, ar){
+  const now = performance.now();
+  const x0 = lm[F_BOX] * W, y0 = lm[F_BOX+1] * H, x1 = lm[F_BOX+2] * W, y1 = lm[F_BOX+3] * H;
+  const t = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 - (y1 - y0) * 0.05, side: Math.max(x1 - x0, y1 - y0) * S.recMargin };
+  if (!focus.box || now - focus.seenAt > 500) focus.box = { ...t };
+  else for (const k in t) focus.box[k] += (t[k] - focus.box[k]) * (k === 'side' ? 0.15 : 0.45);   // position réactive, taille stable
+  focus.seenAt = now;
+  const b = focus.box;
+  const sw = ar >= 1 ? b.side * ar : b.side, sh = ar >= 1 ? b.side : b.side / ar;
+  return { sx: Math.round(b.cx - sw / 2), sy: Math.round(b.cy - sh / 2), sw: Math.round(sw), sh: Math.round(sh) };
+}
+/* points du visage exprimés dans le cadre (expressions / tête inchangées) */
+function remapFace(lm, r, W, H){
+  const o = lm.slice();
+  const fx = x => (x * W - r.sx) / r.sw, fy = y => (y * H - r.sy) / r.sh;
+  o[F_BOX] = fx(lm[F_BOX]); o[F_BOX+1] = fy(lm[F_BOX+1]); o[F_BOX+2] = fx(lm[F_BOX+2]); o[F_BOX+3] = fy(lm[F_BOX+3]);
+  for (let k = F_PTS; k + 1 < lm.length; k += 2){ o[k] = fx(lm[k]); o[k+1] = fy(lm[k+1]); }
+  return o;
+}
+
+/* ---------------- boucle d'entrée ---------------- */
+const liveCv = $('liveCv'), liveCtx = liveCv.getContext('2d');
+const capCv = document.createElement('canvas'), capCtx = capCv.getContext('2d');
+
+let frameAt = 0;
+function watchFrames(el){
+  const cb = () => {
+    el.requestVideoFrameCallback(cb);
+    if (inputEl() !== el) return;
+    frameAt = performance.now();
+    processCam();
+  };
+  el.requestVideoFrameCallback(cb);
+}
+// repli si le navigateur ne livre plus les images (fenêtre cachée…)
+// (un onglet immobile ne livre plus d'images : on continue quand même)
+setInterval(() => { const el = inputEl(); if (performance.now() - frameAt > 500 && el.videoWidth && !el.paused) processCam(); }, 66);
+
+function processCam(){
+  const md = M(), det = detectors[S.mode];
+  if (!det || busy || !grabInput()) return;
+  const cam = inCv;
+  let res;
+  try { res = det.detectForVideo(cam, nextTs()); } catch(e){ console.warn(e); return; }
+  const lm = md.pack(res);
+  liveLm = lm;
+  if (autoZoomOn()){
+    const now = performance.now(), u = autoZoom.used;
+    if (lm){
+      // visage vu : le cadre d'entrée le suit (coordonnées ramenées au cadre manuel)
+      const cx = u.x + (lm[F_BOX] + lm[F_BOX+2]) / 2 * u.w, cy = u.y + (lm[F_BOX+1] + lm[F_BOX+3]) / 2 * u.h;
+      const fh = (lm[F_BOX+3] - lm[F_BOX+1]) * u.h;
+      setRoi(cx, cy, fh, false);
+      autoZoom.lastSeen = now;
+    } else if (!autoZoom.roi || now - autoZoom.lastSeen > 800){
+      if (autoZoom.roi){ autoZoomReset(); }
+      searchFace();
+    }
+  }
+  drawLive(cam, lm);
+
+  if (recording){
+    const t = (performance.now() - recStart) / 1000;
+    let fr = null;
+    if (focusOn()){
+      if (lm){
+        const r = focusRect(lm, cam.width, cam.height, capCv.width / capCv.height);
+        capCtx.fillStyle = '#000'; capCtx.fillRect(0, 0, capCv.width, capCv.height);
+        capCtx.drawImage(cam, r.sx, r.sy, r.sw, r.sh, 0, 0, capCv.width, capCv.height);
+        fr = { t, blob:null, lm: remapFace(lm, r, cam.width, cam.height) };
+      }
+    } else {
+      capCtx.drawImage(cam, 0, 0, capCv.width, capCv.height);
+      fr = { t, blob:null, lm };
+    }
+    if (fr){
+      recPending.push(new Promise(r => capCv.toBlob(b => { fr.blob = b; r(); }, 'image/jpeg', 0.85)));
+      corpus.frames.push(fr);
+    }
+    $('info').textContent = `enregistrement ${md.label}… ${corpus.frames.length} images · ${t.toFixed(1)} s` +
+      (focusOn() && !lm ? ' · pas de visage' : '');
+  }
+  if (enrich.on && !recording) enrichStep(cam, lm);
+
+  if (lm){
+    const now = performance.now();
+    const f = new Float32Array(md.D), v = md.hasVis ? new Float32Array(NB) : null;
+    if (md === MODES.face){
+      const raw = lm.slice(0, FD);
+      if (liveFace.collect) liveFace.collect.push(raw);
+      const b = liveFace.buf;
+      if (!b.length || now - b[b.length - 1].t > 50) b.push({ t: now, v: raw });   // ~20 échantillons/s
+      while (b.length > 900) b.shift();                                              // ~45 s de mémoire
+      if (now - liveFace.lastCalc > 1000) recalcLiveFace();
+    }
+    md.feat(lm, S.mirror, f, 0, v, 0, md === MODES.face ? liveFaceStats() : null, S.exprGain);
+    if (smoothF && smoothF.length === f.length){ const k = S.smooth; for (let i = 0; i < f.length; i++) f[i] = smoothF[i] * k + f[i] * (1 - k); }
+    smoothF = f;
+    history.push({ t: now, f: f.slice(), v });
+    while (history.length && now - history[0].t > 1500) history.shift();
+    if (playing && corpus.nValid) matchPose(now);
+  }
+}
+
+function drawLive(cam, lm){
+  if (cropEdit){ drawCropEditor(); return; }
+  if (liveCv.width !== cam.width || liveCv.height !== cam.height){ liveCv.width = cam.width; liveCv.height = cam.height; }
+  liveCtx.drawImage(cam, 0, 0);
+  if (lm) drawOverlay(liveCtx, lm, M(), (x, y) => [x * liveCv.width, y * liveCv.height], '#ff2d95');
+  if (autoZoomOn() && !lm){
+    liveCtx.save();
+    const fs = Math.max(14, liveCv.width / 28);
+    liveCtx.font = `bold ${fs}px Geneva, Verdana, sans-serif`; liveCtx.textAlign = 'center';
+    liveCtx.fillStyle = 'rgba(0,0,0,0.6)'; liveCtx.fillRect(0, liveCv.height / 2 - fs, liveCv.width, fs * 2);
+    liveCtx.fillStyle = '#ffd23f';
+    liveCtx.fillText(autoZoom.det ? 'recherche de visage…' : 'chargement détecteur…', liveCv.width / 2, liveCv.height / 2 + fs / 3);
+    liveCtx.restore();
+  }
+  if (focusOn() && (recording || enrich.on) && focus.box && performance.now() - focus.seenAt < 500){
+    const b = focus.box, ar = recording ? capCv.width / capCv.height : (corpus.w / corpus.h || 1);
+    const sw = ar >= 1 ? b.side * ar : b.side, sh = ar >= 1 ? b.side : b.side / ar;
+    liveCtx.save();
+    liveCtx.strokeStyle = '#ffd23f'; liveCtx.lineWidth = Math.max(2, liveCv.width / 300);
+    liveCtx.setLineDash([12, 8]);
+    liveCtx.strokeRect(b.cx - sw / 2, b.cy - sh / 2, sw, sh);
+    liveCtx.restore();
+  }
+}
+
+function drawOverlay(ctx, lm, md, map, color){
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, ctx.canvas.width / (md === MODES.face ? 700 : 300));
+  ctx.shadowColor = color; ctx.shadowBlur = 8;
+  ctx.beginPath();
+  for (const [a, b] of md.links){
+    const A = md.pt(lm, a), B = md.pt(lm, b);
+    if (A[2] < 0.4 || B[2] < 0.4) continue;
+    const pa = map(A[0], A[1]), pb = map(B[0], B[1]);
+    ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ---------------- correspondance ----------------
+   coût(i) = moyenne sur la "mémoire geste" (états live récents vs
+   images précédentes de la séquence) de la distance pondérée
+   + inertie (pénalise les sauts loin de l'image actuelle).           */
+function historyAt(t){
+  for (let k = history.length - 1; k >= 0; k--) if (history[k].t <= t) return history[k];
+  return null;
+}
+
+function matchPose(now){
+  const c = corpus, md = MODES[c.kind];
+  const N = c.frames.length, fps = c.fps;
+  const LAG = 0.12; // secondes entre deux états de la mémoire geste
+  const samples = [];
+  for (let k = 0; k < S.window; k++){
+    const h = historyAt(now - k * LAG * 1000);
+    if (!h || h.f.length !== md.D) break;
+    samples.push({ h, off: Math.round(k * LAG * fps) });
+  }
+  if (!samples.length) return;
+  const span = Math.max(1, fps * 0.5);
+  let best = -1, bestC = Infinity, bestRaw = 0, prevC = Infinity, prevRaw = 0;
+  for (let i = 0; i < N; i++){
+    if (!c.valid[i]) continue;
+    let s = 0, n = 0;
+    for (const sm of samples){
+      const j = i - sm.off;
+      if (j < 0 || !c.valid[j] || (c.frames[j].seg || 0) !== (c.frames[i].seg || 0)) continue;
+      s += md.cost(c, j, sm.h.f, sm.h.v); n++;
+    }
+    if (!n) continue;
+    const raw = s / n;
+    const total = prevIdx >= 0 ? raw + S.inertia * Math.min(1, Math.abs(i - prevIdx) / span) : raw;
+    if (total < bestC){ bestC = total; best = i; bestRaw = raw; }
+    if (i === prevIdx){ prevC = total; prevRaw = raw; }
+  }
+  // hystérésis : on ne change de cible que si c'est nettement mieux (évite les allers-retours)
+  if (best >= 0 && prevIdx >= 0 && best !== prevIdx && bestC > prevC - 0.004 - prevC * 0.03){ best = prevIdx; bestRaw = prevRaw; }
+  if (best >= 0){ matchIdx = prevIdx = best; lastRaw = bestRaw; if (!S.bridge) curIdx = best; }
+}
+
+/* ---------------- rendu sortie ---------------- */
+const out = $('out'), octx = out.getContext('2d');
+const tl = $('timeline'), tctx = tl.getContext('2d');
+const cache = new Map(), decoding = new Set();
+let lastBm = null, lastBmIdx = -1, dirtyBg = true;
+let crop = null;   // zone de l'image affichée (normalisée), lissée
+
+function getBitmap(i){
+  if (cache.has(i)){ const b = cache.get(i); cache.delete(i); cache.set(i, b); return b; }
+  const fr = corpus.frames[i];
+  if (fr && fr.blob && !decoding.has(i)){
+    decoding.add(i);
+    const gen = corpus;
+    createImageBitmap(fr.blob).then(b => {
+      decoding.delete(i);
+      if (gen !== corpus){ b.close(); return; }
+      cache.set(i, b);
+      while (cache.size > 120){
+        const k = cache.keys().next().value, old = cache.get(k);
+        cache.delete(k);
+        if (old !== lastBm) old.close();
+      }
+    }).catch(() => decoding.delete(i));
+  }
+  return null;
+}
+
+function clearCache(){
+  for (const b of cache.values()) b.close();
+  if (lastBm) try { lastBm.close(); } catch {}
+  cache.clear(); decoding.clear(); lastBm = null; lastBmIdx = -1;
+}
+
+/* ============================================================
+   MORPHING (WebGL)
+   CORPS : maillage = points du corps + bord de l'image (toute l'image se déforme).
+   VISAGE : seul le visage se déforme. Le décor n'est jamais tordu : il passe
+   en simple fondu, et le visage morphé est posé dessus avec un bord adouci
+   (opaque sur le visage, transparent sur un anneau extérieur). Une silhouette P glisse
+   en continu vers les points de l'image visée ; les deux dernières images
+   sont déformées vers P (triangulation de Delaunay refaite à chaque
+   rendu, donc pas de triangles retournés) puis fondues. Quand la cible
+   change en cours de route, l'image dominante reste la source : aucun
+   ré-échantillonnage en chaîne, donc pas de flou qui s'accumule.
+   ============================================================ */
+const BORDER = [[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],
+                [1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];
+const OVAL_SLOTS = [...new Set((FaceLandmarker.FACE_LANDMARKS_FACE_OVAL || []).flatMap(c => [c.start, c.end]))]
+  .map(i => FACE_SLOT.get(i));
+// anneaux autour de l'ovale du visage : [facteur d'agrandissement, opacité]
+// 1.12 = encore le visage (front, mâchoire), 1.45 = bord fondu dans le décor
+const RINGS = [[1.12, 1], [1.45, 0]];
+
+function meshPoints(kind, lm){
+  const face = kind === 'face';
+  const nIn = face ? FACE_IDX.length + OVAL_SLOTS.length * RINGS.length : 33;
+  const K = nIn + (face ? 0 : BORDER.length);
+  const pts = new Float32Array(K * 2), val = new Uint8Array(K), alpha = new Float32Array(K).fill(1);
+  const put = (i, x, y, ok) => {
+    pts[2*i] = Math.max(0, Math.min(1, x)); pts[2*i+1] = Math.max(0, Math.min(1, y));
+    val[i] = ok && x > -0.05 && x < 1.05 && y > -0.05 && y < 1.05 ? 1 : 0;
+  };
+  if (!face){
+    for (let i = 0; i < 33; i++) put(i, lm[i*LM+4], lm[i*LM+5], lm[i*LM+3] > 0.5);
+    BORDER.forEach(([x, y], b) => { pts[2*(nIn+b)] = x; pts[2*(nIn+b)+1] = y; val[nIn+b] = 1; });
+  } else {
+    const n = FACE_IDX.length;
+    for (let k = 0; k < n; k++) put(k, lm[F_PTS + 2*k], lm[F_PTS + 2*k + 1], true);
+    const cx = (lm[F_BOX] + lm[F_BOX+2]) / 2, cy = (lm[F_BOX+1] + lm[F_BOX+3]) / 2;
+    let i = n;
+    for (const [f, a] of RINGS) for (const o of OVAL_SLOTS){
+      const x = cx + (lm[F_PTS + 2*o] - cx) * f, y = cy + (lm[F_PTS + 2*o + 1] - cy) * f;
+      alpha[i] = a;
+      put(i++, x, y, true);
+    }
+  }
+  return { pts, val, alpha };
+}
+
+const morph = { gl:null, cv:null, failed:false, loc:null, vbo:null, ibo:null, texs:[],
+  layer:[{idx:-1}, {idx:-1}], cur:0, w:1, P:null, known:null, lastT:0, corpus:null, iw:0, ih:0 };
+
+function morphInitGL(){
+  if (morph.gl || morph.failed) return !!morph.gl;
+  const cv = document.createElement('canvas');
+  const gl = cv.getContext('webgl', { premultipliedAlpha:false, preserveDrawingBuffer:true, antialias:true });
+  if (!gl){ morph.failed = true; return false; }
+  const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  try {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, `
+      attribute vec2 aPos; attribute vec2 aUvA; attribute vec2 aUvB; attribute float aAlpha;
+      varying vec2 vA; varying vec2 vB; varying float vAlpha;
+      void main(){ vA = aUvA; vB = aUvB; vAlpha = aAlpha; gl_Position = vec4(aPos.x * 2.0 - 1.0, 1.0 - aPos.y * 2.0, 0.0, 1.0); }`));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `
+      precision mediump float;
+      uniform sampler2D tA; uniform sampler2D tB; uniform float w;
+      varying vec2 vA; varying vec2 vB; varying float vAlpha;
+      void main(){ gl_FragColor = vec4(mix(texture2D(tA, vA), texture2D(tB, vB), w).rgb, vAlpha); }`));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    morph.loc = { aPos: gl.getAttribLocation(prog, 'aPos'), aUvA: gl.getAttribLocation(prog, 'aUvA'),
+      aUvB: gl.getAttribLocation(prog, 'aUvB'), aAlpha: gl.getAttribLocation(prog, 'aAlpha'), tA: gl.getUniformLocation(prog, 'tA'),
+      tB: gl.getUniformLocation(prog, 'tB'), w: gl.getUniformLocation(prog, 'w') };
+    morph.vbo = gl.createBuffer(); morph.ibo = gl.createBuffer();
+    for (let t = 0; t < 2; t++){
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      morph.texs.push(tex);
+    }
+    morph.gl = gl; morph.cv = cv;
+    return true;
+  } catch(e){ console.warn('morphing indisponible', e); morph.failed = true; return false; }
+}
+
+function morphReset(){
+  morph.layer = [{idx:-1}, {idx:-1}]; morph.cur = 0; morph.w = 1;
+  morph.P = null; morph.known = null; morph.lastT = 0; morph.corpus = null;
+}
+
+function morphSetLayer(slot, idx, bm, mp){
+  const gl = morph.gl;
+  gl.bindTexture(gl.TEXTURE_2D, morph.texs[slot]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bm);
+  morph.layer[slot] = { idx, pts: mp.pts, val: mp.val, alpha: mp.alpha };
+}
+
+/* renvoie un canvas morphé (à la taille de l'image) ou null = afficher l'image telle quelle */
+function morphFrame(idx, bm){
+  const lm = corpus.frames[idx]?.lm;
+  if (!S.morph || !playing || !lm || !morphInitGL()){ if (morph.corpus) morphReset(); return null; }
+  const gl = morph.gl, iw = bm.width, ih = bm.height;
+  if (morph.corpus !== corpus || morph.iw !== iw || morph.ih !== ih){
+    morphReset(); morph.corpus = corpus; morph.iw = iw; morph.ih = ih;
+    morph.cv.width = iw; morph.cv.height = ih;
+  }
+  const now = performance.now(), dt = morph.lastT ? Math.min(100, now - morph.lastT) : 0;
+  morph.lastT = now;
+  const mp = meshPoints(corpus.kind, lm);
+
+  if (morph.layer[morph.cur].idx < 0){
+    morphSetLayer(0, idx, bm, mp); morphSetLayer(1, idx, bm, mp);
+    morph.cur = 1; morph.w = 1;
+    morph.P = mp.pts.slice(); morph.known = mp.val.slice();
+  } else if (idx !== morph.layer[morph.cur].idx){
+    // l'image dominante devient la source, la nouvelle image prend la place de l'autre
+    if (morph.w >= 0.5){ morph.cur = 1 - morph.cur; morph.w = 1 - morph.w; }
+    morphSetLayer(morph.cur, idx, bm, mp);
+  }
+
+  // la silhouette glisse vers la cible, le fondu avance
+  // le morph garde toute sa durée, même pendant un pont : la silhouette suit les poses
+  // intermédiaires pendant que l'image se déforme. "Présence" ralentit le fondu par rapport
+  // à la déformation : plus elle est haute, plus on voit l'image se tordre avant de changer.
+  const dur = Math.max(1, S.morphMs), amt = S.morphAmt ?? 0.8;
+  const k = 1 - Math.exp(-dt / (dur * (0.33 + 0.3 * amt)));
+  const P = morph.P, T = morph.layer[morph.cur].pts, TV = morph.layer[morph.cur].val, known = morph.known;
+  for (let i = 0; i < TV.length; i++){
+    if (!TV[i]) continue;
+    if (!known[i]){ P[2*i] = T[2*i]; P[2*i+1] = T[2*i+1]; known[i] = 1; continue; }
+    P[2*i] += (T[2*i] - P[2*i]) * k; P[2*i+1] += (T[2*i+1] - P[2*i+1]) * k;
+  }
+  morph.w = Math.min(1, morph.w + dt / (dur * (1 + 2 * amt)));
+
+  // maillage : points valides dans les deux calques, triangulés sur la silhouette courante
+  const A = morph.layer[1 - morph.cur], B = morph.layer[morph.cur];
+  const keep = [];
+  for (let i = 0; i < TV.length; i++) if (A.val[i] && B.val[i] && known[i]) keep.push(i);
+  const coords = new Float64Array(keep.length * 2);
+  const vtx = new Float32Array(keep.length * 7);
+  keep.forEach((i, n) => {
+    coords[2*n] = P[2*i] * iw; coords[2*n+1] = P[2*i+1] * ih;
+    vtx.set([P[2*i], P[2*i+1], A.pts[2*i], A.pts[2*i+1], B.pts[2*i], B.pts[2*i+1], B.alpha[i]], n * 7);
+  });
+  let tris;
+  try { tris = new Delaunator(coords).triangles; } catch { return null; }
+  if (!tris.length) return null;
+
+  const L = morph.loc;
+  const draw = (verts, idx) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, morph.vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+    for (const [a, off] of [[L.aPos, 0], [L.aUvA, 8], [L.aUvB, 16]]){
+      gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 28, off);
+    }
+    gl.enableVertexAttribArray(L.aAlpha); gl.vertexAttribPointer(L.aAlpha, 1, gl.FLOAT, false, 28, 24);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, morph.ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
+    gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+  };
+  gl.viewport(0, 0, iw, ih);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, morph.texs[1 - morph.cur]); gl.uniform1i(L.tA, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, morph.texs[morph.cur]);   gl.uniform1i(L.tB, 1);
+  gl.uniform1f(L.w, morph.w);
+  if (corpus.kind === 'face'){
+    // 1) décor : simple fondu, sans aucune déformation
+    gl.disable(gl.BLEND);
+    draw(new Float32Array([0,0, 0,0, 0,0, 1,  1,0, 1,0, 1,0, 1,  1,1, 1,1, 1,1, 1,  0,1, 0,1, 0,1, 1]),
+         new Uint16Array([0, 1, 2, 0, 2, 3]));
+    // 2) visage morphé par-dessus, bord adouci (l'alpha final reste opaque)
+    gl.enable(gl.BLEND);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    draw(vtx, new Uint16Array(tris));
+    gl.disable(gl.BLEND);
+  } else {
+    gl.disable(gl.BLEND);
+    draw(vtx, new Uint16Array(tris));
+  }
+  return morph.cv;
+}
+
+/* cadre autour du visage, au format de l'écran, sans sortir de l'image */
+function faceCrop(lm, iw, ih, W, H){
+  const x0 = lm[F_BOX] * iw, y0 = lm[F_BOX+1] * ih, x1 = lm[F_BOX+2] * iw, y1 = lm[F_BOX+3] * ih;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, side = Math.max(x1 - x0, y1 - y0) * S.faceMargin;
+  const ar = W / H;
+  let cw = ar >= 1 ? side * ar : side, ch = ar >= 1 ? side : side / ar;
+  const k = Math.min(1, iw / cw, ih / ch); cw *= k; ch *= k;
+  const x = Math.max(0, Math.min(iw - cw, cx - cw / 2)), y = Math.max(0, Math.min(ih - ch, cy - ch / 2));
+  return { x: x / iw, y: y / ih, w: cw / iw, h: ch / ih };
+}
+
+function render(){
+  requestAnimationFrame(render);
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.round(out.clientWidth * dpr), H = Math.round(out.clientHeight * dpr);
+  if (out.width !== W || out.height !== H){ out.width = W; out.height = H; dirtyBg = true; }
+  if (dirtyBg){ octx.fillStyle = '#000'; octx.fillRect(0, 0, W, H); dirtyBg = false; }
+  const N = corpus.frames.length, md = MODES[corpus.kind];
+  $('msg').style.display = N || recording || enrich.on ? 'none' : 'block';
+  if (!recording){ $('recDot').style.display = enrich.seg ? 'block' : 'none'; $('recDot').textContent = '● AJOUT'; }
+  else $('recDot').textContent = '● REC';
+
+  if (N && !recording && S.bridge){
+    const prog = graphStep(corpus, 6);
+    const now = performance.now();
+    if (now - (render.lastBridgeUi || 0) > 250){
+      render.lastBridgeUi = now;
+      $('bridgeInfo').textContent = prog < 1 ? `analyse des transitions… ${Math.round(prog * 100)}%`
+        : `transitions prêtes · dernier pont : ${bridge.lastLen} image${bridge.lastLen > 1 ? 's' : ''}`;
+    }
+    bridgeTick(now);
+  }
+  if (N && !recording){
+    const bm = getBitmap(curIdx);
+    if (bm){ if (lastBm && lastBm !== bm && !cache.has(lastBmIdx)) lastBm.close(); lastBm = bm; lastBmIdx = curIdx; }
+    if (lastBm){
+      const iw = lastBm.width, ih = lastBm.height;
+      const flm = corpus.frames[lastBmIdx]?.lm;
+      let tgt = crop || { x:0, y:0, w:1, h:1 };
+      if (corpus.kind === 'face' && S.faceZoom){ if (flm) tgt = faceCrop(flm, iw, ih, W, H); }
+      else tgt = { x:0, y:0, w:1, h:1 };
+      if (!crop) crop = { ...tgt };
+      else { const a = playing ? 0.25 : 1; for (const k in crop) crop[k] += (tgt[k] - crop[k]) * a; }
+
+      const cw = crop.w * iw, ch = crop.h * ih;
+      const sc = Math.min(W / cw, H / ch);
+      const dw = cw * sc, dh = ch * sc, dx = (W - dw) / 2, dy = (H - dh) / 2;
+      const img = morphFrame(lastBmIdx, lastBm) || lastBm;
+      const drawImg = alpha => {
+        octx.save();
+        octx.globalAlpha = alpha;
+        if (S.flipOut){ octx.translate(W, 0); octx.scale(-1, 1); }
+        octx.drawImage(img, crop.x * iw, crop.y * ih, cw, ch, dx, dy, dw, dh);
+        octx.restore();
+      };
+      drawImg(playing ? 1 - S.fade : 1);
+      if (S.skel){
+        octx.fillStyle = '#000'; octx.fillRect(0, 0, W, H);
+        drawImg(1); // image nette sous les tracés pour ne pas les laisser traîner
+        octx.save();
+        if (S.flipOut){ octx.translate(W, 0); octx.scale(-1, 1); }
+        const toOut = (nx, ny) => [dx + (nx - crop.x) / crop.w * dw, dy + (ny - crop.y) / crop.h * dh];
+        if (flm) drawOverlay(octx, flm, md, toOut, '#00f0ff');
+        const cam = inCv;
+        if (liveLm && liveLm.length === (flm || liveLm).length && cam.width > 2){
+          // on cale le tracé live sur la silhouette de l'image affichée
+          const lb = md.bbox(liveLm), cb = flm ? md.bbox(flm) : lb;
+          const lcx = (lb[0] + lb[2]) / 2, lcy = (lb[1] + lb[3]) / 2, ccx = (cb[0] + cb[2]) / 2, ccy = (cb[1] + cb[3]) / 2;
+          const sy = (cb[3] - cb[1]) / Math.max(1e-3, lb[3] - lb[1]);
+          const sx = sy * (cam.width / cam.height) / (iw / ih);
+          octx.restore(); octx.save();
+          if (S.flipOut){ octx.translate(W, 0); octx.scale(-1, 1); }
+          drawOverlay(octx, liveLm, md, (nx, ny) => {
+            let u = (nx - lcx) * sx; if (S.mirror) u = -u;
+            return toOut(ccx + u, ccy + (ny - lcy) * sy);
+          }, '#ff2d95');
+        }
+        octx.restore();
+        if (corpus.kind === 'face') drawFaceGauges(W, H);
+      }
+    }
+    const fr = corpus.frames[curIdx];
+    const sim = lastRaw == null ? '--' : Math.max(0, Math.round(md.sim(lastRaw) * 100)) + '%';
+    $('hud').textContent =
+      `${md.label}${corpus.kind === 'face' && calOn() ? ' · CALÉ' : ''}  IMAGE ${String(curIdx + 1).padStart(4, '0')}/${N}  ${fr ? fr.t.toFixed(2) : '0'}s\n` +
+      (playing ? `RESSEMBLANCE ${sim}${liveLm ? '' : `  (${md.what} détecté : non)`}` : 'PAUSE');
+  } else {
+    $('hud').textContent = enrich.on ? `${md.label}  ENRICHISSEMENT…` : '';
+  }
+  drawTimeline();
+}
+
+/* jauges : ton visage (rose) vs l'image choisie (cyan), après calage */
+const GAUGES = [
+  ['bouche ouverte', f => f[BS_INDEX.get('jawOpen')]],
+  ['sourire',        f => (f[BS_INDEX.get('mouthSmileLeft')] + f[BS_INDEX.get('mouthSmileRight')]) / 2],
+  ['yeux fermés',    f => (f[BS_INDEX.get('eyeBlinkLeft')] + f[BS_INDEX.get('eyeBlinkRight')]) / 2],
+  ['sourcils haut',  f => f[BS_INDEX.get('browInnerUp')]],
+  ['sourcils bas',   f => (f[BS_INDEX.get('browDownLeft')] + f[BS_INDEX.get('browDownRight')]) / 2],
+  ['moue',           f => f[BS_INDEX.get('mouthPucker')]],
+  ['tête ←→',        f => f[F_ANG] * 0.5],
+  ['tête ↑↓',        f => f[F_ANG+1] * 0.5],
+];
+function drawFaceGauges(W, H){
+  const live = history.length ? history[history.length - 1].f : null;
+  if (!corpus.feats || !corpus.valid[curIdx] || !live || live.length !== FD) return;
+  const cf = corpus.feats.subarray(curIdx * FD, (curIdx + 1) * FD);
+  const dpr = window.devicePixelRatio || 1, rh = 16 * dpr, lw = 96 * dpr, bw = 120 * dpr, pad = 8 * dpr;
+  const x0 = pad, y0 = H - pad - GAUGES.length * rh - pad;
+  octx.save();
+  octx.fillStyle = 'rgba(0,0,0,0.6)';
+  octx.fillRect(x0 - pad / 2, y0 - pad / 2, lw + bw + pad * 2, GAUGES.length * rh + pad);
+  octx.font = `${10 * dpr}px Geneva, Verdana, sans-serif`; octx.textBaseline = 'middle';
+  const X = v => x0 + lw + (Math.max(-1, Math.min(1.5, v)) + 1) / 2.5 * bw, zero = X(0);
+  GAUGES.forEach(([name, g], r) => {
+    const y = y0 + r * rh + rh / 2;
+    octx.fillStyle = '#9a8fb5'; octx.fillText(name, x0, y);
+    octx.fillStyle = '#2a2140'; octx.fillRect(x0 + lw, y - 1, bw, 2);
+    octx.fillStyle = '#ff2d95'; const lx = X(g(live)); octx.fillRect(Math.min(zero, lx), y - 4 * dpr, Math.abs(lx - zero) || 1, 8 * dpr);
+    octx.fillStyle = '#00f0ff'; octx.fillRect(X(g(cf)) - 1.5 * dpr, y - 6 * dpr, 3 * dpr, 12 * dpr);
+  });
+  octx.restore();
+}
+
+function drawTimeline(){
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.round(tl.clientWidth * dpr), H = Math.round(tl.clientHeight * dpr);
+  if (tl.width !== W || tl.height !== H){ tl.width = W; tl.height = H; }
+  tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, W, H);
+  const N = corpus.frames.length;
+  if (!N || recording) return;
+  const bw = W / N;
+  for (let i = 0; i < N; i++){
+    tctx.fillStyle = corpus.valid && corpus.valid[i] ? (corpus.frames[i].seg ? '#444' : '#9a9a9a') : '#e6e6e6';
+    tctx.fillRect(i * bw, H * 0.3, Math.max(1, bw), H * 0.4);
+  }
+  tctx.fillStyle = '#000';
+  tctx.fillRect(curIdx * bw - 1 * dpr, 0, Math.max(2 * dpr, bw), H);
+}
+
+tl.addEventListener('pointerdown', e => {
+  if (playing || !corpus.frames.length) return;
+  const r = tl.getBoundingClientRect();
+  curIdx = Math.max(0, Math.min(corpus.frames.length - 1, Math.floor((e.clientX - r.left) / r.width * corpus.frames.length)));
+});
+
+/* ---------------- enregistrement ---------------- */
+async function countdown(n){
+  const c = $('count'); c.style.display = 'flex';
+  for (let k = n; k > 0; k--){ c.textContent = k; await new Promise(r => setTimeout(r, 1000)); }
+  c.style.display = 'none';
+}
+
+async function toggleRec(){
+  if (recArming) return;
+  stopEnrich();
+  if (recording){
+    recording = false;
+    $('recDot').style.display = 'none';
+    $('bRec').classList.remove('on'); $('bRec').textContent = 'Filmer';
+    await Promise.all(recPending); recPending = [];
+    const fr = corpus.frames, dts = [];
+    for (let i = 1; i < fr.length; i++){ const d = fr[i].t - fr[i-1].t; if (d > 0 && d < 0.5) dts.push(d); }
+    dts.sort((a, b) => a - b);
+    corpus.fps = dts.length ? 1 / dts[dts.length >> 1] : 30;
+    finalizeCorpus();
+    return;
+  }
+  if (!grabInput() || !detectors[S.mode]) return;
+  setPlaying(false);
+  recArming = true;
+  await countdown(3);
+  recArming = false;
+  clearCache(); crop = null;
+  grabInput();
+  focus.box = null;
+  if (focusOn()){ capCv.width = capCv.height = FOCUS_SIZE; }
+  else {
+    const sc = Math.min(1, 960 / inCv.width);
+    capCv.width = Math.round(inCv.width * sc); capCv.height = Math.round(inCv.height * sc);
+  }
+  const c = emptyCorpus(S.mode); c.w = capCv.width; c.h = capCv.height;
+  corpora[S.mode] = corpus = c;
+  recPending = []; recStart = performance.now(); recording = true;
+  $('recDot').style.display = 'block';
+  $('bRec').classList.add('on'); $('bRec').textContent = 'Arrêter';
+}
+
+function finalizeCorpus(){
+  computeFeats();
+  clearCache(); crop = null;
+  curIdx = Math.max(0, corpus.valid ? corpus.valid.indexOf(1) : 0);
+  lastRaw = null; dirtyBg = true;
+  refreshInfo();
+}
+
+function refreshInfo(){
+  const c = corpus, N = c.frames.length, md = MODES[c.kind];
+  const dur = N ? c.frames[N - 1].t : 0;
+  const mb = c.frames.reduce((s, f) => s + (f.blob ? f.blob.size : 0), 0) / 1048576;
+  $('info').innerHTML = N
+    ? `${N} images · ${dur.toFixed(1)} s · ${c.fps.toFixed(1)} fps · ${mb.toFixed(1)} Mo<br>${md.noun} sur ${c.nValid} images (${Math.round(100 * c.nValid / N)}%)${c.segMax ? ` · dont ${c.frames.filter(f => f.seg).length} ajoutées (${c.segMax} passages)` : ''}`
+    : `aucune séquence ${md.what}`;
+  $('bSave').disabled = !N;
+  $('bPlay').disabled = !c.nValid;
+  $('bUndoEnr').disabled = !c.segMax;
+}
+
+/* ---------------- import d'une vidéo existante ---------------- */
+const once = (el, ev, ms = 3000) => new Promise(r => {
+  const t = setTimeout(done, ms);
+  function done(){ clearTimeout(t); el.removeEventListener(ev, done); r(); }
+  el.addEventListener(ev, done);
+});
+
+async function importVideo(file){
+  const kind = S.mode, md = MODES[kind];
+  stopEnrich();
+  setPlaying(false);
+  busy = true;
+  let det;
+  try { det = await loadDetector(kind); } catch(e){ busy = false; setStatus('modèle : ' + e.message); return; }
+  const v = $('impVid');
+  const url = URL.createObjectURL(file);
+  v.src = url;
+  await once(v, 'loadedmetadata', 10000);
+  if (!v.videoWidth){ busy = false; setStatus('vidéo illisible'); return; }
+  clearCache();
+  const fps = S.impFps, dur = v.duration;
+  const sc = Math.min(1, 960 / v.videoWidth);
+  capCv.width = Math.round(v.videoWidth * sc); capCv.height = Math.round(v.videoHeight * sc);
+  const c = emptyCorpus(kind); c.fps = fps; c.w = capCv.width; c.h = capCv.height;
+  $('prog').style.display = 'block';
+  // lecture en continu (x1) + une image analysée tous les 1/fps : bien plus
+  // rapide que de chercher chaque image (les vidéos compressées seekent mal)
+  const pending = [];
+  await new Promise(resolve => {
+    let nextT = 0, done = false;
+    const finish = () => { if (!done){ done = true; resolve(); } };
+    v.onended = finish;
+    const grab = mt => {
+      if (mt + 0.5 / fps >= nextT){
+        capCtx.drawImage(v, 0, 0, capCv.width, capCv.height);
+        let res = null;
+        try { res = det.detectForVideo(capCv, nextTs()); } catch(e){ console.warn(e); }
+        const fr = { t: mt, blob: null, lm: md.pack(res) };
+        pending.push(new Promise(r => capCv.toBlob(b => { fr.blob = b; r(); }, 'image/jpeg', 0.85)));
+        c.frames.push(fr);
+        nextT = Math.max(nextT + 1 / fps, mt + 0.5 / fps);
+        $('prog').firstElementChild.style.width = (100 * mt / dur) + '%';
+        $('info').textContent = `analyse ${md.label}… ${mt.toFixed(1)} / ${dur.toFixed(1)} s`;
+      }
+    };
+    let rvfcSeen = false;
+    const onFrame = (_, meta) => {
+      if (done) return;
+      rvfcSeen = true;
+      grab(meta.mediaTime);
+      v.requestVideoFrameCallback(onFrame);
+    };
+    v.requestVideoFrameCallback(onFrame);
+    // repli : si le navigateur ne livre pas les images (fenêtre cachée…),
+    // on échantillonne la lecture à la minuterie
+    const poll = () => {
+      if (done || rvfcSeen) return;
+      if (v.readyState >= 2 && !v.paused) grab(v.currentTime);
+      setTimeout(poll, 500 / fps);
+    };
+    setTimeout(poll, 800);
+    v.currentTime = 0;
+    v.play().catch(finish);
+  });
+  v.onended = null;
+  await Promise.all(pending);
+  if (c.frames.length > 1) c.fps = (c.frames.length - 1) / (c.frames[c.frames.length - 1].t - c.frames[0].t);
+  $('prog').style.display = 'none';
+  v.pause(); v.removeAttribute('src'); v.load(); URL.revokeObjectURL(url);
+  busy = false;
+  if (!c.frames.length){ setStatus("import : aucune image lue (vidéo non décodée — garder la fenêtre visible)"); refreshInfo(); return; }
+  corpora[kind] = c;
+  if (S.mode === kind){ corpus = c; finalizeCorpus(); }
+  else { computeFeats(c); await setMode(kind); }
+}
+
+/* ---------------- sauvegarde / chargement (.poseseq) ----------------
+   format : "PSEQ" | uint32 LE taille en-tête | en-tête JSON | JPEG concaténés
+   en-tête.kind = "body" | "face" (absent = body, fichiers v1)          */
+function saveSeq(){
+  const c = { ...corpus, frames: corpus.frames.filter(f => f.blob) };
+  const h = { v:2, kind:c.kind, fps:c.fps, w:c.w, h:c.h, neutral:c.neutralIdx ?? null,
+    frames: c.frames.map(f => ({ t:+f.t.toFixed(4), n:f.blob.size, s:f.seg || 0, lm: f.lm ? Array.from(f.lm, x => +x.toFixed(4)) : null })) };
+  const hb = new TextEncoder().encode(JSON.stringify(h));
+  const pre = new Uint8Array(8); pre.set([80, 83, 69, 81]);
+  new DataView(pre.buffer).setUint32(4, hb.length, true);
+  const blob = new Blob([pre, hb, ...c.frames.map(f => f.blob)], { type:'application/octet-stream' });
+  const a = document.createElement('a');
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  a.download = `${MODES[c.kind].file}_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.poseseq`;
+  a.href = URL.createObjectURL(blob); a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+async function loadSeq(file){
+  if (recording || recArming || busy) return;
+  try {
+    stopEnrich();
+    setPlaying(false);
+    const pre = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+    if (String.fromCharCode(...pre.slice(0, 4)) !== 'PSEQ') throw new Error('pas un fichier .poseseq');
+    const len = new DataView(pre.buffer).getUint32(4, true);
+    const h = JSON.parse(new TextDecoder().decode(await file.slice(8, 8 + len).arrayBuffer()));
+    const kind = h.kind === 'face' ? 'face' : 'body';
+    const c = emptyCorpus(kind); c.fps = h.fps; c.w = h.w; c.h = h.h; c.neutralIdx = h.neutral ?? null;
+    let o = 8 + len;
+    for (const f of h.frames){
+      c.frames.push({ t:f.t, blob:file.slice(o, o + f.n, 'image/jpeg'), lm: f.lm ? Float32Array.from(f.lm) : null, seg: f.s || 0 });
+      c.segMax = Math.max(c.segMax || 0, f.s || 0);
+      o += f.n;
+    }
+    corpora[kind] = c;
+    if (S.mode === kind){ corpus = c; finalizeCorpus(); }
+    else { computeFeats(c); await setMode(kind); }
+  } catch(e){ setStatus('chargement : ' + e.message); }
+}
+
+/* ---------------- UI ---------------- */
+function setStatus(t){ $('status').textContent = t; }
+function setPlaying(on){
+  playing = on && corpus.nValid > 0;
+  prevIdx = -1; matchIdx = -1; lastRaw = null; dirtyBg = true;
+  $('bPlay').classList.toggle('on', playing);
+  $('bPlay').textContent = playing ? 'Arrêter' : 'Jouer';
+}
+
+$('bRec').onclick = toggleRec;
+
+let calibrating = false;
+async function calibrateNeutral(){
+  if (S.mode !== 'face' || calibrating || recording || busy) return;
+  calibrating = true;
+  setStatus('calibration : visage détendu, regarde la caméra…');
+  await countdown(3);
+  const samples = []; liveFace.collect = samples;
+  await new Promise(r => setTimeout(r, 1500));
+  liveFace.collect = null;
+  if (samples.length < 5) setStatus('calibration ratée : visage non détecté');
+  else {
+    const n = new Float32Array(FD);
+    for (const sm of samples) for (let k = 0; k < FD; k++) n[k] += sm[k] / samples.length;
+    liveFace.neutral = n;
+    recalcLiveFace();
+    history.length = 0; smoothF = null; prevIdx = -1;
+    setStatus('neutre calibré');
+  }
+  calibrating = false;
+}
+$('bCalib').onclick = calibrateNeutral;
+$('bEnrich').onclick = () => enrich.on ? stopEnrich() : startEnrich();
+$('bUndoEnr').onclick = undoEnrich;
+$('bCalReset').onclick = () => {
+  liveFace.buf = []; liveFace.neutral = null; liveFace.stats = null;
+  history.length = 0; smoothF = null; prevIdx = -1; updateCalInfo();
+};
+$('bSeqNeutral').onclick = () => {
+  const c = corpora.face;
+  if (!c.frames.length || S.mode !== 'face') return;
+  c.neutralIdx = c.neutralIdx != null ? null : (c.frames[curIdx]?.lm ? curIdx : null);
+  computeFeats(c);
+};
+$('bImport').onclick = () => $('fVid').click();
+$('bLoad').onclick = () => $('fSeq').click();
+$('bSave').onclick = saveSeq;
+$('bPlay').onclick = () => setPlaying(!playing);
+$('fVid').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importVideo(f); };
+$('fSeq').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) loadSeq(f); };
+
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  const k = e.key.toLowerCase();
+  if (k === ' '){ e.preventDefault(); if (!busy) setPlaying(!playing); }
+  else if (k === 'r'){ if (!busy) toggleRec(); }
+  else if (k === 'e'){ enrich.on ? stopEnrich() : startEnrich(); }
+  else if (k === 'v'){ setMode(S.mode === 'body' ? 'face' : 'body'); }
+  else if (k === 'f'){ document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+  else if (k === 'h'){ document.body.classList.toggle('clean'); }
+  else if ((k === 'arrowleft' || k === 'arrowright') && !playing && corpus.frames.length){
+    e.preventDefault();
+    curIdx = Math.max(0, Math.min(corpus.frames.length - 1, curIdx + (k === 'arrowright' ? 1 : -1) * (e.shiftKey ? 10 : 1)));
+  }
+});
+
+/* ---------------- barre de menus (façon Macintosh) ---------------- */
+(function(){
+  const bar = $('menubar');
+  let open = null;
+  const close = () => { if (open) open.classList.remove('open'); open = null; };
+  const refresh = m => m.querySelectorAll('.drop div').forEach(it => {
+    const t = it.dataset.sel ? document.querySelector(it.dataset.sel) : null;
+    if (t) it.classList.toggle('dis', !!t.disabled);
+    if (it.dataset.chk) it.classList.toggle('check', $(it.dataset.chk).checked);
+    if (it.dataset.on) it.classList.toggle('check', !!document.querySelector(it.dataset.on)?.classList.contains('on'));
+  });
+  const show = m => { close(); open = m; refresh(m); m.classList.add('open'); };
+  bar.querySelectorAll('.menu').forEach(m => {
+    m.addEventListener('mousedown', e => { if (e.target.closest('.drop')) return; e.preventDefault(); open === m ? close() : show(m); });
+    m.addEventListener('mouseenter', () => { if (open && open !== m) show(m); });
+  });
+  bar.addEventListener('click', e => {
+    const it = e.target.closest('.drop div');
+    if (!it || it.classList.contains('dis')) return;
+    close();
+    if (it.dataset.sel) document.querySelector(it.dataset.sel)?.click();
+    else if (it.dataset.chk) $(it.dataset.chk).click();
+    else if (it.dataset.key) window.dispatchEvent(new KeyboardEvent('keydown', { key: it.dataset.key }));
+  });
+  document.addEventListener('mousedown', e => { if (!e.target.closest('#menubar')) close(); });
+  // cases des barres de titre
+  document.querySelectorAll('.titlebar .box').forEach(b => b.addEventListener('click', () =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: b.dataset.key }))));
+  const tick = () => { $('clock').textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
+  tick(); setInterval(tick, 15000);
+})();
+
+updateModeUI(); refreshInfo(); updateCalInfo(); updateInputUI();
+requestAnimationFrame(render);
+watchFrames($('cam')); watchFrames($('scr'));
+
+(async () => {
+  try {
+    await loadDetector(S.mode);
+    setStatus('modèle prêt · ouverture caméra…');
+    $('bImport').disabled = $('bLoad').disabled = false;
+  } catch(e){ setStatus('modèle : ' + e.message); console.error(e); return; }
+  try {
+    await startCam();
+    $('bRec').disabled = $('bEnrich').disabled = false;
+    setStatus('prêt');
+  } catch(e){ setStatus('caméra indisponible (' + e.message + ') · import/chargement possibles'); }
+})();
+</script>
+</body>
+</html>
