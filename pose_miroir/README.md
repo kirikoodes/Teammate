@@ -3,14 +3,33 @@
 Tu bouges devant la caméra, une vidéo de danse déjà enregistrée « rejoue » ta pose :
 à chaque image, l'appli affiche l'image de la séquence dont la posture ressemble le plus à la tienne.
 
-Deux modes indépendants (boutons **CORPS / VISAGE** ou touche `V`), chacun avec sa séquence et ses réglages.
+Deux modes indépendants (boutons **CORPS / VISAGE** ou touche `V`), chacun avec **sa séquence et ses propres réglages** :
+tout ce que tu règles en CORPS (inertie, lissage, morph, mélange, fondu, entrée, miroir, tracés…) ne change rien en VISAGE, et inversement.
+Chaque mode retrouve ses réglages quand on y revient, même après avoir fermé l'appli.
 
 Lancer : double-clic sur `Lancer_PoseMiroir.bat` (sert le dossier sur `localhost:8790`, la caméra l'exige).
 
 ## Interface
-Style Macintosh System 7 : bureau tramé, barre de menus (Fichier · Séquence · Mode · Affichage, avec coches ✓),
-fenêtres à barre de titre rayée (case de gauche = afficher/masquer les réglages, case de droite = plein écran),
-boutons arrondis qui s'inversent au clic, cases à croix. Police **ChicagoFLF** (reprise de Chicago, domaine public, fournie dans `fonts/`).
+Thème « PM//NET », froid et futuriste : fond grille sombre, fenêtres à fin cadre cyan et crochets aux coins
+(`SORTIE · OUT-01`, `CONTRÔLE · SYS-02`, `RÉSEAU · CORPUS · NET-03`), sections numérotées `01 //`, curseurs à fil,
+police IBM Plex Mono. Barre de menus (Fichier · Séquence · Mode · Affichage) ; case de gauche d'une fenêtre = masquer, de droite = agrandir.
+(La police ChicagoFLF de l'ancien thème Macintosh reste dans `fonts/` mais n'est plus utilisée.)
+
+## Fenêtre Réseau · Corpus (touche `N`, menu Affichage)
+Toutes les images du corpus, rangées par ressemblance (ACP 2D → grille sans chevauchement : les poses proches sont voisines).
+- En direct, chaque vignette s'allume selon sa **ressemblance avec l'entrée** (*Seuil* = activation minimale affichée).
+- Les **images choisies** passent en couleur, avec crochets, **ID** (`N0142`), poids, et un lien depuis le nœud **INPUT**.
+- À gauche, les **curseurs d'entrée** (bouche, lèvres, yeux, tête… ou angles des membres) : blanc = toi, cyan = image affichée.
+- Ligne rose = **trajectoire** de la sortie dans la carte (3 dernières secondes).
+- En bas, le **tableau** : ID, passage, temps, ressemblance, poids, fichier (`nom_de_séquence#0142.jpg`).
+- Survol = fiche de l'image ; clic (hors jeu) = l'afficher. *Carte* / *Grille* (ordre chronologique). Fenêtre déplaçable, redimensionnable.
+- Curseurs *MIX / OUVERTURE / SWAP / ENTRÉE* = les mêmes réglages que le panneau.
+
+## Face swap · entrée
+- **Face swap** (mode VISAGE) : ton visage en direct est déformé pour épouser exactement les traits du visage généré
+  (même maillage de points), avec bord fondu et correction de couleur de peau. 0 = visage généré, 1 = ton visage (bouche comprise).
+- **Entrée** : fondu de ton image entière, calée sur le visage / la silhouette de l'image générée. 0 = 100 % généré, 1 = 100 % entrée.
+- Les deux se combinent pour doser librement entre image générée et entrée.
 
 ## Utilisation
 1. **Enregistrer** (compte à rebours 3 s, puis danse, re-clic pour arrêter) ou **Importer vidéo** (analysée en temps réel).
@@ -56,6 +75,15 @@ On peut enrichir **pendant qu'on joue** : la vidéo réagit et apprend en même 
 - Filmer le visage assez gros et bien éclairé ; varier expressions et orientations pendant l'enregistrement.
 - Un fichier `.poseseq` retient son mode : le charger bascule automatiquement sur le bon.
 
+### Lip-sync (activé par défaut) — la bouche est la référence
+- La forme réelle des **lèvres** est mesurée sur 20 points (ouverture, largeur, coins, moue), dans le repère des yeux :
+  indépendante de la taille, de la position et de l'inclinaison de la tête ; calée entre deux visages comme le reste.
+- En lip-sync : lèvres prioritaires, yeux/tête presque ignorés, **aucun lissage ni inertie sur la bouche**,
+  comparaison sur l'instant présent, pas de ponts, morph ~3× plus rapide → les images enchaînent au rythme de la bouche.
+- Hors lip-sync : *Poids lèvres* réglable ; la bouche garde de toute façon 3× moins de lissage que le reste.
+- Jauges : « lèvres (écart) » et « lèvres (largeur) » montrent ta bouche (rose) face à l'image choisie (cyan).
+- Mesuré (bouche d'une autre personne, simulation) : erreur de forme de bouche 0,134 → 0,088.
+
 ### Auto-zoom visage sur l'entrée (activé par défaut)
 Sur une capture d'écran, le visage est souvent trop petit pour être détecté. En mode VISAGE :
 1. **recherche** (« recherche de visage… » sur l'aperçu) : l'image est fouillée en pleine résolution par fenêtres carrées de plus en plus fines ;
@@ -92,6 +120,14 @@ guidé par les points + fondu) : les changements sont étalés, même lors d'un 
   (la silhouette suit la nouvelle pose) avant de se fondre dans la suivante ; 0 = fondu rapide.
 - Le morph garde toute sa durée **pendant les ponts** : la silhouette glisse à travers les poses intermédiaires
   pendant que l'image se déforme — les deux effets se cumulent.
+
+## Mélange de plusieurs images (Images mêlées)
+Au lieu d'une seule image dominante, la sortie mélange les **N images du corpus qui ressemblent le plus à l'entrée**
+(pas voisines entre elles), pondérées par leur ressemblance. Chacune est déformée vers une silhouette commune
+(moyenne pondérée de leurs points) puis fondues : image plus riche, plus fluide, jamais figée.
+- *Images mêlées* : 1 = une seule image (ponts actifs), 2 à 6 = mélange (4 par défaut).
+- *Ouverture mix* : bas = seules les images presque identiques se mélangent ; haut = mélange plus large.
+- Les images apparaissent / disparaissent en douceur (vitesse liée à *Durée morph*).
 
 ## Transitions par images intermédiaires (ponts)
 Quand l'image choisie saute d'un endroit à un autre de la séquence, la sortie ne saute pas directement :

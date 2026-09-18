@@ -5,86 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pose Miroir</title>
 <style>
-  /* ================= Style Macintosh System 7 (début des années 90) ================= */
-  @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap');
-  /* Chicago (ChicagoFLF, domaine public — Robin Casady), fournie avec l'appli */
-  @font-face{font-family:"ChicagoFLF";src:url("fonts/ChicagoFLF.ttf") format("truetype");font-display:block}
+  /* ================= Thème « PM//NET » : froid, futuriste, réseau de neurones ================= */
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&display=swap');
   :root{
-    --ink:#000; --paper:#fff; --grey:#bbb; --dim:#808080;
-    --chicago:"ChicagoFLF","Chicago","Charcoal","Pixelify Sans",system-ui,sans-serif;
-    --geneva:"Geneva","Verdana","Tahoma",sans-serif;
-    /* trame grise du bureau (damier 1 px) */
-    --dither: repeating-conic-gradient(#000 0 25%, #fff 0 50%) 0 0/2px 2px;
-    --dither-light: repeating-conic-gradient(#9a9a9a 0 25%, #fff 0 50%) 0 0/2px 2px;
-    --x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1 1L11 11M11 1L1 11' stroke='black' stroke-width='1.2' shape-rendering='crispEdges'/%3E%3C/svg%3E");
-    --tri-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0H10L5 6Z'/%3E%3C/svg%3E");
-    --tri-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 6H10L5 0Z' fill='none' stroke='black'/%3E%3C/svg%3E");
-    --tri-dn: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0H10L5 6Z' fill='none' stroke='black'/%3E%3C/svg%3E");
+    --bg:#03060a; --bg2:#050b11; --bg3:#0a141c; --line:rgba(111,243,255,.22); --line2:rgba(111,243,255,.45);
+    --txt:#bfefff; --dim:#4f7f91; --cyan:#6ff3ff; --white:#e8fbff; --out:#ff3d7f; --amber:#ffb454;
+    --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;color:var(--ink);font:11px/1.45 var(--geneva);overflow:hidden;
-    background:#8c8c8c var(--dither-light);-webkit-font-smoothing:none;font-smooth:never}
+  html,body{margin:0;height:100%;color:var(--txt);font:11px/1.5 var(--mono);overflow:hidden;letter-spacing:.02em;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #0b1a24 0%, transparent 60%),
+      linear-gradient(rgba(111,243,255,.035) 1px, transparent 1px) 0 0/32px 32px,
+      linear-gradient(90deg, rgba(111,243,255,.035) 1px, transparent 1px) 0 0/32px 32px,
+      var(--bg)}
   body{display:flex;flex-direction:column}
+  ::selection{background:#0e2a36;color:var(--white)}
 
   /* ---------- barre de menus ---------- */
-  #menubar{flex:0 0 20px;height:20px;background:var(--paper);border-bottom:1px solid var(--ink);display:flex;align-items:stretch;
-    font:12px var(--chicago);user-select:none;position:relative;z-index:50}
-  #menubar .menu{position:relative;padding:0 10px;display:flex;align-items:center;cursor:default}
-  #menubar .menu.open,#menubar .menu:has(.drop:hover){background:var(--ink);color:var(--paper)}
-  #menubar .logo{padding:0 12px}
-  #menubar .logo i{display:block;width:14px;height:14px;border:1px solid var(--ink);border-radius:3px;
-    background:linear-gradient(#5ebd3e 0 17%,#ffb900 17% 33%,#f78200 33% 50%,#e23838 50% 67%,#973999 67% 83%,#009cdf 83%)}
-  #menubar .drop{display:none;position:absolute;left:0;top:19px;min-width:220px;background:var(--paper);color:var(--ink);
-    border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);padding:2px 0}
+  #menubar{flex:0 0 24px;height:24px;background:rgba(3,6,10,.85);border-bottom:1px solid var(--line);display:flex;align-items:stretch;
+    font:600 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;user-select:none;position:relative;z-index:50;backdrop-filter:blur(4px)}
+  #menubar .menu{position:relative;padding:0 12px;display:flex;align-items:center;cursor:default;color:var(--txt)}
+  #menubar .menu.open,#menubar .menu:has(.drop:hover){background:#0e2a36;color:var(--white)}
+  #menubar .logo{padding:0 14px;gap:8px}
+  #menubar .logo i{display:block;width:10px;height:10px;border:1px solid var(--cyan);box-shadow:0 0 8px var(--cyan),inset 0 0 4px var(--cyan);transform:rotate(45deg)}
+  #menubar .logo::after{content:"PM//NET";color:var(--cyan)}
+  #menubar .drop{display:none;position:absolute;left:0;top:23px;min-width:250px;background:rgba(5,11,17,.97);color:var(--txt);
+    border:1px solid var(--line2);box-shadow:0 8px 30px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.4);padding:4px 0;letter-spacing:.08em}
   #menubar .menu.open .drop{display:block}
-  #menubar .drop div{padding:1px 18px;white-space:nowrap;display:flex;justify-content:space-between;gap:24px}
-  #menubar .drop div:hover{background:var(--ink);color:var(--paper)}
-  #menubar .drop div.dis{color:var(--dim);background:none}
-  #menubar .drop div.check::before{content:"✓";position:absolute;left:5px}
-  #menubar .drop hr{border:0;border-top:1px dotted var(--dim);margin:2px 0}
-  #menubar .drop kbd{font:inherit;opacity:.8}
+  #menubar .drop div{position:relative;padding:3px 18px 3px 22px;white-space:nowrap;display:flex;justify-content:space-between;gap:24px;font-weight:400}
+  #menubar .drop div:hover{background:#0e2a36;color:var(--white)}
+  #menubar .drop div.dis{color:#2c4a56;background:none}
+  #menubar .drop div.check::before{content:"";position:absolute;left:8px;top:50%;width:6px;height:6px;margin-top:-3px;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+  #menubar .drop hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+  #menubar .drop kbd{font:inherit;color:var(--dim)}
   #menubar .spacer{flex:1}
-  #clock{padding:0 12px;display:flex;align-items:center}
+  #clock{padding:0 14px;display:flex;align-items:center;color:var(--dim)}
 
-  /* ---------- fenêtres ---------- */
+  /* ---------- fenêtres : cadre fin + crochets aux coins ---------- */
   #app{flex:1;display:flex;gap:12px;padding:12px;min-height:0}
-  .win{background:var(--paper);border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);display:flex;flex-direction:column;min-height:0}
-  .titlebar{flex:0 0 19px;height:19px;position:relative;border-bottom:1px solid var(--ink);background:var(--paper);
-    display:flex;align-items:center;justify-content:center;user-select:none}
-  .titlebar::before{content:"";position:absolute;left:2px;right:2px;top:3px;bottom:3px;
-    background:repeating-linear-gradient(var(--ink) 0 1px,var(--paper) 1px 2px)}
-  .titlebar .ttl{position:relative;background:var(--paper);padding:0 8px;font:12px var(--chicago);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
-  .titlebar .box{position:absolute;top:3px;width:13px;height:13px;border:1px solid var(--ink);background:var(--paper);
-    box-shadow:0 0 0 1px var(--paper);cursor:pointer;z-index:1}
-  .titlebar .box:active{background:var(--ink)}
-  .titlebar .close{left:8px}
-  .titlebar .zoom{right:8px}
-  .titlebar .zoom::after{content:"";position:absolute;left:1px;top:1px;width:6px;height:6px;border:1px solid var(--ink)}
+  .win{position:relative;background:rgba(5,11,17,.92);border:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .win::before,.win::after{content:"";position:absolute;width:12px;height:12px;pointer-events:none;z-index:3}
+  .win::before{left:-1px;top:-1px;border-left:2px solid var(--cyan);border-top:2px solid var(--cyan)}
+  .win::after{right:-1px;bottom:-1px;border-right:2px solid var(--cyan);border-bottom:2px solid var(--cyan)}
+  .titlebar{flex:0 0 24px;height:24px;position:relative;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 34px 0 30px;user-select:none;
+    background:linear-gradient(90deg, rgba(111,243,255,.07), transparent 60%)}
+  .titlebar .ttl{font:600 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .titlebar .ttl::after{content:attr(data-id);margin-left:12px;color:var(--dim);font-weight:400}
+  .titlebar .box{position:absolute;top:7px;width:10px;height:10px;border:1px solid var(--line2);cursor:pointer;z-index:1}
+  .titlebar .box:hover{border-color:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+  .titlebar .box:active{background:var(--cyan)}
+  .titlebar .close{left:10px}
+  .titlebar .close::after{content:"";position:absolute;left:2px;right:2px;top:3px;height:1px;background:var(--dim)}
+  .titlebar .zoom{right:10px}
+  .titlebar .zoom::after{content:"";position:absolute;left:2px;top:2px;width:4px;height:4px;border:1px solid var(--dim)}
 
   #stage{flex:1;position:relative;min-width:0}
   #stage .content{flex:1;position:relative;display:flex;flex-direction:column;min-height:0;background:#000}
   #out{flex:1;width:100%;min-height:0;display:block}
-  #timeline{height:22px;width:100%;display:block;cursor:pointer;border-top:1px solid var(--ink)}
-  #hud{position:absolute;left:8px;top:8px;font:11px var(--chicago);color:var(--ink);background:var(--paper);
-    border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);padding:2px 7px;pointer-events:none;white-space:pre}
+  #timeline{height:22px;width:100%;display:block;cursor:pointer;border-top:1px solid var(--line)}
+  #hud{position:absolute;left:10px;top:10px;font:600 10px/1.6 var(--mono);letter-spacing:.1em;color:var(--cyan);background:rgba(3,6,10,.72);
+    border:1px solid var(--line);border-left:2px solid var(--cyan);padding:4px 10px;pointer-events:none;white-space:pre;text-transform:uppercase}
   #hud:empty{display:none}
   #count{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;
-    font:700 24vh var(--chicago);color:var(--paper);-webkit-text-stroke:4px var(--ink);paint-order:stroke}
-  #recDot{position:absolute;right:8px;top:8px;display:none;font:11px var(--chicago);background:var(--ink);color:var(--paper);
-    padding:2px 8px;border:1px solid var(--paper);animation:blink 1s steps(1) infinite}
-  @keyframes blink{50%{background:var(--paper);color:var(--ink);border-color:var(--ink)}}
-  /* boîte de dialogue d'accueil */
+    font:300 26vh var(--mono);color:var(--cyan);text-shadow:0 0 30px rgba(111,243,255,.6)}
+  #recDot{position:absolute;right:10px;top:10px;display:none;font:600 10px var(--mono);letter-spacing:.2em;color:var(--out);
+    background:rgba(3,6,10,.72);border:1px solid var(--out);padding:3px 10px;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:.35}}
   #msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:88%;pointer-events:none;
-    background:var(--paper);color:var(--ink);border:1px solid var(--ink);outline:3px solid var(--paper);
-    box-shadow:0 0 0 4px var(--ink),5px 5px 0 4px var(--ink);padding:14px 18px 14px 64px;line-height:1.7;font:12px/1.7 var(--geneva)}
-  /* petit Macintosh souriant */
-  #msg::before{content:"";position:absolute;left:18px;top:16px;width:30px;height:36px;border:2px solid var(--ink);border-radius:3px;
-    background:var(--paper);box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--ink),inset 0 -12px 0 0 var(--paper)}
-  #msg::after{content:"☺";position:absolute;left:25px;top:18px;font:15px/1 var(--chicago)}
-  #msg b{font:13px var(--chicago)}
+    background:rgba(5,11,17,.9);color:var(--txt);border:1px solid var(--line2);padding:16px 22px 16px 58px;font:11px/1.8 var(--mono)}
+  #msg::before{content:"";position:absolute;left:18px;top:18px;width:24px;height:24px;border:1px solid var(--cyan);border-radius:50%;
+    box-shadow:0 0 12px rgba(111,243,255,.5)}
+  #msg::after{content:"";position:absolute;left:26px;top:26px;width:8px;height:8px;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+  #msg b{font-weight:600;color:var(--white);letter-spacing:.14em;text-transform:uppercase}
 
-  #panel{width:340px;flex:0 0 340px}
-  #panel .pbody{flex:1;overflow-y:auto;padding:10px 12px 24px}
+  #panel{width:350px;flex:0 0 350px}
+  #panel .pbody{flex:1;overflow-y:auto;padding:12px 14px 26px}
   body.clean #panel{display:none}
   @media (max-width:760px){
     html,body{overflow:auto}
@@ -93,83 +89,105 @@
     #stage{height:60vh;flex:0 0 auto}
     #panel{width:100%;flex:0 0 auto}
     #panel .pbody{overflow:visible}
-    #menubar .menu:not(.logo){padding:0 6px}
+    #menubar .menu:not(.logo){padding:0 7px}
   }
 
   /* ---------- contenu du panneau ---------- */
-  .about{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-  .about i{flex:0 0 28px;height:28px;border:1px solid var(--ink);border-radius:5px;box-shadow:1px 1px 0 var(--ink);
-    background:linear-gradient(#5ebd3e 0 17%,#ffb900 17% 33%,#f78200 33% 50%,#e23838 50% 67%,#973999 67% 83%,#009cdf 83%)}
-  h1{font:14px var(--chicago);margin:0}
-  .sub{font-size:10px;color:var(--dim)}
-  .live{position:relative;background:#000;border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);overflow:hidden;aspect-ratio:16/9}
+  .about{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .about i{flex:0 0 26px;height:26px;border:1px solid var(--cyan);transform:rotate(45deg) scale(.75);box-shadow:0 0 12px rgba(111,243,255,.5),inset 0 0 8px rgba(111,243,255,.4)}
+  h1{font:600 12px var(--mono);letter-spacing:.2em;text-transform:uppercase;margin:0;color:var(--white)}
+  .sub{font-size:10px;color:var(--dim);letter-spacing:.06em}
+  .live{position:relative;background:#000;border:1px solid var(--line);overflow:hidden;aspect-ratio:16/9}
+  .live::before{content:"INPUT // LIVE";position:absolute;left:6px;top:4px;z-index:2;font:600 9px var(--mono);letter-spacing:.16em;color:var(--cyan);
+    text-shadow:0 0 4px #000;pointer-events:none}
   .live canvas{width:100%;height:100%;display:block;object-fit:contain}
   .live.flip canvas{transform:scaleX(-1)}
   #cam,#scr{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
   body:not(.in-screen) .only-screen, body.in-screen .only-cam{display:none}
   body:not(.mode-face) .only-face, body.mode-face .only-body{display:none}
-  .live.editing{cursor:crosshair;outline:2px dashed var(--ink);outline-offset:2px;animation:ants .6s steps(2) infinite}
-  @keyframes ants{50%{outline-color:var(--dim)}}
-  #status{font-size:10px;margin:5px 0 2px;min-height:15px}
-  h2{font:12px var(--chicago);margin:16px 0 6px;padding:0 0 2px;border-bottom:1px solid var(--ink);display:flex;gap:6px}
+  .live.editing{cursor:crosshair;outline:1px dashed var(--cyan);outline-offset:2px;animation:ants .6s steps(2) infinite}
+  @keyframes ants{50%{outline-color:transparent}}
+  #status{font-size:10px;color:var(--dim);margin:6px 0 2px;min-height:15px}
+  h2{font:600 10px var(--mono);letter-spacing:.18em;text-transform:uppercase;margin:18px 0 8px;padding:0 0 4px;
+    border-bottom:1px solid var(--line);display:flex;gap:6px;color:var(--white);counter-increment:sec}
+  h2::before{content:counter(sec, decimal-leading-zero) " //";color:var(--cyan)}
+  .pbody{counter-reset:sec}
   select,button{font:inherit}
 
-  /* boutons arrondis ; clic = inversion */
+  /* boutons : contour fin, allumés quand actifs */
   .row{display:flex;gap:8px;margin-bottom:8px}
-  .btn{flex:1;background:var(--paper);color:var(--ink);border:1px solid var(--ink);border-radius:7px;
-    padding:3px 6px;min-height:22px;font:12px var(--chicago);cursor:pointer;line-height:1.2}
-  .btn:active:not(:disabled),.btn.on{background:var(--ink);color:var(--paper)}
-  .btn:disabled{color:var(--dim);border-color:var(--dim);cursor:default}
-  /* bouton par défaut : double contour épais */
-  .btn.play{margin:4px 4px 2px;width:calc(100% - 8px) !important;min-height:30px;font-size:14px;border-radius:8px;
-    box-shadow:0 0 0 2px var(--paper),0 0 0 5px var(--ink)}
-  .btn.play:disabled{box-shadow:0 0 0 2px var(--paper),0 0 0 5px var(--dim)}
-  /* groupes de choix exclusifs (Corps/Visage, Caméra/Écran) */
-  .seg{display:flex;border:1px solid var(--ink);border-radius:7px;overflow:hidden;margin-bottom:10px;box-shadow:1px 1px 0 var(--ink)}
-  .seg button{flex:1;background:var(--paper);color:var(--ink);border:0;border-left:1px solid var(--ink);padding:4px 6px;cursor:pointer;font:12px var(--chicago)}
+  .btn{flex:1;background:transparent;color:var(--txt);border:1px solid #1d4a5a;padding:5px 6px;min-height:26px;
+    font:600 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:border-color .1s,box-shadow .1s}
+  .btn:hover:not(:disabled){border-color:var(--cyan);color:var(--white)}
+  .btn:active:not(:disabled),.btn.on{background:#0e2a36;border-color:var(--cyan);color:var(--white);box-shadow:0 0 10px rgba(111,243,255,.35),inset 0 0 8px rgba(111,243,255,.15)}
+  .btn:disabled{color:#2c4a56;border-color:#122a33;cursor:default}
+  .btn.rec.on{border-color:var(--out);color:#fff;background:rgba(255,61,127,.15);box-shadow:0 0 10px rgba(255,61,127,.4)}
+  .btn.enr.on{border-color:var(--amber);color:#fff;background:rgba(255,180,84,.12);box-shadow:0 0 10px rgba(255,180,84,.35)}
+  .btn.play{width:100%;min-height:36px;font-size:12px;letter-spacing:.3em;border:1px solid var(--cyan);color:var(--cyan);
+    background:linear-gradient(90deg, rgba(111,243,255,.08), transparent)}
+  .btn.play.on{background:var(--cyan);color:#021016;box-shadow:0 0 18px rgba(111,243,255,.6)}
+  .btn.play:disabled{border-color:#122a33;color:#2c4a56;background:none}
+  /* choix exclusifs */
+  .seg{display:flex;border:1px solid #1d4a5a;margin-bottom:10px}
+  .seg button{flex:1;background:transparent;color:var(--dim);border:0;border-left:1px solid #1d4a5a;padding:5px 6px;cursor:pointer;
+    font:600 10px var(--mono);letter-spacing:.16em;text-transform:uppercase}
   .seg button:first-child{border-left:0}
-  .seg button.on{background:var(--ink);color:var(--paper)}
-  .seg.small button{font-size:11px;padding:3px 4px}
+  .seg button.on{background:#0e2a36;color:var(--white);box-shadow:inset 0 -2px 0 var(--cyan)}
+  .seg.small button{font-size:9px;padding:4px}
 
-  /* menu local (popup) */
-  select{width:100%;appearance:none;-webkit-appearance:none;background:var(--paper) var(--tri-down) no-repeat right 8px center/9px 6px;
-    color:var(--ink);border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);border-radius:0;padding:2px 24px 2px 6px;margin-top:8px;font:12px var(--chicago)}
+  select{width:100%;appearance:none;-webkit-appearance:none;margin-top:8px;padding:4px 24px 4px 8px;border-radius:0;
+    background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M0 0L5 6L10 0' fill='none' stroke='%236ff3ff'/%3E%3C/svg%3E") no-repeat right 8px center/9px 6px;
+    color:var(--txt);border:1px solid #1d4a5a;font:10px var(--mono)}
+  select option{background:#050b11}
 
-  /* curseurs */
-  .sl{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:6px;font-size:11px;margin:4px 0}
-  .sl output{text-align:right;font:11px var(--chicago)}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:transparent;margin:0}
-  input[type=range]::-webkit-slider-runnable-track{height:6px;background:var(--dither-light);border:1px solid var(--ink)}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:16px;margin-top:-6px;background:var(--paper);
-    border:1px solid var(--ink);box-shadow:1px 1px 0 var(--ink);border-radius:1px}
-  input[type=range]:active::-webkit-slider-thumb{background:var(--ink)}
-  input[type=range]::-moz-range-track{height:6px;background:var(--dither-light);border:1px solid var(--ink)}
-  input[type=range]::-moz-range-thumb{width:10px;height:15px;background:var(--paper);border:1px solid var(--ink);border-radius:1px}
+  /* curseurs : fil + marqueur */
+  .sl{display:grid;grid-template-columns:104px 1fr 38px;align-items:center;gap:8px;font-size:10px;margin:5px 0}
+  .sl > span:first-child{color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+  .sl output{text-align:right;color:var(--white);font:10px var(--mono)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:transparent;margin:0;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:1px;background:linear-gradient(90deg,#2a6a80,#1d4a5a);border:0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:6px;height:12px;margin-top:-6px;background:var(--bg);
+    border:1px solid var(--cyan);box-shadow:0 0 6px rgba(111,243,255,.55);border-radius:0}
+  input[type=range]:hover::-webkit-slider-thumb,input[type=range]:active::-webkit-slider-thumb{background:var(--cyan)}
+  input[type=range]::-moz-range-track{height:1px;background:#2a6a80;border:0}
+  input[type=range]::-moz-range-thumb{width:5px;height:11px;background:var(--bg);border:1px solid var(--cyan);border-radius:0}
 
-  /* cases à cocher : carré blanc, croix quand coché */
-  .ck{display:flex;align-items:flex-start;gap:7px;font-size:11px;margin:5px 0;cursor:pointer}
-  input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:0 0 12px;width:12px;height:12px;margin:2px 0 0;
-    border:1px solid var(--ink);background:var(--paper);cursor:pointer}
-  input[type=checkbox]:checked{background:var(--paper) var(--x) center/100% no-repeat}
-  input[type=checkbox]:active{border-width:2px}
+  /* cases à cocher : carré, rempli quand actif */
+  .ck{display:flex;align-items:flex-start;gap:8px;font-size:10px;margin:6px 0;cursor:pointer;color:var(--txt)}
+  .ck b{color:var(--white);font-weight:600}
+  input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:0 0 10px;width:10px;height:10px;margin:3px 0 0;
+    border:1px solid #2a6a80;background:transparent;cursor:pointer;position:relative}
+  input[type=checkbox]:checked{border-color:var(--cyan);box-shadow:0 0 6px rgba(111,243,255,.5)}
+  input[type=checkbox]:checked::after{content:"";position:absolute;inset:2px;background:var(--cyan)}
 
-  /* barre de progression */
-  #prog{height:12px;border:1px solid var(--ink);background:var(--paper);margin:6px 0;display:none}
-  #prog i{display:block;height:100%;width:0;background:var(--ink)}
+  #prog{height:3px;background:#0a1a22;margin:6px 0;display:none}
+  #prog i{display:block;height:100%;width:0;background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
 
-  #info{font-size:11px;line-height:1.5}
-  .help{font-size:10px;color:#333;line-height:1.55;margin-top:5px}
-  .help kbd{font:10px var(--chicago);border:1px solid var(--ink);border-radius:3px;padding:0 3px;background:var(--paper);box-shadow:1px 1px 0 var(--ink)}
+  #info{font-size:10px;line-height:1.6;color:var(--txt)}
+  .help{font-size:9px;color:var(--dim);line-height:1.6;margin-top:5px;letter-spacing:.03em}
+  .help kbd{font:600 9px var(--mono);border:1px solid #1d4a5a;padding:0 4px;color:var(--txt)}
 
-  /* barres de défilement */
-  .pbody::-webkit-scrollbar{width:16px}
-  .pbody::-webkit-scrollbar-track{background:var(--dither-light);border-left:1px solid var(--ink)}
-  .pbody::-webkit-scrollbar-thumb{background:var(--paper);border:1px solid var(--ink);border-right:0}
-  .pbody::-webkit-scrollbar-button:single-button{display:block;height:16px;background:var(--paper) no-repeat center/9px 6px;border:1px solid var(--ink);border-right:0}
-  .pbody::-webkit-scrollbar-button:single-button:vertical:decrement{background-image:var(--tri-up)}
-  .pbody::-webkit-scrollbar-button:single-button:vertical:increment{background-image:var(--tri-dn)}
-  .pbody::-webkit-scrollbar-button:active{background-color:var(--ink)}
-  #menubar .drop div{position:relative}
+  /* barres de défilement fines */
+  .pbody::-webkit-scrollbar{width:6px}
+  .pbody::-webkit-scrollbar-track{background:transparent}
+  .pbody::-webkit-scrollbar-thumb{background:#1d4a5a}
+  .pbody::-webkit-scrollbar-thumb:hover{background:var(--cyan)}
+
+  /* ---------- fenêtre Réseau ---------- */
+  .floating{position:fixed;z-index:40;left:24px;bottom:24px;width:66vw;height:60vh;min-width:460px;min-height:280px;resize:both;overflow:hidden;
+    box-shadow:0 12px 50px rgba(0,0,0,.7)}
+  .floating[hidden]{display:none}
+  .floating.big{left:1.5vw !important;top:32px !important;bottom:auto;width:97vw;height:calc(100vh - 44px)}
+  .floating .titlebar{cursor:move}
+  .netbody{flex:1;display:flex;flex-direction:column;min-height:0;background:#03060a;color:#9fdcf0;font:10px var(--mono);letter-spacing:.06em}
+  .netbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:6px 10px;border-bottom:1px solid #12303c;text-transform:uppercase}
+  .netbar label{display:flex;align-items:center;gap:6px;color:var(--dim)}
+  .netbar output{color:var(--white);min-width:30px;font:inherit}
+  .netbar input[type=range]{width:90px;height:14px}
+  .netview{margin-left:auto;display:flex}
+  .netview button{background:none;border:1px solid #1d4a5a;color:#6fb8cc;font:inherit;padding:2px 8px;cursor:pointer;letter-spacing:.1em}
+  .netview button.on{background:#0e2a36;color:var(--white);border-color:var(--cyan)}
+  #netCv{flex:1;width:100%;min-height:0;display:block;cursor:crosshair}
 </style>
 </head>
 <body>
@@ -210,6 +228,8 @@
       <div data-key="f">Plein écran <kbd>F</kbd></div>
       <div data-key="h">Afficher / masquer les réglages <kbd>H</kbd></div>
       <hr>
+      <div data-key="n">Réseau du corpus <kbd>N</kbd></div>
+      <hr>
       <div data-chk="morph">Morphing</div>
       <div data-chk="bridge">Images intermédiaires</div>
       <div data-chk="skel">Tracés</div>
@@ -221,7 +241,7 @@
 </nav>
 <div id="app">
   <main id="stage" class="win">
-    <div class="titlebar"><span class="box close" data-key="h" title="Afficher / masquer les réglages"></span><span class="ttl">Pose Miroir — Sortie</span><span class="box zoom" data-key="f" title="Plein écran"></span></div>
+    <div class="titlebar"><span class="box close" data-key="h" title="Afficher / masquer les réglages"></span><span class="ttl" data-id="OUT-01">Sortie</span><span class="box zoom" data-key="f" title="Plein écran"></span></div>
     <div class="content">
     <canvas id="out"></canvas>
     <canvas id="timeline" title="Clic : aller à cette image (hors mode jeu)"></canvas>
@@ -233,7 +253,7 @@
   </main>
 
   <aside id="panel" class="win">
-    <div class="titlebar"><span class="box close" data-key="h" title="Masquer les réglages"></span><span class="ttl">Réglages</span></div>
+    <div class="titlebar"><span class="box close" data-key="h" title="Masquer les réglages"></span><span class="ttl" data-id="SYS-02">Contrôle</span></div>
     <div class="pbody">
     <div class="about"><i></i><div><h1>Pose Miroir</h1><div class="sub">Tu bouges, la vidéo danse.</div></div></div>
 
@@ -257,7 +277,7 @@
       <button class="btn" id="bScreenAgain" title="Choisir un autre onglet ou une autre fenêtre">Changer</button>
     </div>
 
-    <h2>1 · Séquence <span id="h2Mode"></span></h2>
+    <h2>Séquence <span id="h2Mode"></span></h2>
     <div class="row">
       <button class="btn rec" id="bRec" disabled>Filmer</button>
       <button class="btn" id="bImport" disabled>Importer vidéo</button>
@@ -275,16 +295,22 @@
     <div id="prog"><i></i></div>
     <div id="info">aucune séquence</div>
 
-    <h2>2 · Jeu</h2>
+    <h2>Jeu</h2>
     <button class="btn play" id="bPlay" disabled>Jouer</button>
 
+    <h2>Face swap · entrée</h2>
+    <div class="sl only-face"><span>Face swap</span><input type="range" id="faceSwap" min="0" max="1" step="0.05" value="0" title="0 = visage de l'image générée ; 1 = ton visage (entrée) plaqué sur l'image générée"><output></output></div>
+    <div class="sl"><span>Entrée</span><input type="range" id="inMix" min="0" max="1" step="0.05" value="0" title="0 = 100 % image générée ; 1 = 100 % entrée (calée sur le visage / la silhouette)"><output></output></div>
+
     <h2>Réglages</h2>
-    <div class="sl"><span>Inertie</span><input type="range" id="inertia" min="0" max="0.5" step="0.01" value="0.08"><output></output></div>
+    <div class="sl"><span>Inertie</span><input type="range" id="inertia" min="0" max="0.5" step="0.01" value="0.04"><output></output></div>
     <div class="sl"><span>Mémoire geste</span><input type="range" id="window" min="1" max="6" step="1" value="3"><output></output></div>
     <div class="sl"><span>Lissage</span><input type="range" id="smooth" min="0" max="0.9" step="0.05" value="0.35"><output></output></div>
     <div class="sl"><span>Fondu image</span><input type="range" id="fade" min="0" max="0.9" step="0.05" value="0"><output></output></div>
     <label class="ck"><input type="checkbox" id="morph" checked> Morphing entre les images (déformation guidée par les points)</label>
     <div class="sl"><span>Durée morph</span><input type="range" id="morphMs" min="60" max="1500" step="20" value="400"><output></output></div>
+    <div class="sl"><span>Images mêlées</span><input type="range" id="blendN" min="1" max="6" step="1" value="4" title="Nombre d'images du corpus mélangées à chaque instant (1 = une seule image dominante)"><output></output></div>
+    <div class="sl"><span>Ouverture mix</span><input type="range" id="blendSoft" min="0.05" max="1" step="0.05" value="0.35" title="Bas = seules les images presque identiques se mélangent ; haut = mélange plus large"><output></output></div>
     <div class="sl"><span>Présence morph</span><input type="range" id="morphAmt" min="0" max="1" step="0.05" value="0.8" title="0 = fondu rapide ; 1 = l'image se déforme longtemps avant de se fondre dans la suivante"><output></output></div>
     <label class="ck"><input type="checkbox" id="bridge" checked> Transitions par images intermédiaires (chemin de poses proches dans le corpus)</label>
     <div class="sl"><span>Durée transition</span><input type="range" id="bridgeMs" min="150" max="1500" step="50" value="500"><output></output></div>
@@ -294,8 +320,10 @@
     <div class="sl only-body"><span>Poids jambes</span><input type="range" id="wLegs" min="0" max="2" step="0.1" value="1"><output></output></div>
     <div class="sl only-body"><span>Poids tronc</span><input type="range" id="wTorso" min="0" max="2" step="0.1" value="0.8"><output></output></div>
     <div class="sl only-body"><span>Poids tête</span><input type="range" id="wHead" min="0" max="2" step="0.1" value="0.4"><output></output></div>
+    <label class="ck only-face"><input type="checkbox" id="lipsync" checked> <b>Lip-sync</b> : la bouche est la référence (lèvres prioritaires, zéro lissage ni inertie, enchaînement très rapide)</label>
     <div class="sl only-face"><span>Poids bouche</span><input type="range" id="wMouth" min="0" max="2" step="0.1" value="1.2"><output></output></div>
     <div class="sl only-face"><span>Poids yeux</span><input type="range" id="wEyes" min="0" max="2" step="0.1" value="0.8"><output></output></div>
+    <div class="sl only-face"><span>Poids lèvres</span><input type="range" id="wLips" min="0" max="2" step="0.1" value="1.4" title="Forme réelle des lèvres (ouverture, coins, moue) mesurée sur 20 points"><output></output></div>
     <div class="sl only-face"><span>Poids tête</span><input type="range" id="wHeadF" min="0" max="2" step="0.1" value="1"><output></output></div>
     <label class="ck only-face"><input type="checkbox" id="faceZoom" checked> Zoom sur le visage (sortie)</label>
     <div class="sl only-face"><span>Marge zoom</span><input type="range" id="faceMargin" min="1.2" max="5" step="0.1" value="2.2"><output></output></div>
@@ -324,6 +352,20 @@
   </aside>
 </div>
 <!-- pas de display:none : requestVideoFrameCallback ne tourne que sur une vidéo rendue -->
+<section id="netWin" class="win floating" hidden>
+  <div class="titlebar"><span class="box close" id="netClose" title="Fermer"></span><span class="ttl" data-id="NET-03">Réseau · Corpus</span><span class="box zoom" id="netZoom" title="Agrandir"></span></div>
+  <div class="netbody">
+    <div class="netbar">
+      <label>MIX <input type="range" data-link="blendN"><output></output></label>
+      <label>OUVERTURE <input type="range" data-link="blendSoft"><output></output></label>
+      <label>SWAP <input type="range" data-link="faceSwap"><output></output></label>
+      <label>ENTRÉE <input type="range" data-link="inMix"><output></output></label>
+      <label>SEUIL <input type="range" id="netThr" min="0" max="1" step="0.05" value="0.2"><output>0.2</output></label>
+      <span class="netview"><button data-view="map" class="on">CARTE</button><button data-view="grid">GRILLE</button></span>
+    </div>
+    <canvas id="netCv"></canvas>
+  </div>
+</section>
 <video id="impVid" muted playsinline style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
 <input type="file" id="fVid" accept="video/*" hidden>
 <input type="file" id="fSeq" accept=".poseseq" hidden>
@@ -412,7 +454,18 @@ BS_NAMES.forEach((n, i) => {
 const F_ANG = NBS;              // lacet, tangage, roulis
 const F_BOX = NBS + 3;          // x0, y0, x1, y1 (image normalisée)
 const F_PTS = NBS + 7;          // points de contour (x, y) pour le tracé
-const FD = NBS + 3;             // dimension du vecteur comparé
+/* forme des lèvres : 20 points (contour extérieur + intérieur), exprimés dans le repère
+   des yeux (origine = milieu des yeux, axe x = ligne des yeux, unité = écart des yeux)
+   -> indépendant de la taille, de la position et de l'inclinaison de la tête */
+const LIP_IDX = [61, 291, 0, 17, 37, 267, 84, 314, 40, 270, 91, 321, 13, 14, 78, 308, 82, 312, 87, 317];
+const LIP_SWAP = LIP_IDX.map(i => {
+  const pairs = [[61,291],[37,267],[84,314],[40,270],[91,321],[78,308],[82,312],[87,317]];
+  for (const [a, b] of pairs){ if (i === a) return LIP_IDX.indexOf(b); if (i === b) return LIP_IDX.indexOf(a); }
+  return LIP_IDX.indexOf(i);
+});
+const NLIP = LIP_IDX.length;
+const F_LIP = NBS + 3;          // début des coordonnées des lèvres dans le vecteur comparé
+const FD = NBS + 3 + 2 * NLIP;  // dimension du vecteur comparé (expressions + tête + lèvres)
 const FACE_CONN = ['FACE_LANDMARKS_FACE_OVAL','FACE_LANDMARKS_LIPS','FACE_LANDMARKS_LEFT_EYE','FACE_LANDMARKS_RIGHT_EYE',
   'FACE_LANDMARKS_LEFT_EYEBROW','FACE_LANDMARKS_RIGHT_EYEBROW','FACE_LANDMARKS_LEFT_IRIS','FACE_LANDMARKS_RIGHT_IRIS']
   .flatMap(k => FaceLandmarker[k] || []);
@@ -451,6 +504,24 @@ function packFace(res){
    Amplitude = 95e centile - neutre, avec un plancher contre le bruit.        */
 const MIN_RANGE_BS = 0.12, MIN_RANGE_ANG = 0.15;
 const pct = (sorted, p) => sorted[Math.round(p * (sorted.length - 1))];
+/* vecteur brut comparé : expressions + tête (stockés) + lèvres (calculées depuis les points).
+   ar = largeur / hauteur de l'image d'où viennent les points (pour des distances justes) */
+function faceRaw(lm, ar = 1){
+  const r = new Float32Array(FD);
+  for (let k = 0; k < F_LIP; k++) r[k] = lm[k];
+  const P = idx => { const sl = FACE_SLOT.get(idx); return sl == null ? null : [lm[F_PTS + 2*sl] * ar, lm[F_PTS + 2*sl + 1]]; };
+  const a = P(263), b = P(33);
+  if (!a || !b) return r;
+  const ox = (a[0] + b[0]) / 2, oy = (a[1] + b[1]) / 2, dx = a[0] - b[0], dy = a[1] - b[1];
+  const iod = Math.hypot(dx, dy) || 1, cs = dx / iod, sn = dy / iod;
+  LIP_IDX.forEach((idx, n) => {
+    const q = P(idx); if (!q) return;
+    const x = q[0] - ox, y = q[1] - oy;
+    r[F_LIP + 2*n] = (x * cs + y * sn) / iod; r[F_LIP + 2*n + 1] = (-x * sn + y * cs) / iod;
+  });
+  return r;
+}
+const MIN_RANGE_LIP = 0.02;
 function faceStats(vecs, neutral){
   if (vecs.length < 10) return null;
   const base = new Float32Array(FD), range = new Float32Array(FD), col = new Float32Array(vecs.length);
@@ -462,24 +533,37 @@ function faceStats(vecs, neutral){
       base[k] = b; range[k] = Math.max(MIN_RANGE_BS, pct(col, 0.95) - b);
     } else {
       const b = neutral ? neutral[k] : pct(col, 0.5);
-      base[k] = b; range[k] = Math.max(MIN_RANGE_ANG, pct(col, 0.95) - b, b - pct(col, 0.05));
+      base[k] = b; range[k] = Math.max(k < F_LIP ? MIN_RANGE_ANG : MIN_RANGE_LIP, pct(col, 0.95) - b, b - pct(col, 0.05));
     }
   }
   return { base, range };
 }
 
 /* st = stats de calage (ou null : valeurs brutes), gain = exagère les expressions live */
-function faceFeatures(lm, mirror, f, fo, st, gain = 1){
+function faceFeatures(lm, mirror, f, fo, st, gain = 1, ar = 1){
+  const r = faceRaw(lm, ar);
   const val = k => {
-    if (!st) return k < NBS ? lm[k] : lm[k] / 0.35;
-    const n = (lm[k] - st.base[k]) / st.range[k];
-    return k < NBS ? Math.max(-1, Math.min(2, n * gain)) : Math.max(-3, Math.min(3, n));
+    if (!st) return k < NBS ? r[k] : k < F_LIP ? r[k] / 0.35 : r[k] * 3;
+    const n = (r[k] - st.base[k]) / st.range[k];
+    return k < NBS ? Math.max(-1, Math.min(2, n * gain)) : k < F_LIP ? Math.max(-3, Math.min(3, n)) : Math.max(-3, Math.min(3, n * gain));
   };
   for (let i = 0; i < NBS; i++) f[fo + i] = val(mirror ? BS_SWAP[i] : i);
   f[fo + F_ANG]   = mirror ? -val(F_ANG)   : val(F_ANG);
   f[fo + F_ANG+1] = val(F_ANG+1);
   f[fo + F_ANG+2] = mirror ? -val(F_ANG+2) : val(F_ANG+2);
+  for (let n = 0; n < NLIP; n++){
+    const m = mirror ? LIP_SWAP[n] : n;
+    const u = val(F_LIP + 2*m), v = val(F_LIP + 2*m + 1);
+    f[fo + F_LIP + 2*n] = mirror ? -u : u; f[fo + F_LIP + 2*n + 1] = v;
+  }
 }
+const MOUTH_SET = new Set(MOUTH_IDX);
+/* LIP-SYNC : en mode VISAGE, la bouche mène tout */
+const lipsyncOn = () => S.mode === 'face' && !!S.lipsync;
+const faceW = () => lipsyncOn()
+  ? { eyes: 0.15, mouth: 1.5, lips: 2.5, head: 0.25 }
+  : { eyes: S.wEyes, mouth: S.wMouth, lips: S.wLips ?? 1.4, head: S.wHeadF };
+const liveAr = () => inCv.width > 2 ? inCv.width / inCv.height : 1;
 
 /* état du calage live */
 const liveFace = { buf: [], neutral: null, stats: null, collect: null, lastCalc: 0 };
@@ -546,16 +630,19 @@ const MODES = {
     D: FD, hasVis: false,
     task: 'face',
     pack: packFace,
-    feat: (lm, mirror, f, fo, v, vo, st, gain) => faceFeatures(lm, mirror, f, fo, st, gain),
+    feat: (lm, mirror, f, fo, v, vo, st, gain, ar) => faceFeatures(lm, mirror, f, fo, st, gain, ar),
     cost(c, j, f){
       const cf = c.feats, o = j * FD;
       let e = 0, m = 0, h = 0;
       for (const k of EYE_IDX){ const d = f[k] - cf[o+k]; e += d * d; }
       for (const k of MOUTH_IDX){ const d = f[k] - cf[o+k]; m += d * d; }
       for (let k = F_ANG; k < F_ANG + 3; k++){ const d = f[k] - cf[o+k]; h += d * d; }
-      const ws = S.wEyes + S.wMouth + S.wHeadF;
+      let l = 0;
+      for (let k = F_LIP; k < FD; k++){ const d = f[k] - cf[o+k]; l += d * d; }
+      const W = faceW();
+      const ws = W.eyes + W.mouth + W.head + W.lips;
       if (ws <= 0) return 2;
-      return (S.wEyes * Math.sqrt(e) + S.wMouth * Math.sqrt(m) + S.wHeadF * Math.sqrt(h)) / ws;
+      return (W.eyes * Math.sqrt(e) + W.mouth * Math.sqrt(m) + W.head * Math.sqrt(h) + W.lips * 3 * Math.sqrt(l / (2 * NLIP))) / ws;
     },
     sim: raw => 1 - raw * 1.5,
     links: FACE_LINKS,
@@ -574,6 +661,8 @@ let recording = false, recArming = false, recStart = 0, recPending = [];
 let playing = false;
 const corpora = { body: emptyCorpus('body'), face: emptyCorpus('face') };
 let corpus;
+let mixTargets = null;   // [{i, w}] images mélangées (mode mélange)
+let matchRaw = null, matchAt = 0;   // distance de chaque image à l'entrée (fenêtre Réseau)
 let curIdx = 0, matchIdx = -1, prevIdx = -1, lastRaw = null, liveLm = null;
 const history = [];               // {t, f, v} poses live récentes
 let smoothF = null;
@@ -583,23 +672,41 @@ const M = () => MODES[S.mode];
 
 /* ---------------- réglages ---------------- */
 const S = {};
-const SL_IDS = ['inertia','window','smooth','fade','zw','wArms','wLegs','wTorso','wHead','wMouth','wEyes','wHeadF','faceMargin','exprGain','morphMs','morphAmt','bridgeMs','novelty','recMargin','impFps'];
-const CK_IDS = ['mirror','flipOut','flipLive','skel','faceZoom','faceCal','morph','faceFocus','faceAutoZoom','bridge'];
+const SL_IDS = ['inertia','window','smooth','fade','zw','wArms','wLegs','wTorso','wHead','wMouth','wEyes','wLips','wHeadF','faceMargin','exprGain','morphMs','morphAmt','blendN','blendSoft','faceSwap','inMix','bridgeMs','novelty','recMargin','impFps'];
+const CK_IDS = ['mirror','flipOut','flipLive','skel','faceZoom','faceCal','morph','faceFocus','faceAutoZoom','bridge','lipsync'];
 function loadPrefs(){ try{ return JSON.parse(localStorage.getItem('poseMiroir') || '{}'); }catch{ return {}; } }
-function savePrefs(){ try{ localStorage.setItem('poseMiroir', JSON.stringify(S)); }catch{} }
+function savePrefs(){ try{ localStorage.setItem('poseMiroir', JSON.stringify({ ...S, modeVals })); }catch{} }
 const prefs = loadPrefs();
 S.mode = prefs.mode === 'face' ? 'face' : 'body';
 corpus = corpora[S.mode];
+/* RÉGLAGES PAR MODE : tout réglage qui n'est pas déjà propre à un mode (.only-body / .only-face)
+   garde une valeur pour CORPS et une autre pour VISAGE — changer l'un ne touche pas l'autre. */
+const SHARED = new Set([...SL_IDS, ...CK_IDS].filter(id => !$(id).closest('.only-face, .only-body')));
+const modeVals = prefs.modeVals || {};
+for (const m of ['body', 'face']){
+  const base = {};
+  for (const id of SHARED) if (prefs[id] != null) base[id] = prefs[id];   // 1re fois : on part des réglages actuels
+  modeVals[m] = { ...base, ...(modeVals[m] || {}) };
+}
+const prefOf = id => SHARED.has(id) && modeVals[S.mode][id] != null ? modeVals[S.mode][id] : prefs[id];
+function applyModeVals(m){
+  for (const id of SHARED){
+    const el = $(id), v = modeVals[m][id];
+    if (v == null){ modeVals[m][id] = el.type === 'checkbox' ? el.checked : +el.value; continue; }
+    if (el.type === 'checkbox'){ if (el.checked !== v){ el.checked = v; el.dispatchEvent(new Event('change')); } }
+    else if (+el.value !== +v){ el.value = v; el.dispatchEvent(new Event('input')); }
+  }
+}
 for (const id of SL_IDS){
   const el = $(id), out = el.nextElementSibling;
-  if (prefs[id] != null) el.value = prefs[id];
-  const upd = () => { S[id] = +el.value; out.textContent = el.value; savePrefs(); if (id === 'zw') computeFeats(corpora.body); };
+  if (prefOf(id) != null) el.value = prefOf(id);
+  const upd = () => { S[id] = +el.value; out.textContent = el.value; if (SHARED.has(id)) modeVals[S.mode][id] = S[id]; savePrefs(); if (id === 'zw') computeFeats(corpora.body); };
   el.addEventListener('input', upd); S[id] = +el.value; out.textContent = el.value;
 }
 for (const id of CK_IDS){
   const el = $(id);
-  if (prefs[id] != null) el.checked = prefs[id];
-  const upd = () => { S[id] = el.checked; savePrefs(); updateInputUI(); prevIdx = -1; dirtyBg = true; if (id === 'faceCal'){ computeFeats(corpora.face); updateCalInfo(); } if (id === 'faceAutoZoom') autoZoomReset(); };
+  if (prefOf(id) != null) el.checked = prefOf(id);
+  const upd = () => { S[id] = el.checked; if (SHARED.has(id)) modeVals[S.mode][id] = S[id]; savePrefs(); updateInputUI(); prevIdx = -1; dirtyBg = true; if (id === 'faceCal'){ computeFeats(corpora.face); updateCalInfo(); } if (id === 'faceAutoZoom') autoZoomReset(); };
   el.addEventListener('change', upd); S[id] = el.checked;
 }
 
@@ -632,7 +739,7 @@ async function setMode(m){
   if (m !== S.mode){
     stopEnrich();
     setPlaying(false);
-    S.mode = m; savePrefs(); autoZoomReset();
+    S.mode = m; applyModeVals(m); savePrefs(); autoZoomReset();
     corpus = corpora[m];
     clearCache(); crop = null;
     history.length = 0; smoothF = null; liveLm = null; prevIdx = -1; lastRaw = null; dirtyBg = true;
@@ -679,17 +786,19 @@ function computeFeats(c = corpus){
   c.valid = new Uint8Array(N);
   c.nValid = 0;
   if (c.kind === 'face'){
-    const vecs = c.frames.filter(fr => fr.lm).map(fr => fr.lm);
+    const ar = c.w && c.h ? c.w / c.h : 1;
+    const vecs = c.frames.filter(fr => fr.lm).map(fr => faceRaw(fr.lm, ar));
     const nlm = c.neutralIdx != null ? c.frames[c.neutralIdx]?.lm : null;
-    c.stats = S.faceCal ? faceStats(vecs, nlm) : null;
+    c.stats = S.faceCal ? faceStats(vecs, nlm ? faceRaw(nlm, ar) : null) : null;
   }
   for (let i = 0; i < N; i++){
     const lm = c.frames[i].lm;
     if (!lm) continue;
-    md.feat(lm, false, c.feats, i * md.D, c.vis, i * NB, c.stats, 1);
+    md.feat(lm, false, c.feats, i * md.D, c.vis, i * NB, c.stats, 1, c.w && c.h ? c.w / c.h : 1);
     c.valid[i] = 1; c.nValid++;
   }
   graphReset(c);
+  c.featVer = (c.featVer || 0) + 1;
   if (c === corpus){ smoothF = null; history.length = 0; prevIdx = -1; }
   if (c.kind === 'face') updateCalInfo();
 }
@@ -829,7 +938,7 @@ function appendFeat(c, i){
   ensureCap(c, i + 1);
   const md = MODES[c.kind], lm = c.frames[i].lm;
   if (!lm){ c.valid[i] = 0; return; }
-  md.feat(lm, false, c.feats, i * md.D, c.vis, i * NB, c.stats, 1);
+  md.feat(lm, false, c.feats, i * md.D, c.vis, i * NB, c.stats, 1, c.w && c.h ? c.w / c.h : 1);
   c.valid[i] = 1; c.nValid++;
 }
 
@@ -852,7 +961,7 @@ function noveltySim(lm){
   const c = corpus, md = MODES[c.kind], N = c.frames.length;
   if (!c.nValid) return 0;
   const f = new Float32Array(md.D), v = md.hasVis ? new Float32Array(NB) : null;
-  md.feat(lm, false, f, 0, v, 0, c.stats, 1);
+  md.feat(lm, false, f, 0, v, 0, c.stats, 1, liveAr());
   const now = performance.now();
   let best = Infinity;
   for (let i = 0; i < N; i++){
@@ -1277,15 +1386,22 @@ function processCam(){
     const now = performance.now();
     const f = new Float32Array(md.D), v = md.hasVis ? new Float32Array(NB) : null;
     if (md === MODES.face){
-      const raw = lm.slice(0, FD);
+      const raw = faceRaw(lm, liveAr());
       if (liveFace.collect) liveFace.collect.push(raw);
       const b = liveFace.buf;
       if (!b.length || now - b[b.length - 1].t > 50) b.push({ t: now, v: raw });   // ~20 échantillons/s
       while (b.length > 900) b.shift();                                              // ~45 s de mémoire
       if (now - liveFace.lastCalc > 1000) recalcLiveFace();
     }
-    md.feat(lm, S.mirror, f, 0, v, 0, md === MODES.face ? liveFaceStats() : null, S.exprGain);
-    if (smoothF && smoothF.length === f.length){ const k = S.smooth; for (let i = 0; i < f.length; i++) f[i] = smoothF[i] * k + f[i] * (1 - k); }
+    md.feat(lm, S.mirror, f, 0, v, 0, md === MODES.face ? liveFaceStats() : null, S.exprGain, liveAr());
+    if (smoothF && smoothF.length === f.length){
+      // la bouche bouge vite : beaucoup moins de lissage sur la bouche et les lèvres
+      const k = S.smooth, face = md === MODES.face;
+      for (let i = 0; i < f.length; i++){
+        const kk = face && (MOUTH_SET.has(i) || i >= F_LIP) ? (lipsyncOn() ? 0 : k * 0.3) : k;
+        f[i] = smoothF[i] * kk + f[i] * (1 - kk);
+      }
+    }
     smoothF = f;
     history.push({ t: now, f: f.slice(), v });
     while (history.length && now - history[0].t > 1500) history.shift();
@@ -1301,9 +1417,9 @@ function drawLive(cam, lm){
   if (autoZoomOn() && !lm){
     liveCtx.save();
     const fs = Math.max(14, liveCv.width / 28);
-    liveCtx.font = `bold ${fs}px Geneva, Verdana, sans-serif`; liveCtx.textAlign = 'center';
+    liveCtx.font = `bold ${fs}px "IBM Plex Mono", monospace`; liveCtx.textAlign = 'center';
     liveCtx.fillStyle = 'rgba(0,0,0,0.6)'; liveCtx.fillRect(0, liveCv.height / 2 - fs, liveCv.width, fs * 2);
-    liveCtx.fillStyle = '#ffd23f';
+    liveCtx.fillStyle = '#6ff3ff';
     liveCtx.fillText(autoZoom.det ? 'recherche de visage…' : 'chargement détecteur…', liveCv.width / 2, liveCv.height / 2 + fs / 3);
     liveCtx.restore();
   }
@@ -1348,7 +1464,8 @@ function matchPose(now){
   const N = c.frames.length, fps = c.fps;
   const LAG = 0.12; // secondes entre deux états de la mémoire geste
   const samples = [];
-  for (let k = 0; k < S.window; k++){
+  const win = lipsyncOn() ? 1 : S.window, inertia = lipsyncOn() ? 0 : S.inertia;
+  for (let k = 0; k < win; k++){
     const h = historyAt(now - k * LAG * 1000);
     if (!h || h.f.length !== md.D) break;
     samples.push({ h, off: Math.round(k * LAG * fps) });
@@ -1356,6 +1473,10 @@ function matchPose(now){
   if (!samples.length) return;
   const span = Math.max(1, fps * 0.5);
   let best = -1, bestC = Infinity, bestRaw = 0, prevC = Infinity, prevRaw = 0;
+  const wantMix = S.blendN > 1;
+  const raws = wantMix ? [] : null;
+  if (!matchRaw || matchRaw.length < N) matchRaw = new Float32Array(Math.max(256, N * 2));
+  matchRaw.fill(Infinity, 0, N);
   for (let i = 0; i < N; i++){
     if (!c.valid[i]) continue;
     let s = 0, n = 0;
@@ -1366,13 +1487,34 @@ function matchPose(now){
     }
     if (!n) continue;
     const raw = s / n;
-    const total = prevIdx >= 0 ? raw + S.inertia * Math.min(1, Math.abs(i - prevIdx) / span) : raw;
+    const total = prevIdx >= 0 ? raw + inertia * Math.min(1, Math.abs(i - prevIdx) / span) : raw;
     if (total < bestC){ bestC = total; best = i; bestRaw = raw; }
     if (i === prevIdx){ prevC = total; prevRaw = raw; }
+    matchRaw[i] = raw;
+    if (wantMix) raws.push([raw, i]);
   }
   // hystérésis : on ne change de cible que si c'est nettement mieux (évite les allers-retours)
-  if (best >= 0 && prevIdx >= 0 && best !== prevIdx && bestC > prevC - 0.004 - prevC * 0.03){ best = prevIdx; bestRaw = prevRaw; }
-  if (best >= 0){ matchIdx = prevIdx = best; lastRaw = bestRaw; if (!S.bridge) curIdx = best; }
+  if (!lipsyncOn() && best >= 0 && prevIdx >= 0 && best !== prevIdx && bestC > prevC - 0.002 - prevC * 0.015){ best = prevIdx; bestRaw = prevRaw; }
+  if (best >= 0){ matchIdx = prevIdx = best; lastRaw = bestRaw; if (!S.bridge || wantMix || lipsyncOn()) curIdx = best; }
+  // MÉLANGE : les images qui ressemblent le plus à l'entrée, pas voisines entre elles,
+  // pondérées par leur ressemblance (la meilleure en tête)
+  matchAt = performance.now();
+  if (wantMix && best >= 0){
+    raws.sort((a, b) => a[0] - b[0]);
+    const gap = Math.max(2, Math.round(c.fps * 0.15));
+    const chosen = [[bestRaw, best]];
+    for (const r of raws){
+      if (chosen.length >= S.blendN) break;
+      if (chosen.some(q => Math.abs(q[1] - r[1]) < gap && (c.frames[q[1]].seg || 0) === (c.frames[r[1]].seg || 0))) continue;
+      chosen.push(r);
+    }
+    const r0 = Math.min(...chosen.map(q => q[0]));
+    const tau = Math.max(0.004, r0 * S.blendSoft + 0.01 * S.blendSoft);
+    let sw = 0;
+    const t = chosen.map(([raw, i]) => { const w = Math.exp(-(raw - r0) / tau); sw += w; return { i, w }; });
+    t.forEach(q => q.w /= sw);
+    mixTargets = t.filter(q => q.w > 0.03);
+  } else mixTargets = null;
 }
 
 /* ---------------- rendu sortie ---------------- */
@@ -1454,8 +1596,17 @@ function meshPoints(kind, lm){
   return { pts, val, alpha };
 }
 
-const morph = { gl:null, cv:null, failed:false, loc:null, vbo:null, ibo:null, texs:[],
-  layer:[{idx:-1}, {idx:-1}], cur:0, w:1, P:null, known:null, lastT:0, corpus:null, iw:0, ih:0 };
+/* Moteur de morph à N calques (jusqu'à 6 images à la fois).
+   Chaque calque = une image du corpus + ses points. Une silhouette commune P
+   glisse vers la moyenne pondérée des silhouettes visées ; chaque image est
+   déformée vers P puis toutes sont mélangées selon leur poids. Les poids
+   évoluent en douceur (apparition / disparition progressive des images).
+   Mode simple (1 image) = une cible de poids 1 : l'ancienne image s'efface
+   pendant que la nouvelle la remplace, sans jamais être ré-échantillonnée. */
+const MAXL = 6;
+const morph = { gl:null, cv:null, failed:false, loc:null, vbo:null, ibo:null, texs:[], blank:null, liveTex:null,
+  gain:[1, 1, 1], gainAt:0, sampCv:document.createElement('canvas'),
+  layers:[], P:null, known:null, lastT:0, corpus:null, iw:0, ih:0 };
 
 function morphInitGL(){
   if (morph.gl || morph.failed) return !!morph.gl;
@@ -1467,51 +1618,77 @@ function morphInitGL(){
   try {
     const prog = gl.createProgram();
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, `
-      attribute vec2 aPos; attribute vec2 aUvA; attribute vec2 aUvB; attribute float aAlpha;
-      varying vec2 vA; varying vec2 vB; varying float vAlpha;
-      void main(){ vA = aUvA; vB = aUvB; vAlpha = aAlpha; gl_Position = vec4(aPos.x * 2.0 - 1.0, 1.0 - aPos.y * 2.0, 0.0, 1.0); }`));
+      attribute vec2 aPos; attribute float aAlpha; attribute vec4 aUv01; attribute vec4 aUv23; attribute vec4 aUv45;
+      varying vec4 v01; varying vec4 v23; varying vec4 v45; varying float vAlpha;
+      void main(){ v01 = aUv01; v23 = aUv23; v45 = aUv45; vAlpha = aAlpha;
+        gl_Position = vec4(aPos.x * 2.0 - 1.0, 1.0 - aPos.y * 2.0, 0.0, 1.0); }`));
     gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `
       precision mediump float;
-      uniform sampler2D tA; uniform sampler2D tB; uniform float w;
-      varying vec2 vA; varying vec2 vB; varying float vAlpha;
-      void main(){ gl_FragColor = vec4(mix(texture2D(tA, vA), texture2D(tB, vB), w).rgb, vAlpha); }`));
+      uniform sampler2D t0; uniform sampler2D t1; uniform sampler2D t2; uniform sampler2D t3; uniform sampler2D t4; uniform sampler2D t5;
+      uniform float w[6]; uniform vec3 uGain;
+      varying vec4 v01; varying vec4 v23; varying vec4 v45; varying float vAlpha;
+      void main(){
+        vec3 c = texture2D(t0, v01.xy).rgb * w[0] + texture2D(t1, v01.zw).rgb * w[1]
+               + texture2D(t2, v23.xy).rgb * w[2] + texture2D(t3, v23.zw).rgb * w[3]
+               + texture2D(t4, v45.xy).rgb * w[4] + texture2D(t5, v45.zw).rgb * w[5];
+        gl_FragColor = vec4(c * uGain, vAlpha);
+      }`));
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     gl.useProgram(prog);
-    morph.loc = { aPos: gl.getAttribLocation(prog, 'aPos'), aUvA: gl.getAttribLocation(prog, 'aUvA'),
-      aUvB: gl.getAttribLocation(prog, 'aUvB'), aAlpha: gl.getAttribLocation(prog, 'aAlpha'), tA: gl.getUniformLocation(prog, 'tA'),
-      tB: gl.getUniformLocation(prog, 'tB'), w: gl.getUniformLocation(prog, 'w') };
+    const A = n => gl.getAttribLocation(prog, n), U = n => gl.getUniformLocation(prog, n);
+    morph.loc = { aPos: A('aPos'), aAlpha: A('aAlpha'), aUv: [A('aUv01'), A('aUv23'), A('aUv45')],
+      t: [0,1,2,3,4,5].map(k => U('t' + k)), w: U('w'), gain: U('uGain') };
     morph.vbo = gl.createBuffer(); morph.ibo = gl.createBuffer();
-    for (let t = 0; t < 2; t++){
+    const mk = () => {
       const tex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      morph.texs.push(tex);
-    }
+      return tex;
+    };
+    for (let t = 0; t < MAXL; t++) morph.texs.push(mk());
+    morph.liveTex = mk();
+    morph.blank = mk();
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
     morph.gl = gl; morph.cv = cv;
     return true;
   } catch(e){ console.warn('morphing indisponible', e); morph.failed = true; return false; }
 }
 
 function morphReset(){
-  morph.layer = [{idx:-1}, {idx:-1}]; morph.cur = 0; morph.w = 1;
-  morph.P = null; morph.known = null; morph.lastT = 0; morph.corpus = null;
+  morph.layers = []; morph.P = null; morph.known = null; morph.lastT = 0; morph.corpus = null;
 }
 
-function morphSetLayer(slot, idx, bm, mp){
-  const gl = morph.gl;
+/* calque pour l'image i (réutilise, sinon prend un emplacement libre / le plus effacé) */
+function morphLayerFor(i, bm){
+  let L = morph.layers.find(l => l.idx === i);
+  if (L) return L;
+  const lm = corpus.frames[i]?.lm;
+  if (!lm || !bm) return null;
+  let slot;
+  if (morph.layers.length < MAXL) slot = morph.layers.length;
+  else {
+    let worst = -1, ww = Infinity;
+    morph.layers.forEach((l, k) => { if (l.tw === 0 && l.w < ww){ ww = l.w; worst = k; } });
+    if (worst < 0) return null;
+    slot = worst;
+  }
+  const gl = morph.gl, mp = meshPoints(corpus.kind, lm);
   gl.bindTexture(gl.TEXTURE_2D, morph.texs[slot]);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bm);
-  morph.layer[slot] = { idx, pts: mp.pts, val: mp.val, alpha: mp.alpha };
+  L = { idx: i, slot, pts: mp.pts, val: mp.val, alpha: mp.alpha, w: morph.layers.length ? 0 : 1, tw: 0 };
+  morph.layers[slot] = L;
+  return L;
 }
 
 /* renvoie un canvas morphé (à la taille de l'image) ou null = afficher l'image telle quelle */
 function morphFrame(idx, bm){
   const lm = corpus.frames[idx]?.lm;
-  if (!S.morph || !playing || !lm || !morphInitGL()){ if (morph.corpus) morphReset(); return null; }
+  const swapOn = corpus.kind === 'face' && S.faceSwap > 0 && liveLm && liveLm.length === lm?.length && inCv.width > 2;
+  if ((!S.morph && !swapOn) || !playing || !lm || !morphInitGL()){ if (morph.corpus) morphReset(); return null; }
   const gl = morph.gl, iw = bm.width, ih = bm.height;
   if (morph.corpus !== corpus || morph.iw !== iw || morph.ih !== ih){
     morphReset(); morph.corpus = corpus; morph.iw = iw; morph.ih = ih;
@@ -1519,68 +1696,89 @@ function morphFrame(idx, bm){
   }
   const now = performance.now(), dt = morph.lastT ? Math.min(100, now - morph.lastT) : 0;
   morph.lastT = now;
-  const mp = meshPoints(corpus.kind, lm);
 
-  if (morph.layer[morph.cur].idx < 0){
-    morphSetLayer(0, idx, bm, mp); morphSetLayer(1, idx, bm, mp);
-    morph.cur = 1; morph.w = 1;
-    morph.P = mp.pts.slice(); morph.known = mp.val.slice();
-  } else if (idx !== morph.layer[morph.cur].idx){
-    // l'image dominante devient la source, la nouvelle image prend la place de l'autre
-    if (morph.w >= 0.5){ morph.cur = 1 - morph.cur; morph.w = 1 - morph.w; }
-    morphSetLayer(morph.cur, idx, bm, mp);
+  // cibles : plusieurs images (mélange) ou l'image affichée seule
+  const targets = S.blendN > 1 && mixTargets && mixTargets.length ? mixTargets : [{ i: idx, w: 1 }];
+  for (const L of morph.layers) L.tw = 0;
+  let got = 0;
+  for (const t of targets){
+    const L = morphLayerFor(t.i, t.i === idx ? bm : getBitmap(t.i));
+    if (L){ L.tw = t.w; got += t.w; }
+  }
+  if (!got){ const L = morphLayerFor(idx, bm); if (L){ L.tw = 1; got = 1; } }
+  if (!got) return null;
+  for (const L of morph.layers) L.tw /= got;
+
+  // vitesses : le fondu est plus rapide qu'avant (enchaînement vif), la silhouette
+  // garde du retard selon la "présence" (on voit l'image se tordre)
+  const dur = Math.max(1, S.morphMs * (lipsyncOn() ? 0.35 : 1)), amt = S.morphAmt ?? 0.8;
+  // morphing coupé (face swap seul) : pas de transition, l'image suit instantanément
+  const kW = S.morph ? 1 - Math.exp(-dt / (dur * (0.35 + 0.6 * amt))) : 1;
+  const kP = S.morph ? 1 - Math.exp(-dt / (dur * (0.2 + 0.25 * amt))) : 1;
+  for (const L of morph.layers) L.w += (L.tw - L.w) * kW;
+  const active = morph.layers.filter(L => L.w > 0.004 || L.tw > 0);
+  const sw = active.reduce((a, L) => a + L.w, 0) || 1;
+
+  // silhouette visée = moyenne pondérée des silhouettes cibles
+  const K = active[0].val.length;
+  if (!morph.P || morph.P.length !== 2 * K){ morph.P = new Float32Array(2 * K); morph.known = new Uint8Array(K); }
+  const P = morph.P, known = morph.known;
+  for (let j = 0; j < K; j++){
+    let gx = 0, gy = 0, gw = 0;
+    for (const L of active) if (L.tw > 0 && L.val[j]){ gx += L.pts[2*j] * L.tw; gy += L.pts[2*j+1] * L.tw; gw += L.tw; }
+    if (!gw) continue;
+    gx /= gw; gy /= gw;
+    if (!known[j]){ P[2*j] = gx; P[2*j+1] = gy; known[j] = 1; continue; }
+    P[2*j] += (gx - P[2*j]) * kP; P[2*j+1] += (gy - P[2*j+1]) * kP;
   }
 
-  // la silhouette glisse vers la cible, le fondu avance
-  // le morph garde toute sa durée, même pendant un pont : la silhouette suit les poses
-  // intermédiaires pendant que l'image se déforme. "Présence" ralentit le fondu par rapport
-  // à la déformation : plus elle est haute, plus on voit l'image se tordre avant de changer.
-  const dur = Math.max(1, S.morphMs), amt = S.morphAmt ?? 0.8;
-  const k = 1 - Math.exp(-dt / (dur * (0.33 + 0.3 * amt)));
-  const P = morph.P, T = morph.layer[morph.cur].pts, TV = morph.layer[morph.cur].val, known = morph.known;
-  for (let i = 0; i < TV.length; i++){
-    if (!TV[i]) continue;
-    if (!known[i]){ P[2*i] = T[2*i]; P[2*i+1] = T[2*i+1]; known[i] = 1; continue; }
-    P[2*i] += (T[2*i] - P[2*i]) * k; P[2*i+1] += (T[2*i+1] - P[2*i+1]) * k;
-  }
-  morph.w = Math.min(1, morph.w + dt / (dur * (1 + 2 * amt)));
-
-  // maillage : points valides dans les deux calques, triangulés sur la silhouette courante
-  const A = morph.layer[1 - morph.cur], B = morph.layer[morph.cur];
+  // maillage : points valides dans tous les calques actifs, triangulés sur la silhouette courante
   const keep = [];
-  for (let i = 0; i < TV.length; i++) if (A.val[i] && B.val[i] && known[i]) keep.push(i);
+  for (let j = 0; j < K; j++) if (known[j] && active.every(L => L.val[j])) keep.push(j);
   const coords = new Float64Array(keep.length * 2);
-  const vtx = new Float32Array(keep.length * 7);
-  keep.forEach((i, n) => {
-    coords[2*n] = P[2*i] * iw; coords[2*n+1] = P[2*i+1] * ih;
-    vtx.set([P[2*i], P[2*i+1], A.pts[2*i], A.pts[2*i+1], B.pts[2*i], B.pts[2*i+1], B.alpha[i]], n * 7);
+  const FL = 15, vtx = new Float32Array(keep.length * FL);
+  keep.forEach((j, n) => {
+    coords[2*n] = P[2*j] * iw; coords[2*n+1] = P[2*j+1] * ih;
+    const o = n * FL;
+    vtx[o] = P[2*j]; vtx[o+1] = P[2*j+1]; vtx[o+2] = active[0].alpha[j];
+    for (let k = 0; k < MAXL; k++){
+      const L = active[k];
+      vtx[o+3+2*k] = L ? L.pts[2*j] : P[2*j]; vtx[o+4+2*k] = L ? L.pts[2*j+1] : P[2*j+1];
+    }
   });
   let tris;
   try { tris = new Delaunator(coords).triangles; } catch { return null; }
   if (!tris.length) return null;
 
-  const L = morph.loc;
-  const draw = (verts, idx) => {
+  const Lc = morph.loc;
+  const draw = (verts, ix) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, morph.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
-    for (const [a, off] of [[L.aPos, 0], [L.aUvA, 8], [L.aUvB, 16]]){
-      gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 28, off);
-    }
-    gl.enableVertexAttribArray(L.aAlpha); gl.vertexAttribPointer(L.aAlpha, 1, gl.FLOAT, false, 28, 24);
+    const B = FL * 4;
+    gl.enableVertexAttribArray(Lc.aPos);   gl.vertexAttribPointer(Lc.aPos, 2, gl.FLOAT, false, B, 0);
+    gl.enableVertexAttribArray(Lc.aAlpha); gl.vertexAttribPointer(Lc.aAlpha, 1, gl.FLOAT, false, B, 8);
+    Lc.aUv.forEach((a, k) => { gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 4, gl.FLOAT, false, B, 12 + 16 * k); });
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, morph.ibo);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.DYNAMIC_DRAW);
-    gl.drawElements(gl.TRIANGLES, idx.length, gl.UNSIGNED_SHORT, 0);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ix, gl.DYNAMIC_DRAW);
+    gl.drawElements(gl.TRIANGLES, ix.length, gl.UNSIGNED_SHORT, 0);
   };
   gl.viewport(0, 0, iw, ih);
   gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, morph.texs[1 - morph.cur]); gl.uniform1i(L.tA, 0);
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, morph.texs[morph.cur]);   gl.uniform1i(L.tB, 1);
-  gl.uniform1f(L.w, morph.w);
+  const ws = new Float32Array(MAXL);
+  for (let k = 0; k < MAXL; k++){
+    gl.activeTexture(gl.TEXTURE0 + k);
+    gl.bindTexture(gl.TEXTURE_2D, active[k] ? morph.texs[active[k].slot] : morph.blank);
+    gl.uniform1i(Lc.t[k], k);
+    ws[k] = active[k] ? active[k].w / sw : 0;
+  }
+  gl.uniform1fv(Lc.w, ws);
+  gl.uniform3f(Lc.gain, 1, 1, 1);
   if (corpus.kind === 'face'){
-    // 1) décor : simple fondu, sans aucune déformation
+    // 1) décor : mélange des images, sans aucune déformation
     gl.disable(gl.BLEND);
-    draw(new Float32Array([0,0, 0,0, 0,0, 1,  1,0, 1,0, 1,0, 1,  1,1, 1,1, 1,1, 1,  0,1, 0,1, 0,1, 1]),
-         new Uint16Array([0, 1, 2, 0, 2, 3]));
+    const q = [];
+    for (const [x, y] of [[0,0],[1,0],[1,1],[0,1]]) q.push(x, y, 1, ...Array(2 * MAXL).fill(0).map((_, k) => k % 2 ? y : x));
+    draw(new Float32Array(q), new Uint16Array([0, 1, 2, 0, 2, 3]));
     // 2) visage morphé par-dessus, bord adouci (l'alpha final reste opaque)
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -1590,7 +1788,62 @@ function morphFrame(idx, bm){
     gl.disable(gl.BLEND);
     draw(vtx, new Uint16Array(tris));
   }
+  if (swapOn) faceSwapPass(keep, tris, iw, ih, draw);
+  // les calques complètement effacés libèrent leur place
+  morph.layers.forEach(L => { if (L.tw === 0 && L.w < 0.004) L.w = 0; });
+  morph.nActive = active.length;
   return morph.cv;
+}
+
+/* ============================================================
+   FACE SWAP : ton visage (entrée en direct) est déformé pour épouser
+   exactement les traits du visage généré (même maillage de points),
+   puis posé dessus avec un bord fondu et une correction de couleur
+   (moyenne de la peau de l'un ramenée à celle de l'autre).
+   Fader 0 -> 1 : visage généré -> ton visage. La bouche vient de toi.
+   ============================================================ */
+function meanSkin(src, sw, sh, box){
+  const cv = morph.sampCv; cv.width = cv.height = 12;
+  const x = cv.getContext('2d', { willReadFrequently: true });
+  const bw = box[2] - box[0], bh = box[3] - box[1];
+  // centre du visage (joues / nez) : évite cheveux et décor
+  x.drawImage(src, (box[0] + bw * 0.25) * sw, (box[1] + bh * 0.3) * sh, bw * 0.5 * sw, bh * 0.4 * sh, 0, 0, 12, 12);
+  const d = x.getImageData(0, 0, 12, 12).data, m = [0, 0, 0];
+  for (let k = 0; k < d.length; k += 4){ m[0] += d[k]; m[1] += d[k+1]; m[2] += d[k+2]; }
+  return m.map(v => v / (d.length / 4) + 1);
+}
+function faceSwapPass(keep, tris, iw, ih, draw){
+  const gl = morph.gl, Lc = morph.loc, P = morph.P;
+  const live = meshPoints('face', liveLm);
+  const n = FACE_IDX.length, O = OVAL_SLOTS.length;
+  // correction de couleur (quelques fois par seconde)
+  const now = performance.now();
+  if (now - morph.gainAt > 300){
+    morph.gainAt = now;
+    let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+    for (let j = 0; j < n; j++){ const px = P[2*j], py = P[2*j+1]; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; }
+    const mo = meanSkin(morph.cv, iw, ih, [x0, y0, x1, y1]);
+    const mi = meanSkin(inCv, inCv.width, inCv.height, [liveLm[F_BOX], liveLm[F_BOX+1], liveLm[F_BOX+2], liveLm[F_BOX+3]]);
+    for (let k = 0; k < 3; k++){ const g = Math.max(0.6, Math.min(1.7, mo[k] / mi[k])); morph.gain[k] += (g - morph.gain[k]) * 0.5; }
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, morph.liveTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, inCv);
+  gl.uniform1i(morph.loc.t[0], 0);
+  gl.uniform1fv(Lc.w, new Float32Array([1, 0, 0, 0, 0, 0]));
+  gl.uniform3f(Lc.gain, ...morph.gain);
+  const FL = 15, vtx = new Float32Array(keep.length * FL);
+  keep.forEach((j, q) => {
+    const o = q * FL;
+    // bord : visage plein, 1er anneau à moitié (transition douce), anneau extérieur transparent
+    const edge = j < n ? 1 : j < n + O ? 0.45 : 0;
+    vtx[o] = P[2*j]; vtx[o+1] = P[2*j+1]; vtx[o+2] = edge * S.faceSwap;
+    vtx[o+3] = live.pts[2*j]; vtx[o+4] = live.pts[2*j+1];
+  });
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  draw(vtx, new Uint16Array(tris));
+  gl.disable(gl.BLEND);
 }
 
 /* cadre autour du visage, au format de l'écran, sans sortir de l'image */
@@ -1615,7 +1868,7 @@ function render(){
   if (!recording){ $('recDot').style.display = enrich.seg ? 'block' : 'none'; $('recDot').textContent = '● AJOUT'; }
   else $('recDot').textContent = '● REC';
 
-  if (N && !recording && S.bridge){
+  if (N && !recording && S.bridge && !(S.blendN > 1) && !lipsyncOn()){
     const prog = graphStep(corpus, 6);
     const now = performance.now();
     if (now - (render.lastBridgeUi || 0) > 250){
@@ -1648,10 +1901,28 @@ function render(){
         octx.drawImage(img, crop.x * iw, crop.y * ih, cw, ch, dx, dy, dw, dh);
         octx.restore();
       };
+      // ENTRÉE : ton image, calée sur le visage / la silhouette de l'image générée, en fondu par-dessus
+      const drawInput = () => {
+        if (!(S.inMix > 0) || !playing || !liveLm || inCv.width <= 2 || liveLm.length !== (flm || liveLm).length) return;
+        const lb = md.bbox(liveLm), cb = flm ? md.bbox(flm) : lb;
+        const lcx = (lb[0] + lb[2]) / 2, lcy = (lb[1] + lb[3]) / 2, ccx = (cb[0] + cb[2]) / 2, ccy = (cb[1] + cb[3]) / 2;
+        const sy = (cb[3] - cb[1]) / Math.max(1e-3, lb[3] - lb[1]);
+        const sx = sy * (inCv.width / inCv.height) / (iw / ih);
+        const ax = sx / crop.w * dw, bx = dx + (ccx - lcx * sx - crop.x) / crop.w * dw;
+        const ay = sy / crop.h * dh, by = dy + (ccy - lcy * sy - crop.y) / crop.h * dh;
+        octx.save();
+        octx.globalAlpha = S.inMix;
+        if (S.flipOut){ octx.translate(W, 0); octx.scale(-1, 1); }
+        if (S.mirror){ const xc = bx + ax * lcx; octx.translate(xc, 0); octx.scale(-1, 1); octx.translate(-xc, 0); }
+        octx.drawImage(inCv, bx, by, ax, ay);
+        octx.restore();
+      };
       drawImg(playing ? 1 - S.fade : 1);
+      drawInput();
       if (S.skel){
         octx.fillStyle = '#000'; octx.fillRect(0, 0, W, H);
         drawImg(1); // image nette sous les tracés pour ne pas les laisser traîner
+        drawInput();
         octx.save();
         if (S.flipOut){ octx.translate(W, 0); octx.scale(-1, 1); }
         const toOut = (nx, ny) => [dx + (nx - crop.x) / crop.w * dw, dy + (ny - crop.y) / crop.h * dh];
@@ -1683,11 +1954,14 @@ function render(){
     $('hud').textContent = enrich.on ? `${md.label}  ENRICHISSEMENT…` : '';
   }
   drawTimeline();
+  netDraw();
 }
 
 /* jauges : ton visage (rose) vs l'image choisie (cyan), après calage */
 const GAUGES = [
   ['bouche ouverte', f => f[BS_INDEX.get('jawOpen')]],
+  ['lèvres (écart)', f => (f[F_LIP + 2 * LIP_IDX.indexOf(14) + 1] - f[F_LIP + 2 * LIP_IDX.indexOf(13) + 1]) * (calOn() ? 0.5 : 0.35)],
+  ['lèvres (largeur)', f => (f[F_LIP + 2 * LIP_IDX.indexOf(291)] - f[F_LIP + 2 * LIP_IDX.indexOf(61)]) * (calOn() ? 0.5 : 0.35)],
   ['sourire',        f => (f[BS_INDEX.get('mouthSmileLeft')] + f[BS_INDEX.get('mouthSmileRight')]) / 2],
   ['yeux fermés',    f => (f[BS_INDEX.get('eyeBlinkLeft')] + f[BS_INDEX.get('eyeBlinkRight')]) / 2],
   ['sourcils haut',  f => f[BS_INDEX.get('browInnerUp')]],
@@ -1705,7 +1979,7 @@ function drawFaceGauges(W, H){
   octx.save();
   octx.fillStyle = 'rgba(0,0,0,0.6)';
   octx.fillRect(x0 - pad / 2, y0 - pad / 2, lw + bw + pad * 2, GAUGES.length * rh + pad);
-  octx.font = `${10 * dpr}px Geneva, Verdana, sans-serif`; octx.textBaseline = 'middle';
+  octx.font = `${10 * dpr}px "IBM Plex Mono", monospace`; octx.textBaseline = 'middle';
   const X = v => x0 + lw + (Math.max(-1, Math.min(1.5, v)) + 1) / 2.5 * bw, zero = X(0);
   GAUGES.forEach(([name, g], r) => {
     const y = y0 + r * rh + rh / 2;
@@ -1717,19 +1991,374 @@ function drawFaceGauges(W, H){
   octx.restore();
 }
 
+/* ============================================================
+   RÉSEAU DU CORPUS (fenêtre « Réseau — Corpus », touche N)
+   Toutes les images du corpus, rangées par ressemblance : ACP 2D des
+   caractéristiques puis grille sans chevauchement (les poses proches sont
+   voisines). En direct : activation de chaque image (ressemblance à
+   l'entrée), images choisies (IDs, fichier, temps, poids), liens depuis le
+   nœud INPUT, trajectoire de la sortie, curseurs d'entrée.
+   ============================================================ */
+const net = { open:false, view:'map', key:'', cols:1, rows:1, cellOf:null, nodeAt:null,
+  thumbs:new Map(), thumbGen:null, loadPtr:0, lastRescan:0,
+  staticCv:document.createElement('canvas'), staticDirty:true, staticAt:0,
+  act:null, trail:[], lastCur:-1, mouse:null, lastDraw:0, geom:null, fps:0, fpsN:0, fpsT:0 };
+const netCv = $('netCv'), nctx = netCv.getContext('2d');
+const NET = { bg:'#03060a', line:'rgba(90,200,240,', txt:'#bfefff', dim:'#4f7f91', cyan:'#6ff3ff', out:'#ff3d7f', warn:'#ff6a3d' };
+const netFont = (px, w = 400) => `${w} ${px}px "IBM Plex Mono", ui-monospace, monospace`;
+const nodeId = i => 'N' + String(i).padStart(4, '0');
+
+function netLayout(c, mw, mh){
+  const N = c.frames.length;
+  const key = [c.kind, N, c.featVer || 0, net.view, Math.round(mw / 30), Math.round(mh / 30)].join('|');
+  if (key === net.key && net.cellOf) return;
+  net.key = key; net.staticDirty = true;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(N * mw / Math.max(1, mh)))), rows = Math.max(1, Math.ceil(N / cols));
+  const cellOf = new Int32Array(N).fill(-1), nodeAt = new Int32Array(cols * rows).fill(-1);
+  const valid = [];
+  for (let i = 0; i < N; i++) if (c.valid && c.valid[i]) valid.push(i);
+  if (net.view === 'grid' || valid.length < 4 || !c.feats){
+    for (let i = 0; i < N; i++){ cellOf[i] = i; nodeAt[i] = i; }
+  } else {
+    // ACP : deux axes principaux par itération de puissance
+    const D = MODES[c.kind].D, F = c.feats, n = valid.length;
+    const mean = new Float64Array(D);
+    for (const i of valid) for (let d = 0; d < D; d++) mean[d] += F[i * D + d] / n;
+    const comps = [];
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+    for (let k = 0; k < 2; k++){
+      let v = Float64Array.from({ length: D }, rnd);
+      for (let it = 0; it < 20; it++){
+        const nv = new Float64Array(D);
+        for (const i of valid){
+          let dot = 0;
+          for (let d = 0; d < D; d++) dot += (F[i * D + d] - mean[d]) * v[d];
+          for (let d = 0; d < D; d++) nv[d] += dot * (F[i * D + d] - mean[d]);
+        }
+        for (const u of comps){ let p = 0; for (let d = 0; d < D; d++) p += nv[d] * u[d]; for (let d = 0; d < D; d++) nv[d] -= p * u[d]; }
+        let nn = 0; for (let d = 0; d < D; d++) nn += nv[d] * nv[d]; nn = Math.sqrt(nn) || 1;
+        v = nv.map(x => x / nn);
+      }
+      comps.push(v);
+    }
+    const proj = k => valid.map(i => { let p = 0; for (let d = 0; d < D; d++) p += (F[i * D + d] - mean[d]) * comps[k][d]; return p; });
+    const rank = arr => { const o = arr.map((v, j) => j).sort((a, b) => arr[a] - arr[b]); const r = new Float64Array(arr.length); o.forEach((j, q) => r[j] = q / Math.max(1, arr.length - 1)); return r; };
+    const rx = rank(proj(0)), ry = rank(proj(1));
+    const taken = new Uint8Array(cols * rows);
+    valid.forEach((i, j) => {
+      const tx = Math.round(rx[j] * (cols - 1)), ty = Math.round(ry[j] * (rows - 1));
+      for (let r = 0; r < cols + rows; r++){
+        let done = false;
+        for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++){
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = tx + dx, y = ty + dy;
+          if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+          const cell = y * cols + x;
+          if (taken[cell]) continue;
+          taken[cell] = 1; cellOf[i] = cell; nodeAt[cell] = i; done = true;
+        }
+        if (done) break;
+      }
+    });
+    // images sans pose détectée : dans les cases restantes
+    let free = 0;
+    for (let i = 0; i < N; i++){
+      if (cellOf[i] >= 0) continue;
+      while (free < taken.length && taken[free]) free++;
+      if (free < taken.length){ taken[free] = 1; cellOf[i] = free; nodeAt[free] = i; }
+    }
+  }
+  Object.assign(net, { cols, rows, cellOf, nodeAt });
+  if (!net.act || net.act.length < N) net.act = new Float32Array(Math.max(256, N * 2));
+}
+
+function netThumbStep(){
+  const c = corpus;
+  if (net.thumbGen !== c){ net.thumbs = new Map(); net.thumbGen = c; net.loadPtr = 0; net.staticDirty = true; }
+  const now = performance.now();
+  if (net.loadPtr >= c.frames.length && now - net.lastRescan > 2000){ net.lastRescan = now; net.loadPtr = 0; }
+  let n = 0;
+  while (net.loadPtr < c.frames.length && n < 8){
+    const i = net.loadPtr++, fr = c.frames[i];
+    if (!fr.blob || net.thumbs.has(i)) continue;
+    n++; net.thumbs.set(i, null);
+    createImageBitmap(fr.blob, { resizeWidth: 72, resizeQuality: 'low' }).then(b => {
+      if (net.thumbGen !== c){ b.close(); return; }
+      const cv = document.createElement('canvas'); cv.width = b.width; cv.height = b.height;
+      const x = cv.getContext('2d'); x.filter = 'grayscale(1) contrast(1.25) brightness(0.85)'; x.drawImage(b, 0, 0); b.close();
+      net.thumbs.set(i, cv); net.staticDirty = true;
+    }).catch(() => net.thumbs.delete(i));
+  }
+}
+
+/* vignette recadrée au carré dans une case */
+function drawCover(ctx, img, x, y, s){
+  const iw = img.width, ih = img.height, m = Math.min(iw, ih);
+  ctx.drawImage(img, (iw - m) / 2, (ih - m) / 2, m, m, x, y, s, s);
+}
+
+function netInputRows(){
+  const c = corpus, md = MODES[c.kind];
+  const live = history.length ? history[history.length - 1].f : null;
+  const okLive = live && live.length === md.D;
+  const cf = c.feats && c.valid && c.valid[curIdx] ? c.feats.subarray(curIdx * md.D, (curIdx + 1) * md.D) : null;
+  if (c.kind === 'face') return GAUGES.map(([n, g]) => [n, okLive ? g(live) : null, cf ? g(cf) : null, -1, 1.5]);
+  const B = [[0, 'bras G'], [1, 'avant-bras G'], [2, 'bras D'], [3, 'avant-bras D'], [6, 'cuisse G'], [7, 'tibia G'], [8, 'cuisse D'], [9, 'tibia D'], [14, 'tronc G']];
+  const ang = (f, b) => Math.atan2(f[b * 3 + 1], f[b * 3]) / Math.PI;
+  return B.map(([b, n]) => [n, okLive ? ang(live, b) : null, cf ? ang(cf, b) : null, -1, 1]);
+}
+
+function netDraw(){
+  if (!net.open) return;
+  const now = performance.now();
+  if (now - net.lastDraw < 33) return;          // ~30 i/s
+  net.lastDraw = now;
+  net.fpsN++; if (now - net.fpsT > 1000){ net.fps = net.fpsN; net.fpsN = 0; net.fpsT = now; }
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.round(netCv.clientWidth * dpr), H = Math.round(netCv.clientHeight * dpr);
+  if (W < 50 || H < 50) return;
+  if (netCv.width !== W || netCv.height !== H){ netCv.width = W; netCv.height = H; net.staticDirty = true; }
+  const c = corpus, md = MODES[c.kind], N = c.frames.length, x = nctx, u = dpr;
+  // zones : colonne d'entrée à gauche, tableau en bas, carte au centre
+  const LW = Math.min(190 * u, W * 0.3), TOP = 26 * u;
+  const targets = (mixTargets && S.blendN > 1 ? mixTargets : (playing && curIdx >= 0 ? [{ i: curIdx, w: 1 }] : [])).slice().sort((a, b) => b.w - a.w);
+  const TH = (Math.max(1, targets.length) + 1) * 13 * u + 12 * u;
+  const mx0 = LW + 16 * u, my0 = TOP + 8 * u, mw = W - mx0 - 10 * u, mh = H - my0 - TH - 10 * u;
+
+  x.fillStyle = NET.bg; x.fillRect(0, 0, W, H);
+  if (!N){
+    x.fillStyle = NET.dim; x.font = netFont(11 * u); x.textAlign = 'center';
+    x.fillText('CORPUS VIDE // AUCUN NŒUD', W / 2, H / 2); x.textAlign = 'left';
+    return;
+  }
+  netLayout(c, mw, mh);
+  netThumbStep();
+  const cs = Math.max(2, Math.min(mw / net.cols, mh / net.rows));
+  const gx0 = mx0 + (mw - cs * net.cols) / 2, gy0 = my0 + (mh - cs * net.rows) / 2;
+  const cellXY = i => { const cell = net.cellOf[i]; return [gx0 + (cell % net.cols) * cs, gy0 + Math.floor(cell / net.cols) * cs]; };
+  net.geom = { gx0, gy0, cs };
+
+  // couche statique : toutes les vignettes, éteintes
+  if (net.staticDirty && now - net.staticAt > 250){
+    net.staticDirty = false; net.staticAt = now;
+    const sc = net.staticCv; sc.width = W; sc.height = H;
+    const s = sc.getContext('2d');
+    s.strokeStyle = NET.line + '0.05)'; s.lineWidth = 1;
+    for (let k = 0; k <= net.cols; k++){ s.beginPath(); s.moveTo(gx0 + k * cs, gy0); s.lineTo(gx0 + k * cs, gy0 + net.rows * cs); s.stroke(); }
+    for (let k = 0; k <= net.rows; k++){ s.beginPath(); s.moveTo(gx0, gy0 + k * cs); s.lineTo(gx0 + net.cols * cs, gy0 + k * cs); s.stroke(); }
+    for (let i = 0; i < N; i++){
+      if (net.cellOf[i] < 0) continue;
+      const [px, py] = cellXY(i), t = net.thumbs.get(i);
+      if (t){ s.globalAlpha = 0.32; drawCover(s, t, px + 0.5, py + 0.5, cs - 1); s.globalAlpha = 1; }
+      else { s.fillStyle = '#0a1219'; s.fillRect(px + 0.5, py + 0.5, cs - 1, cs - 1); }
+      if (!c.valid[i]){ s.strokeStyle = 'rgba(255,90,60,0.35)'; s.beginPath(); s.moveTo(px + 2, py + 2); s.lineTo(px + cs - 2, py + cs - 2); s.stroke(); }
+    }
+  }
+  x.drawImage(net.staticCv, 0, 0);
+
+  // activation : ressemblance de chaque image avec l'entrée (lissée dans le temps)
+  const fresh = playing && matchRaw && now - matchAt < 600;
+  const thr = +$('netThr').value;
+  if (fresh){
+    let r0 = Infinity;
+    for (let i = 0; i < N; i++) if (matchRaw[i] < r0) r0 = matchRaw[i];
+    const tau = Math.max(0.006, r0 * 0.6 + 0.01);
+    for (let i = 0; i < N; i++){
+      const a = Number.isFinite(matchRaw[i]) ? Math.exp(-(matchRaw[i] - r0) / tau) : 0;
+      net.act[i] += (a - net.act[i]) * 0.35;
+    }
+  } else for (let i = 0; i < N; i++) net.act[i] *= 0.9;
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < N; i++){
+    const a = net.act[i];
+    if (a < thr || net.cellOf[i] < 0) continue;
+    const [px, py] = cellXY(i);
+    x.fillStyle = `rgba(80,220,255,${(0.08 + 0.35 * a).toFixed(3)})`;
+    x.fillRect(px + 0.5, py + 0.5, cs - 1, cs - 1);
+  }
+  x.restore();
+
+  // trajectoire de la sortie
+  if (curIdx !== net.lastCur && playing){ net.trail.push([curIdx, now]); net.lastCur = curIdx; }
+  while (net.trail.length && now - net.trail[0][1] > 3000) net.trail.shift();
+  if (net.trail.length > 1){
+    x.lineWidth = 1.2 * u;
+    for (let k = 1; k < net.trail.length; k++){
+      const [a, ta] = net.trail[k - 1], [b] = net.trail[k];
+      if (net.cellOf[a] < 0 || net.cellOf[b] < 0) continue;
+      const [ax, ay] = cellXY(a), [bx, by] = cellXY(b);
+      x.strokeStyle = `rgba(255,61,127,${(0.7 * (1 - (now - ta) / 3000)).toFixed(3)})`;
+      x.beginPath(); x.moveTo(ax + cs / 2, ay + cs / 2); x.lineTo(bx + cs / 2, by + cs / 2); x.stroke();
+    }
+  }
+
+  // colonne d'entrée : curseurs (blanc = toi, cyan = image affichée)
+  x.fillStyle = NET.dim; x.font = netFont(9 * u, 600);
+  x.fillText('INPUT // ' + (S.input === 'screen' ? 'SCREEN' : 'CAM') + (liveLm ? '  ● LOCK' : '  ○ NO SIGNAL'), 10 * u, TOP + 12 * u);
+  // curseurs d'entrée : dans la hauteur libre au-dessus du tableau (resserrés si la fenêtre est petite)
+  const rowsAll = netInputRows(), avail = H - TH - TOP - 36 * u;
+  const rows = rowsAll.slice(0, Math.max(1, Math.floor(avail / (15 * u))));
+  const rh = Math.min(22 * u, avail / Math.max(1, rows.length));
+  const tx0 = 10 * u, tx1 = LW - 18 * u, hubX = LW + 2 * u, hubY = my0 + mh / 2;
+  rows.forEach(([name, lv, cv, lo, hi], k) => {
+    const y = TOP + 30 * u + k * rh;
+    const X = v => tx0 + Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * (tx1 - tx0);
+    x.fillStyle = NET.txt; x.font = netFont(9 * u); x.fillText(name.toUpperCase(), tx0, y - 3 * u);
+    x.strokeStyle = NET.line + '0.35)'; x.lineWidth = 1;
+    x.beginPath(); x.moveTo(tx0, y + 4 * u); x.lineTo(tx1, y + 4 * u); x.stroke();
+    for (let t = 0; t <= 10; t++){ const tx = tx0 + t / 10 * (tx1 - tx0); x.beginPath(); x.moveTo(tx, y + 4 * u); x.lineTo(tx, y + (t % 5 ? 6 : 8) * u); x.stroke(); }
+    if (cv != null){ x.fillStyle = NET.cyan; x.fillRect(X(cv) - 1 * u, y - 1 * u, 2 * u, 10 * u); }
+    if (lv != null){
+      x.fillStyle = '#fff'; x.fillRect(X(lv) - 3 * u, y, 6 * u, 8 * u);
+      // synapse vers le nœud INPUT
+      x.strokeStyle = `rgba(255,255,255,${0.08 + 0.25 * Math.min(1, Math.abs(lv))})`;
+      x.beginPath(); x.moveTo(tx1 + 4 * u, y + 4 * u); x.lineTo(hubX, hubY); x.stroke();
+      x.fillStyle = NET.dim; x.textAlign = 'right'; x.fillText(lv.toFixed(2), LW - 2 * u, y - 3 * u); x.textAlign = 'left';
+    }
+  });
+  // nœud INPUT
+  x.fillStyle = liveLm ? '#fff' : NET.dim; x.beginPath(); x.arc(hubX, hubY, 4 * u, 0, 7); x.fill();
+  x.strokeStyle = NET.line + '0.6)'; x.beginPath(); x.arc(hubX, hubY, 8 * u, 0, 7); x.stroke();
+
+  // images choisies : liens, vignettes en couleur, étiquettes
+  targets.forEach(({ i, w }, k) => {
+    if (net.cellOf[i] < 0) return;
+    const [px, py] = cellXY(i), cx = px + cs / 2, cy = py + cs / 2;
+    x.strokeStyle = `rgba(111,243,255,${(0.25 + 0.75 * w).toFixed(3)})`; x.lineWidth = (0.6 + 2.2 * w) * u;
+    x.beginPath(); x.moveTo(hubX, hubY); x.bezierCurveTo(hubX + 60 * u, hubY, cx - 60 * u, cy, cx, cy); x.stroke();
+    // vignette agrandie
+    const S2 = Math.max(cs * 2.2, 34 * u), bx = Math.min(W - S2 - 4 * u, Math.max(mx0, cx - S2 / 2)), by = Math.min(H - TH - S2 - 4 * u, Math.max(my0, cy - S2 / 2));
+    const full = cache.get(i) || net.thumbs.get(i);
+    getBitmap(i);
+    if (full){ drawCover(x, full, bx, by, S2); }
+    x.strokeStyle = i === curIdx ? NET.out : NET.cyan; x.lineWidth = 1.5 * u; x.strokeRect(bx, by, S2, S2);
+    const L = 6 * u; x.lineWidth = 2 * u;
+    for (const [qx, qy, sx, sy] of [[bx, by, 1, 1], [bx + S2, by, -1, 1], [bx, by + S2, 1, -1], [bx + S2, by + S2, -1, -1]]){
+      x.beginPath(); x.moveTo(qx - sx * 3 * u, qy + sy * L); x.lineTo(qx - sx * 3 * u, qy - sy * 3 * u); x.lineTo(qx + sx * L, qy - sy * 3 * u); x.stroke();
+    }
+    x.font = netFont(9 * u, 600);
+    const tag = `${nodeId(i)} ${Math.round(w * 100)}%`;
+    const tw = x.measureText(tag).width + 6 * u;
+    x.fillStyle = 'rgba(3,6,10,0.85)'; x.fillRect(bx, by + S2 + 1 * u, tw, 12 * u);
+    x.fillStyle = i === curIdx ? NET.out : NET.cyan; x.fillText(tag, bx + 3 * u, by + S2 + 10 * u);
+  });
+
+  // en-tête
+  x.font = netFont(10 * u, 600); x.fillStyle = NET.txt;
+  const head = `PM//NET  ▸ CORPUS ${N} NŒUDS  ▸ ${md.label}${lipsyncOn() ? ' · LIP-SYNC' : ''}  ▸ MIX ${S.blendN}  ▸ ${net.view === 'map' ? 'CARTE ACP' : 'GRILLE CHRONO'}`;
+  x.fillText(head, 10 * u, 16 * u);
+  const right = `${playing ? 'LIVE' : 'IDLE'}  ${net.fps} Hz  ${new Date().toLocaleTimeString('fr-FR')}`;
+  x.textAlign = 'right'; x.fillStyle = NET.dim;
+  if (x.measureText(head).width + x.measureText(right).width + 40 * u < W) x.fillText(right, W - 10 * u, 16 * u);
+  x.textAlign = 'left';
+  x.strokeStyle = NET.line + '0.25)'; x.beginPath(); x.moveTo(0, TOP); x.lineTo(W, TOP); x.stroke();
+
+  // tableau des images choisies
+  const ty = H - TH;
+  x.strokeStyle = NET.line + '0.25)'; x.beginPath(); x.moveTo(0, ty); x.lineTo(W, ty); x.stroke();
+  x.font = netFont(9 * u, 600); x.fillStyle = NET.dim;
+  const col = [10, 70, 120, 190, 250, 300, 400].map(v => v * u);
+  ['ID', 'PASS.', 'TEMPS', 'SIM', 'POIDS', '', 'FICHIER'].forEach((h, k) => x.fillText(h, col[k], ty + 13 * u));
+  x.font = netFont(9 * u);
+  targets.forEach(({ i, w }, k) => {
+    const y = ty + (k + 2) * 13 * u, fr = c.frames[i];
+    const sim = matchRaw && Number.isFinite(matchRaw[i]) ? Math.max(0, Math.round(md.sim(matchRaw[i]) * 100)) + '%' : '--';
+    x.fillStyle = i === curIdx ? NET.out : NET.txt;
+    x.fillText(nodeId(i), col[0], y);
+    x.fillText('S' + String(fr.seg || 0).padStart(2, '0'), col[1], y);
+    x.fillText((fr.t || 0).toFixed(2) + 's', col[2], y);
+    x.fillText(sim, col[3], y);
+    x.fillStyle = NET.line + '0.25)'; x.fillRect(col[4], y - 7 * u, 90 * u, 6 * u);
+    x.fillStyle = NET.cyan; x.fillRect(col[4], y - 7 * u, 90 * u * w, 6 * u);
+    x.fillStyle = NET.dim; x.fillText(`${(c.name || 'séquence')}#${String(i).padStart(4, '0')}.jpg`, col[6], y);
+  });
+
+  // survol : fiche de l'image
+  if (net.mouse){
+    const [mxp, myp] = net.mouse, gxi = Math.floor((mxp - gx0) / cs), gyi = Math.floor((myp - gy0) / cs);
+    const cell = gxi >= 0 && gyi >= 0 && gxi < net.cols && gyi < net.rows ? gyi * net.cols + gxi : -1;
+    const i = cell >= 0 ? net.nodeAt[cell] : -1;
+    net.hover = i;
+    if (i >= 0){
+      const [px, py] = cellXY(i), fr = c.frames[i];
+      x.strokeStyle = '#fff'; x.lineWidth = 1 * u; x.strokeRect(px, py, cs, cs);
+      const sim = matchRaw && Number.isFinite(matchRaw[i]) ? Math.max(0, Math.round(md.sim(matchRaw[i]) * 100)) + '%' : '--';
+      const lines = [nodeId(i) + (i === curIdx ? '  ◀ SORTIE' : ''), `FICHIER ${(c.name || 'séquence')}#${String(i).padStart(4, '0')}.jpg`,
+        `TEMPS ${(fr.t || 0).toFixed(2)} s   PASSAGE S${String(fr.seg || 0).padStart(2, '0')}`,
+        `SIM ${sim}   ACT ${(net.act[i] || 0).toFixed(2)}   ${c.valid[i] ? 'POSE OK' : 'SANS POSE'}`];
+      x.font = netFont(9 * u);
+      const bw = Math.max(...lines.map(l => x.measureText(l).width)) + 12 * u, bh = lines.length * 12 * u + 8 * u;
+      const TS = 70 * u;
+      let bx = mxp + 14 * u, by = myp + 14 * u;
+      if (bx + bw + TS > W) bx = mxp - bw - TS - 14 * u;
+      if (by + Math.max(bh, TS) > H) by = H - Math.max(bh, TS) - 4 * u;
+      x.fillStyle = 'rgba(3,6,10,0.92)'; x.fillRect(bx, by, bw + TS + 6 * u, Math.max(bh, TS + 6 * u));
+      x.strokeStyle = NET.cyan; x.strokeRect(bx, by, bw + TS + 6 * u, Math.max(bh, TS + 6 * u));
+      const img = cache.get(i) || net.thumbs.get(i); getBitmap(i);
+      if (img) drawCover(x, img, bx + 3 * u, by + 3 * u, TS);
+      x.fillStyle = NET.txt;
+      lines.forEach((l, k) => x.fillText(l, bx + TS + 10 * u, by + 14 * u + k * 12 * u));
+    }
+  }
+}
+
+/* fenêtre : ouvrir, fermer, déplacer, agrandir, curseurs liés aux réglages */
+function netToggle(on = !net.open){
+  net.open = on; $('netWin').hidden = !on; net.staticDirty = true;
+}
+(function(){
+  const win = $('netWin'), bar = win.querySelector('.titlebar');
+  $('netClose').onclick = () => netToggle(false);
+  $('netZoom').onclick = () => win.classList.toggle('big');
+  let drag = null;
+  bar.addEventListener('mousedown', e => {
+    if (e.target.closest('.box')) return;
+    const r = win.getBoundingClientRect();
+    drag = [e.clientX - r.left, e.clientY - r.top];
+    win.style.bottom = 'auto'; win.style.right = 'auto';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    win.style.left = Math.max(0, e.clientX - drag[0]) + 'px';
+    win.style.top = Math.max(20, e.clientY - drag[1]) + 'px';
+  });
+  window.addEventListener('mouseup', () => drag = null);
+  netCv.addEventListener('mousemove', e => {
+    const r = netCv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    net.mouse = [(e.clientX - r.left) * d, (e.clientY - r.top) * d];
+  });
+  netCv.addEventListener('mouseleave', () => { net.mouse = null; net.hover = -1; });
+  netCv.addEventListener('click', () => { if (!playing && net.hover >= 0) curIdx = net.hover; });
+  win.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+    net.view = b.dataset.view; net.key = '';
+    win.querySelectorAll('[data-view]').forEach(q => q.classList.toggle('on', q === b));
+  });
+  // curseurs de la fenêtre = mêmes réglages que le panneau
+  win.querySelectorAll('input[data-link]').forEach(inp => {
+    const main = $(inp.dataset.link), out = inp.nextElementSibling;
+    const sync = () => { if (document.activeElement !== inp){ inp.value = main.value; } out.textContent = inp.value; };
+    inp.min = main.min; inp.max = main.max; inp.step = main.step; sync();
+    inp.addEventListener('input', () => { main.value = inp.value; main.dispatchEvent(new Event('input')); out.textContent = inp.value; });
+    main.addEventListener('input', sync);
+  });
+  $('netThr').addEventListener('input', e => e.target.nextElementSibling.textContent = e.target.value);
+})();
+
 function drawTimeline(){
   const dpr = window.devicePixelRatio || 1;
   const W = Math.round(tl.clientWidth * dpr), H = Math.round(tl.clientHeight * dpr);
   if (tl.width !== W || tl.height !== H){ tl.width = W; tl.height = H; }
-  tctx.fillStyle = '#fff'; tctx.fillRect(0, 0, W, H);
+  tctx.fillStyle = '#03060a'; tctx.fillRect(0, 0, W, H);
   const N = corpus.frames.length;
   if (!N || recording) return;
   const bw = W / N;
   for (let i = 0; i < N; i++){
-    tctx.fillStyle = corpus.valid && corpus.valid[i] ? (corpus.frames[i].seg ? '#444' : '#9a9a9a') : '#e6e6e6';
+    tctx.fillStyle = corpus.valid && corpus.valid[i] ? (corpus.frames[i].seg ? '#7a5a1a' : '#1d4a5a') : '#1a0c10';
     tctx.fillRect(i * bw, H * 0.3, Math.max(1, bw), H * 0.4);
   }
-  tctx.fillStyle = '#000';
+  tctx.fillStyle = '#6ff3ff';
   tctx.fillRect(curIdx * bw - 1 * dpr, 0, Math.max(2 * dpr, bw), H);
 }
 
@@ -1775,6 +2404,7 @@ async function toggleRec(){
     capCv.width = Math.round(inCv.width * sc); capCv.height = Math.round(inCv.height * sc);
   }
   const c = emptyCorpus(S.mode); c.w = capCv.width; c.h = capCv.height;
+  c.name = 'rec_' + new Date().toTimeString().slice(0, 8).replace(/:/g, '');
   corpora[S.mode] = corpus = c;
   recPending = []; recStart = performance.now(); recording = true;
   $('recDot').style.display = 'block';
@@ -1825,6 +2455,7 @@ async function importVideo(file){
   const sc = Math.min(1, 960 / v.videoWidth);
   capCv.width = Math.round(v.videoWidth * sc); capCv.height = Math.round(v.videoHeight * sc);
   const c = emptyCorpus(kind); c.fps = fps; c.w = capCv.width; c.h = capCv.height;
+  c.name = file.name.replace(/\.[^.]+$/, '');
   $('prog').style.display = 'block';
   // lecture en continu (x1) + une image analysée tous les 1/fps : bien plus
   // rapide que de chercher chaque image (les vidéos compressées seekent mal)
@@ -1905,7 +2536,7 @@ async function loadSeq(file){
     const len = new DataView(pre.buffer).getUint32(4, true);
     const h = JSON.parse(new TextDecoder().decode(await file.slice(8, 8 + len).arrayBuffer()));
     const kind = h.kind === 'face' ? 'face' : 'body';
-    const c = emptyCorpus(kind); c.fps = h.fps; c.w = h.w; c.h = h.h; c.neutralIdx = h.neutral ?? null;
+    const c = emptyCorpus(kind); c.fps = h.fps; c.w = h.w; c.h = h.h; c.neutralIdx = h.neutral ?? null; c.name = file.name.replace(/\.poseseq$/i, '');
     let o = 8 + len;
     for (const f of h.frames){
       c.frames.push({ t:f.t, blob:file.slice(o, o + f.n, 'image/jpeg'), lm: f.lm ? Float32Array.from(f.lm) : null, seg: f.s || 0 });
@@ -1977,6 +2608,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'e'){ enrich.on ? stopEnrich() : startEnrich(); }
   else if (k === 'v'){ setMode(S.mode === 'body' ? 'face' : 'body'); }
   else if (k === 'f'){ document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+  else if (k === 'n'){ netToggle(); }
   else if (k === 'h'){ document.body.classList.toggle('clean'); }
   else if ((k === 'arrowleft' || k === 'arrowright') && !playing && corpus.frames.length){
     e.preventDefault();
@@ -2010,7 +2642,7 @@ window.addEventListener('keydown', e => {
   });
   document.addEventListener('mousedown', e => { if (!e.target.closest('#menubar')) close(); });
   // cases des barres de titre
-  document.querySelectorAll('.titlebar .box').forEach(b => b.addEventListener('click', () =>
+  document.querySelectorAll('.titlebar .box[data-key]').forEach(b => b.addEventListener('click', () =>
     window.dispatchEvent(new KeyboardEvent('keydown', { key: b.dataset.key }))));
   const tick = () => { $('clock').textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
   tick(); setInterval(tick, 15000);
