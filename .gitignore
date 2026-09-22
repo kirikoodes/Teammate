@@ -1,0 +1,4 @@
+synapse_config.json
+synapse_cache/
+banque/
+__pycache__/
