@@ -59,6 +59,15 @@ perf_last_input = 0 ; perf_last_count = 0 ; perf_corpus_t = 0 ; perf_had_diamond
 local phrase_buf      = {}
 local phrase_analysis = nil
 local recent_slots    = {}
+-- ===== CLONE (sous-mode IMPRO) : rejoue le squelette energie/rythme d'une phrase =====
+-- avec les grains DEJA dans le corpus (grain d'energie proche), en ECHO une fois.
+-- N'enregistre RIEN de neuf : capte juste les attaques (timing + pic d'energie).
+clone_on      = false
+clone_cap     = {}     -- squelette capte : { {t=abs, e=pic_rms}, ... }
+clone_onset_t = nil    -- debut de la note en cours
+clone_peak    = 0      -- pic de rms de la note en cours
+clone_len     = 1.6    -- allonge les grains (corpus "plus long, moins de grains")
+clone_echo_n  = 0      -- taille du dernier echo (affichage)
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -286,15 +295,22 @@ MGEN_DIV_PULSES = { 24,    16,    12,    8,     6,      4,      3 }   -- ...T = 
 -- ===== FRAG : SLICER MIDI global (page 34) - decoupe TOUT le MIDI (tous les channels) =====
 -- Le flux MIDI est gate par tranches : la barre est divisee en N tranches, et chaque
 -- caractere (les 3 pyramides) decide quelles tranches passent / sont coupees.
-FRAG_NAMES   = { "KHEOPS", "KHEPHREN", "MYKERINOS" }   -- KHEOPS=chaos, KHEPHREN=pointilliste (Ikeda), MYKERINOS=salves
+-- 3 pyramides (motif interne) + 2 entites pilotees par la DONNEE (flux T-Deck / capteurs) :
+--   8OS DENS = le mouvement regle la DENSITE de coupe ; 8OS MASK = le mouvement DESSINE le masque.
+FRAG_NAMES   = { "KHEOPS", "KHEPHREN", "MYKERINOS", "8OS DENS", "8OS MASK" }
+FRAG_DATA1   = 4           -- 1er caractere pilote par la donnee (>= -> data)
 FRAG_SLICES  = { 1, 2, 4, 6, 8, 16, 32 }               -- nombre de tranches par barre
 frag_on         = false
-frag_char       = 1        -- 1..3
+frag_char       = 1        -- 1..#FRAG_NAMES
 frag_slices_idx = 5        -- index dans FRAG_SLICES (5 = 8 tranches)
-frag_amt        = 0.6      -- densite de decoupe 0..1 (interne pour l'instant)
-frag_rand       = false    -- navigue aleatoirement entre les 3 caracteres
+frag_amt        = 0.6      -- densite/seuil de decoupe 0..1
+frag_rand       = false    -- navigue aleatoirement entre les 3 pyramides
+frag_inv        = false    -- inverse le sens data : bouge->joue (def) <-> bouge->coupe
 frag_open       = true     -- etat courant du gate (true = laisse passer)
 frag_idx        = 0        -- tranche courante (0..N-1) pour l'affichage
+frag_hist       = {}       -- historique des N dernieres valeurs data (masque 8OS MASK)
+frag_dv         = 0        -- derniere valeur data lue (0..1) pour l'affichage
+frag_hist_mean  = 0.5      -- moyenne glissante du flux (seuil auto-centre du masque)
 -- ===== REP : REPETITEUR MIDI global (page 46) - 3 entites = le TEMPS grec =====
 -- Repete/roule chaque note qui sort (tous les channels). Le nombre de repetitions
 -- est LIE AU SON (velocite de la note). Meme grille que le slicer.
@@ -1591,16 +1607,52 @@ end
 
 -- SLICER : etat d'une tranche selon le caractere (pyramide). "mute" = coupe, sinon passe.
 -- Placeholders jouables (l'utilisateur affinera la decoupe de chaque mode).
+-- valeur 0..1 du flux entrant (T-Deck / capteurs OSC).
+--  1) capteur SAMT arme -> sa valeur ; 2) sinon le NIVEAU du dernier axe recu (vivant a
+--  CHAQUE paquet, meme sans "mouvement") ; 3) sinon l'energie de mouvement en dernier recours.
+frag_src_lbl = "-"      -- source reellement utilisee par le slicer (affichage)
+function frag_data_val()   -- global (limite 200 locals)
+  if samt_on and samt_slot[1] and samt_slot[1].key then
+    frag_src_lbl = "SAMT" ; return samt_slot[1].val or 0
+  end
+  -- SNOT : max des instruments ALLUMES (leur axe TRIG) -> lit la data du SNOT SANS rien armer
+  local best = nil
+  for ni = 1, SNOT_N do
+    local sn = samt_notes[ni]
+    if sn and sn.on and sn.trig and samt_mon[sn.trig] then
+      local v = samt_mon[sn.trig].val or 0
+      if best == nil or v > best then best = v end
+    end
+  end
+  if best ~= nil then frag_src_lbl = "SNOT" ; return best end
+  local ag = samt_mon and samt_mon["/eightos/rfsense#1"]     -- agregat mouvement RF (motion max, propre)
+  if ag and ag.t and (util.time() - ag.t) < 2.0 then frag_src_lbl = "RF" ; return ag.val or 0 end
+  if samt_last and samt_last.t and (util.time() - samt_last.t) < 2.0 then
+    frag_src_lbl = "axe" ; return math.max(samt_last.val or 0, samt_energy or 0)
+  end
+  frag_src_lbl = "mvt" ; return samt_energy or 0
+end
+
 function frag_slice_state(c, idx, N, amt)   -- global (limite 200 locals)
   if c == 1 then          -- KHEOPS : chaos - dispersion aleatoire dense, imprevisible
     return (math.random() < 0.4) and "mute" or "play"
   elseif c == 2 then      -- KHEPHREN : pointilliste (Ikeda) - points isoles tres espaces, tres vide
     local step = math.max(2, math.floor(N / 2))                 -- ~2 impacts par barre
     return (idx % step == 0) and "play" or "mute"
-  else                    -- MYKERINOS : salves - BLOCS contigus qui passent puis silence
+  elseif c == 3 then      -- MYKERINOS : salves - BLOCS contigus qui passent puis silence
     local half = math.max(2, math.floor(N / 2))
     local q    = math.max(1, math.floor(N / 4))
     return ((idx % half) < q) and "play" or "mute"
+  elseif c == 4 then      -- 8OS DENS : la DONNEE regle la densite de coupe (probabiliste)
+    local v = frag_dv                                           -- 0..1 (mouvement)
+    local pmute = frag_inv and v or (1 - v)                     -- def: bouge->joue ; inv: bouge->coupe
+    return (math.random() < pmute) and "mute" or "play"
+  else                    -- 8OS MASK : la DONNEE dessine le masque (l'historique = le motif)
+    local s = frag_hist[idx + 1]
+    if s == nil then s = frag_hist_mean end
+    local play = (s >= frag_hist_mean)                          -- seuil auto-centre sur le mouvement recent
+    if frag_inv then play = not play end
+    return play and "play" or "mute"
   end
 end
 
@@ -2080,16 +2132,24 @@ local function on_flatness(v) cur_flatness = v end
 local function process_gate(new_gate)
   if new_gate > 0.5 and cur_gate < 0.5 and not rec_on and state ~= "REST" then
     last_sound_t = util.time()
-    rec_slot = head
-    rec_t0   = util.time()
-    rms_sum  = 0 ; rms_n = 0
-    rec_start(rec_slot)
-    rec_on = true
+    if clone_on then
+      clone_onset_t = util.time() ; clone_peak = cur_rms   -- CLONE : capte l'attaque, N'ENREGISTRE PAS
+    else
+      rec_slot = head
+      rec_t0   = util.time()
+      rms_sum  = 0 ; rms_n = 0
+      rec_start(rec_slot)
+      rec_on = true
+    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 then
     midi_cc_all(3, 123, 0)
     midi_cc_all(2, 123, 0)
+    if clone_on and clone_onset_t then                     -- CLONE : fin de note -> ajoute l'attaque au squelette
+      table.insert(clone_cap, { t = clone_onset_t, e = math.max(clone_peak or 0, cur_rms) })
+      clone_onset_t = nil
+    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 and rec_on then
@@ -2137,6 +2197,8 @@ local function on_rms(v)
     process_gate(new_gate)
     cur_gate = new_gate
   end
+
+  if clone_on and cur_gate > 0.5 then clone_peak = math.max(clone_peak or 0, v) end   -- CLONE : suit le pic d'energie de la note
 
   if rec_on then
     rms_sum = rms_sum + v ; rms_n = rms_n + 1
@@ -2255,6 +2317,32 @@ local function do_respond(ref_n, rest_base)
   end)
 end
 
+-- CLONE : rejoue le squelette (cap) une fois, chaque attaque = un grain du corpus
+-- d'ENERGIE PROCHE, a la meme place dans le temps, au niveau de ta phrase. Grains allonges.
+function clone_echo(cap)   -- global (limite 200 locals)
+  if not cap or #cap < 1 then return end
+  clone_echo_n = #cap
+  clock.run(function()
+    for i = 1, #cap do
+      if i > 1 then clock.sleep(math.max(0.02, cap[i].t - cap[i - 1].t)) end   -- respecte TON rythme
+      local e = cap[i].e or 0.1
+      local best, bd                                                           -- grain du corpus d'energie proche
+      for _, ev in pairs(corpus) do
+        local d = math.abs((ev.rms or 0) - e)
+        if not bd or d < bd then bd = d ; best = ev end
+      end
+      if best then
+        local gi = {
+          slot = best.slot, freq = best.freq, centroid = best.centroid, flatness = best.flatness,
+          duration = math.min(MAX_DUR, (best.duration or 0.2) * (clone_len or 1.6)),   -- grain allonge
+          rms = e,                                                                      -- niveau = TON energie
+        }
+        play_event(gi, 1.0, 1, nil)
+      end
+    end
+  end)
+end
+
 local function silence_loop()
   clock.run(function()
     while true do
@@ -2268,6 +2356,14 @@ local function silence_loop()
       end
 
       if state ~= "LISTEN" then goto continue end
+
+      if clone_on then                                     -- CLONE : echo du squelette a la fin de la phrase (pas de reponse normale)
+        if #clone_cap > 0 and sil_sec >= p_sil_min then
+          local cap = clone_cap ; clone_cap = {}
+          if count >= MIN_CORPUS then clone_echo(cap) end
+        end
+        goto continue
+      end
 
       if #phrase_buf > 0 and sil_sec < 0.1 and count >= MIN_CORPUS then
         if math.random() < INTERRUPT_PROB then
@@ -2746,6 +2842,7 @@ samt_still  = 0                            -- duree d'immobilite (s)
 samt_pmm    = 0                            -- mouvement du tick precedent (pour la brusquerie)
 samt_mind_on = false                       -- MOVE : l'agent ECOUTE le mouvement (equivalent de MIND pour le geste)
 peru_spawn   = false                       -- MOVE : le mouvement fait APPARAITRE des grains (le grain selectionne) dans PERU
+peru_trig_lock = false                      -- FIXE : le trigger (T-Deck/mouvement) joue le grain SELECTIONNE, sans auto-cycler
 peru_still   = 0                            -- duree d'immobilite des diamants (pour le clear auto a 4 s)
 samt_penergy = 0                            -- energie du tick precedent (detection de CHANGEMENT -> spawn)
 peru_spawn_t = 0                            -- horodatage du dernier spawn (anti-rafale)
@@ -2936,6 +3033,75 @@ function peru_play(ev, pan)
       if peru_v_tok[vi] == tok then softcut.play(v, 0) end
     end
   end)
+end
+
+-- ===== TRIG BANK (page 47) : une banque de samples PAR T-Deck. Chaque T-Deck qui
+--       TRIGGE (son mouvement) joue UN de SES samples au HASARD. Independant de PERU. =====
+TB_PAGE     = 47
+tb_on       = false
+tb_nodes    = {}          -- ids detectes en ordre d'apparition (ex "td-6fc338")
+tb          = {}          -- id -> { slots={...}, pv=0, last=0 }
+tb_node_cur = 1
+tb_slot_cur = 1
+tb_thr      = 0.04        -- seuil de trigger (variation de l'axe mouvement) : PLUS BAS = plus sensible
+tb_k1_down  = false ; tb_k1_moved = false   -- K1 maintenu = shift (E3 -> sensibilite)
+
+function tb_get(id)       -- global (limite 200 locals)
+  if not tb[id] then tb[id] = { slots = {}, pv = 0, last = 0 } ; tb_nodes[#tb_nodes + 1] = id end
+  return tb[id]
+end
+function tb_has(e, slot)
+  for _, s in ipairs(e.slots) do if s == slot then return true end end ; return false
+end
+function tb_toggle(id, slot)
+  local e = tb_get(id)
+  for i, s in ipairs(e.slots) do if s == slot then table.remove(e.slots, i) ; return end end
+  e.slots[#e.slots + 1] = slot
+end
+function tb_fire(id)      -- joue un sample AU HASARD de la banque du noeud
+  local e = tb[id] ; if not e or #e.slots == 0 then return end
+  local slot = e.slots[math.random(#e.slots)]
+  if corpus[slot] then pcall(peru_play, corpus[slot], 0) end
+end
+function tb_save_tbl()   -- serialise les banques (id -> liste de slots) pour la sauvegarde
+  local o = {} ; for id, e in pairs(tb) do o[id] = e.slots end ; return o
+end
+
+-- ===== BANQUES DE SAMPLES (page 48) : sauve/charge/efface le CORPUS (audio + meta) sur la SD =====
+BK_PAGE  = 48
+BK_N     = 8
+bk_cur   = 1
+bk_msg   = "" ; bk_msg_t = 0
+function bk_base(n) return norns.state.data .. "bank" .. n end
+function bk_exists(n) return util.file_exists(bk_base(n) .. ".data") end
+function bk_note(s) bk_msg = s ; bk_msg_t = util.time() end
+function bk_save(n)      -- ecrit le buffer corpus (0..96s) en WAV + les metadonnees
+  local dur = CORPUS_SLOTS * CORPUS_DUR
+  softcut.buffer_write_mono(bk_base(n) .. ".wav", CORPUS_OFFSET, dur, 1)
+  tab.save({ corpus = corpus, head = head, count = count }, bk_base(n) .. ".data")
+  bk_note("SAUVE " .. n)
+end
+function bk_load(n)      -- relit le WAV dans le buffer + restaure le corpus
+  if not bk_exists(n) then bk_note("vide") ; return end
+  local dur = CORPUS_SLOTS * CORPUS_DUR
+  softcut.buffer_read_mono(bk_base(n) .. ".wav", 0, CORPUS_OFFSET, dur, 1, 1)
+  local t = tab.load(bk_base(n) .. ".data")
+  if type(t) == "table" then corpus = t.corpus or {} ; head = t.head or 1 ; count = t.count or 0 end
+  bk_note("CHARGE " .. n)
+end
+function bk_delete(n)
+  os.remove(bk_base(n) .. ".wav") ; os.remove(bk_base(n) .. ".data") ; bk_note("efface " .. n)
+end
+function tb_scan()        -- 30 Hz : detecte le trigger de chaque noeud (front montant du mouvement)
+  local now = util.time()
+  for key, a in pairs(samt_mon) do
+    local id = key:match("^/eightos/rf/(.+)#1$")   -- axe MOUVEMENT d'un noeud (pas rfsense, pas #2)
+    if id then
+      local e = tb_get(id)
+      local v = a.val or 0 ; local dv = v - (e.pv or 0) ; e.pv = v
+      if tb_on and dv > tb_thr and (now - (e.last or 0)) > 0.10 then e.last = now ; tb_fire(id) end
+    end
+  end
 end
 
 function peru_step()
@@ -3298,7 +3464,7 @@ LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IM
 -- HUB : E1/E2 deplacent le curseur, K1 entre, K3 arme (si armable). Dans une
 -- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
 NAV_CATS = {
-  { n = "IMPRO",  pg = {1,2,3,4},        arm = 8  },
+  { n = "IMPRO",  pg = {1,2,3,4,47,48},  arm = 8  },   -- 47 = CLONE ; 48 = SAMPLE BANK (gestion du corpus sur SD)
   { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
   { n = "8OS",    pg = {6,8,28},         arm = 2  },
   { n = "MGEN",   pg = {13,14,15,38,34,46,25,26}, arm = 3  },
@@ -3306,7 +3472,7 @@ NAV_CATS = {
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
   { n = "NIAKA",  pg = {22,23,24},       arm = 6  },
-  { n = "PERU",   pg = {39,40},          arm = 11 },
+  { n = "PERU",   pg = {39,40,47},       arm = 11 },
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
@@ -3365,6 +3531,18 @@ function vision_stream()
   pcall(osc.send, dst, "/teammate/metabo", { (M.on and 1 or 0), M.stressFx or 0, mch.growth or 0, meta_energy or 0, M.ext_press or 0, mst })
   -- MGEN : moteur generatif -> actif, BPM, energie de la derniere note
   pcall(osc.send, dst, "/teammate/mgen",   { (mgen_running and 1 or 0), mgen_bpm or 0, mgen_nenergy or 0 })
+  -- MIND : l'image musicale de l'agent -> nourrit l'AVATAR EMOTIONNEL (Pose Miroir)
+  -- energie, energie lente, montee (-1..1), brillance, registre, densite, tension, arc, drive,
+  -- bruit (flatness), puis humeur / phase de l'arc / etat de phrase en texte
+  local m = mind or {}
+  pcall(osc.send, dst, "/teammate/mind", { m.energy or 0, m.energy_sl or 0, m.build or 0, m.bright or 0,
+    m.register or 0, m.density or 0, m.tension or 0, m.arc or 0, m.drive or 0, cur_flatness or 0,
+    m.mood or "--", m.arc_phase or "CALM", m.phrase or "--", m.pattern or 0, m.pat_period or 0 })
+  -- NIAKABY : couleur harmonique (majeur/mineur) -> valence de l'AVATAR (Pose Miroir)
+  if niakaby and niakaby.harmony_info then
+    local ok, on, cq, sq, kq, kc, rp = pcall(niakaby.harmony_info)
+    if ok then pcall(osc.send, dst, "/teammate/harmony", { on, cq, sq, kq, kc, rp }) end
+  end
 end
 
 function live_toggle(i)
@@ -3478,14 +3656,16 @@ function state_save()
       creature_xp=creature_xp, creature_level=creature_level,
       wifi_midi_on=wifi_midi_on, wifi_midi_dev=wifi_midi_dev, wifi_midi_ch=wifi_midi_ch, wifi_midi_cc=wifi_midi_cc, wifi_links=wifi_links,
       cc_master=cc_on, cc_dev=cc_dev, cc_ch=cc_ch, cc_src=cc_src, cc_lon=cc_lon, cc_num=cc_num, cc_tmd=cc_tmd,
-      samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
+      samt=samt, samt_thr=samt_thr, samt_mind_on=samt_mind_on, peru_spawn=peru_spawn, peru_trig_lock=peru_trig_lock, peru_grav=peru_grav, peru_rmode=peru_rmode, peru_sel=peru_sel,
+      tbank=tb_save_tbl(), tb_on=tb_on, tb_thr=tb_thr,
       samt_notes=snots, osco=osco, perf_mode=perf_mode, live=live,
       lora_on=lora.on, lora_dev=lora.dev, lora_ch=lora.ch,
       mgen_bpm=mgen_bpm, mgen_scale_idx=mgen_scale_idx, mgen_mut_idx=mgen_mut_idx,
       mgen_evo_meta=mgen_evo_meta, mgen_freeze=mgen_freeze, mgen_recall=mgen_recall, mgen_on=mon, mgen_mch=mmch,
       mgen_len=mlen, mgen_div=mdiv,
-      frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_slices_idx=frag_slices_idx,
+      frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_inv=frag_inv, frag_slices_idx=frag_slices_idx,
       rep_on=rep_on, rep_char=rep_char, rep_div_idx=rep_div_idx, rep_rand=rep_rand,
+      clone_len=clone_len,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3555,6 +3735,10 @@ function state_load()
     if st.perf_mode ~= nil then perf_mode = st.perf_mode end      -- mode RECHERCHE/PERFORMANCE memorise
     if type(st.live)=="table" then live_restore = st.live end     -- modes ouverts a rallumer (applique apres le boot)
     if st.peru_spawn ~= nil then peru_spawn = st.peru_spawn end
+    if st.peru_trig_lock ~= nil then peru_trig_lock = st.peru_trig_lock end
+    if st.tb_on ~= nil then tb_on = st.tb_on end
+    if st.tb_thr then tb_thr = util.clamp(st.tb_thr, 0.005, 0.30) end
+    if type(st.tbank)=="table" then for id,slots in pairs(st.tbank) do if type(slots)=="table" then tb_get(id).slots = slots end end end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
     if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
@@ -3566,11 +3750,13 @@ function state_load()
     if st.frag_char then frag_char = util.clamp(st.frag_char, 1, #FRAG_NAMES) end
     if st.frag_amt then frag_amt = util.clamp(st.frag_amt, 0, 1) end
     if st.frag_rand ~= nil then frag_rand = st.frag_rand end
+    if st.frag_inv ~= nil then frag_inv = st.frag_inv end
     if st.frag_slices_idx then frag_slices_idx = util.clamp(st.frag_slices_idx, 1, #FRAG_SLICES) end
     if st.rep_on ~= nil then rep_on = st.rep_on end
     if st.rep_char then rep_char = util.clamp(st.rep_char, 1, #REP_NAMES) end
     if st.rep_div_idx then rep_div_idx = util.clamp(st.rep_div_idx, 1, #REP_DIV) end
     if st.rep_rand ~= nil then rep_rand = st.rep_rand end
+    if st.clone_len then clone_len = util.clamp(st.clone_len, 1.0, 3.0) end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -3840,12 +4026,13 @@ function init()
         peru_spawn_t = util.time()
         local has_rot = false
         for s = 1, 4 do if samt_slot[s].key and (samt_slot[s].dest or 1) == 4 then has_rot = true ; break end end
-        if not has_rot then   -- pas d'axe ROT -> cycle tout seul vers le prochain grain rempli (varie sans toi)
+        if not has_rot and not peru_trig_lock then   -- ni ROT ni FIXE -> cycle tout seul vers le prochain grain
           for _ = 1, CORPUS_SLOTS do peru_sel = (peru_sel % CORPUS_SLOTS) + 1 ; if corpus[peru_sel] then break end end
         end
-        peru_add(peru_sel)   -- avec ROT : le grain choisi par la rotation du danseur ; sinon : cycle auto
+        peru_add(peru_sel)   -- FIXE : le grain SELECTIONNE ; avec ROT : celui choisi par la rotation ; sinon : cycle auto
       end
       samt_penergy = samt_energy
+      pcall(tb_scan)                 -- TRIG BANK : trigger par T-Deck -> sample au hasard de sa banque
       -- ROT : la rotation du danseur change le grain selectionne (jog suivant / precedent)
       if samt_on then for s = 1, 4 do
         local sl = samt_slot[s]
@@ -3901,7 +4088,7 @@ function init()
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
       if peru_on and #peru_dia > 0 then peru_step() end
-      if page == PERU_PAGE or page == 33 then redraw() end   -- PERU anime + AGENT (visage vivant)
+      if page == PERU_PAGE or page == 33 or page == TB_PAGE or page == BK_PAGE then redraw() end   -- pages vivantes
     end
   end)
 
@@ -4017,8 +4204,11 @@ function init()
         frag_open = true ; frag_idx = 0
       else
         if frag_idx == 0 and frag_rand and math.random() < 0.5 then
-          frag_char = math.random(#FRAG_NAMES)            -- morph aleatoire entre les pyramides (par barre)
+          frag_char = math.random(3)                      -- morph aleatoire entre les 3 pyramides (par barre)
         end
+        frag_dv = frag_data_val()                         -- mesure du flux a cette tranche
+        frag_hist[frag_idx + 1] = frag_dv                 -- l'historique dessine le masque (8OS MASK)
+        frag_hist_mean = frag_hist_mean * 0.9 + frag_dv * 0.1   -- seuil auto-centre
         frag_open = (frag_slice_state(frag_char, frag_idx, N, frag_amt) ~= "mute")
         frag_idx  = (frag_idx + 1) % N
       end
@@ -4255,6 +4445,8 @@ function enc(n, d)
       frag_slices_idx = util.clamp(frag_slices_idx + d, 1, #FRAG_SLICES)   -- FRAG : nombre de tranches
     elseif page == 46 then
       rep_div_idx = util.clamp(rep_div_idx + d, 1, #REP_DIV)               -- REP : vitesse des repetitions
+    elseif page == 47 then
+      clone_len = util.clamp(clone_len + d * 0.1, 1.0, 3.0)                -- CLONE : longueur des grains
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4270,6 +4462,10 @@ function enc(n, d)
       wifi_link_cur = util.clamp(wifi_link_cur + d, 1, math.max(1, #wifi.nets))
     elseif page == 37 then
       cc_cursor = util.clamp(cc_cursor + d, 0, 16)
+    elseif page == BK_PAGE then
+      bk_cur = util.clamp(bk_cur + d, 1, BK_N)   -- choisit la banque
+    elseif page == TB_PAGE then
+      if #tb_nodes > 0 then tb_node_cur = util.clamp(tb_node_cur + d, 1, #tb_nodes) end   -- choisit le T-Deck
     elseif page == PERU_PAGE then
       peru_sel = util.clamp(peru_sel + d, 1, CORPUS_SLOTS)   -- choisit le grain a lacher
     elseif page == 40 then
@@ -4381,6 +4577,9 @@ function enc(n, d)
       midi_ch[7][niaka_cur_dev] = util.clamp(midi_ch[7][niaka_cur_dev] + d, 1, 16)
     elseif page == 24 then
       niakaby.enc_src(3, d)
+    elseif page == TB_PAGE then
+      if tb_k1_down then tb_thr = util.clamp(tb_thr - d * 0.004, 0.005, 0.30) ; tb_k1_moved = true   -- K1 maintenu : sensibilite (droite = +)
+      else tb_slot_cur = util.clamp(tb_slot_cur + d, 1, CORPUS_SLOTS) end                             -- parcourt les samples
     elseif page == PERU_PAGE then
       if peru_k2_down then samt_thr = util.clamp(samt_thr + d * 0.01, 0, 0.4) ; peru_k2_moved = true   -- K2 maintenu : threshold SAMT
       else peru_grav = util.clamp(peru_grav + d * 0.01, 0.0, 0.5) end                                  -- sinon : gravite
@@ -4440,6 +4639,11 @@ function key(n, z)
     else cc_k1_down = false ; if not cc_k1_moved and cc_cursor >= 1 then cc_learn = not cc_learn end end
     redraw() ; return
   end
+  if page == TB_PAGE and n == 1 then        -- TRIG BANK : K1 tap = test ; maintenu + E3 = sensibilite
+    if z == 1 then tb_k1_down = true ; tb_k1_moved = false
+    else tb_k1_down = false ; if not tb_k1_moved and tb_nodes[tb_node_cur] then tb_fire(tb_nodes[tb_node_cur]) end end
+    redraw() ; return
+  end
   if z == 0 then return end
   if page == 18 then metabolik.key(n) ; redraw() ; return end
   if page == 20 then metabolik.key_play(n) ; redraw() ; return end
@@ -4456,13 +4660,22 @@ function key(n, z)
     redraw() ; return
   end
   if page == 34 then                                   -- FRAG : fragmenteur MIDI (KHEOPS/KHEPHREN/MYKERINOS)
-    if n == 2 then frag_rand = not frag_rand           -- K2 : RANDOM (erre entre les 3 caracteres)
+    if n == 2 then
+      if frag_char >= FRAG_DATA1 then frag_inv = not frag_inv   -- K2 (mode data) : inverse bouge->joue/coupe
+      else frag_rand = not frag_rand end                        -- K2 (pyramides) : RANDOM
     elseif n == 3 then frag_on = not frag_on end       -- K3 : on/off
     redraw() ; return
   end
   if page == 46 then                                   -- REP : repetiteur MIDI (CHRONOS/AION/CHAOS)
     if n == 2 then rep_rand = not rep_rand             -- K2 : RANDOM (erre entre les 3 entites)
     elseif n == 3 then rep_on = not rep_on end         -- K3 : on/off
+    redraw() ; return
+  end
+  if page == 47 then                                   -- CLONE (sous-mode IMPRO)
+    if n == 3 then
+      clone_on = not clone_on                          -- K3 : on/off
+      clone_cap = {} ; clone_onset_t = nil ; clone_peak = 0
+    end
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -4545,6 +4758,18 @@ function key(n, z)
     end
     redraw() ; return
   end
+  if page == BK_PAGE then                  -- SAMPLE BANK : sauve/charge/efface sur la SD
+    if n == 2 then bk_save(bk_cur)         -- K2 : SAUVE le corpus courant dans la banque
+    elseif n == 3 then bk_load(bk_cur)     -- K3 : CHARGE la banque
+    elseif n == 1 then bk_delete(bk_cur) end   -- K1 : EFFACE la banque
+    redraw() ; return
+  end
+  if page == TB_PAGE then                  -- TRIG BANK (K1 tap=test gere plus haut)
+    if n == 2 then
+      if tb_nodes[tb_node_cur] then tb_toggle(tb_nodes[tb_node_cur], tb_slot_cur) end  -- assigne/retire le sample
+    elseif n == 3 then tb_on = not tb_on end                                           -- active le mode
+    redraw() ; return
+  end
   if page == PERU_PAGE then
     if n == 1 then peru_add(peru_sel)      -- lache le grain selectionne (K2 = react/threshold, gere plus haut)
     elseif n == 3 then peru_dia = {} ; peru_on = false end   -- vide la boite (clear + stop)
@@ -4580,7 +4805,10 @@ function key(n, z)
   end
   if page == 42 then
     if n == 3 then samt_mind_on = not samt_mind_on       -- l'agent ecoute le mouvement
-    elseif n == 2 then peru_spawn = not peru_spawn        -- le mouvement fait apparaitre des grains dans PERU
+    elseif n == 2 then                                   -- MOVE->PERU : cycle OFF -> AUTO -> FIXE
+      if not peru_spawn then peru_spawn = true ; peru_trig_lock = false          -- AUTO : cycle/ROT
+      elseif not peru_trig_lock then peru_trig_lock = true                       -- FIXE : le grain selectionne
+      else peru_spawn = false ; peru_trig_lock = false end                       -- OFF
     elseif n == 1 then samt_move = 1.0 end                -- TEST : injecte une fausse impulsion de mouvement (sans capteur)
     redraw() ; return
   end
@@ -4892,6 +5120,50 @@ function redraw()
     screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
     screen.update() ; return
   end
+  if page == BK_PAGE then                       -- SAMPLE BANK : gestion des jeux sur la SD
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("SAMPLE BANK")
+    local nc = 0 ; for i = 1, CORPUS_SLOTS do if corpus[i] then nc = nc + 1 end end
+    screen.level(6) ; screen.move(126, 8) ; screen.text_right(nc .. " smp")
+    for i = 1, BK_N do                          -- grille 2x4 : * = banque enregistree
+      local x = 8 + ((i - 1) % 4) * 30
+      local y = 26 + math.floor((i - 1) / 4) * 16
+      local ex = bk_exists(i) ; local cur = (i == bk_cur)
+      screen.level(cur and 15 or (ex and 10 or 3))
+      screen.move(x, y) ; screen.text((cur and ">" or " ") .. i .. (ex and "*" or "-"))
+    end
+    if bk_msg ~= "" and (util.time() - bk_msg_t) < 1.5 then
+      screen.level(13) ; screen.move(126, 40) ; screen.text_right(bk_msg)
+    end
+    screen.level(4) ; screen.move(2, 62) ; screen.text("E2 slot  K2sav K3load K1del")
+    screen.update() ; return
+  end
+  if page == TB_PAGE then                       -- TRIG BANK : samples par T-Deck
+    screen.clear() ; screen.font_size(8)
+    screen.level(tb_on and 15 or 6) ; screen.move(2, 8) ; screen.text("TRIG BANK")
+    screen.level(tb_k1_down and 15 or 6) ; screen.move(60, 8)
+    screen.text("sns" .. math.floor((0.30 - tb_thr) / 0.295 * 100))   -- sensibilite (K1 maintenu + E3)
+    screen.level(tb_on and 12 or 3) ; screen.move(126, 8) ; screen.text_right(tb_on and "ON" or "off")
+    if #tb_nodes == 0 then
+      screen.level(4) ; screen.move(2, 36) ; screen.text("en attente d'un T-Deck...")
+      screen.update() ; return
+    end
+    local y = 20
+    for i = 1, math.min(#tb_nodes, 2) do        -- les T-Decks + nb de samples
+      local id = tb_nodes[i] ; local e = tb[id] ; local cur = (i == tb_node_cur)
+      screen.level(cur and 15 or 6) ; screen.move(2, y) ; screen.text((cur and ">" or " ") .. id)
+      screen.level(cur and 12 or 5) ; screen.move(126, y) ; screen.text_right(#e.slots .. " smp")
+      y = y + 10
+    end
+    local id = tb_nodes[tb_node_cur] ; local e = tb[id]
+    local inb = tb_has(e, tb_slot_cur) ; local filled = corpus[tb_slot_cur] ~= nil
+    screen.level(filled and 15 or 4) ; screen.move(2, 46)
+    screen.text("g" .. tb_slot_cur .. (filled and "" or "-") .. "  [" ..
+                (#e.slots > 0 and table.concat(e.slots, " ") or "vide") .. "]")
+    screen.level(inb and 13 or 4) ; screen.move(126, 46) ; screen.text_right(inb and "IN" or "out")
+    screen.level(4) ; screen.move(2, 62) ; screen.text("E2dk E3smp K2add K3on")
+    screen.update() ; return
+  end
   if page == PERU_PAGE then
     screen.clear() ; screen.font_size(8)
     screen.level(peru_on and 15 or 6) ; screen.move(2, 8) ; screen.text("PERU")
@@ -4910,9 +5182,14 @@ function redraw()
       screen.level(lv)
       screen.move(d.x, d.y - r) ; screen.line(d.x + r, d.y) ; screen.line(d.x, d.y + r) ; screen.line(d.x - r, d.y) ; screen.line(d.x, d.y - r) ; screen.stroke()
     end
-    -- aide + threshold SAMT (quand le capteur est arme)
-    screen.level(4) ; screen.move(2, 63) ; screen.text("K1lch K2react K3vide")
-    if samt_on then screen.level(8) ; screen.move(126, 63) ; screen.text_right("thr" .. math.floor(samt_thr * 100)) end
+    -- aide + etat du TRIGGER (mouvement/T-Deck -> grain) ou threshold SAMT
+    screen.level(4) ; screen.move(2, 63) ; screen.text("lch rct vid")
+    if peru_spawn then          -- quel grain le trigger (T-Deck) va jouer
+      screen.level(peru_trig_lock and 13 or 7) ; screen.move(126, 63)
+      screen.text_right(peru_trig_lock and ("TRIG g" .. peru_sel) or "TRIG auto")
+    elseif samt_on then
+      screen.level(8) ; screen.move(126, 63) ; screen.text_right("thr" .. math.floor(samt_thr * 100))
+    end
     screen.update() ; return
   end
   if page == 40 then
@@ -5091,7 +5368,9 @@ function redraw()
     elseif (samt_build or 0) > 0.45   then q = "building" end
     screen.level(10) ; screen.move(2, 52) ; screen.text("> " .. q)
     screen.level(4)  ; screen.move(78, 52) ; screen.text(string.format("%.1fs", samt_still or 0))
-    screen.level(peru_spawn and 12 or 3) ; screen.move(126, 52) ; screen.text_right("spwn")   -- apparition de grains
+    -- MOVE->PERU : OFF / AUTO (cycle) / FIXE (grain g<sel>)
+    local sm = (not peru_spawn) and "spawn:off" or (peru_trig_lock and ("spawn:FIXE g" .. peru_sel) or "spawn:AUTO")
+    screen.level(peru_spawn and 12 or 3) ; screen.move(126, 52) ; screen.text_right(sm)
     screen.level(4)  ; screen.move(2, 63) ; screen.text("K1 test  K2 spawn  K3 ecoute")
     screen.update() ; return
   end
@@ -5099,6 +5378,22 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 47 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("CLONE")
+    screen.level(clone_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(clone_on and "ON" or "off")
+    screen.level(4) ; screen.move(2, 22) ; screen.text("rejoue TA phrase avec")
+    screen.level(4) ; screen.move(2, 31) ; screen.text("les grains du corpus (echo)")
+    screen.level(4)  ; screen.move(2, 45) ; screen.text("E2 LONGUEUR grain")
+    screen.level(15) ; screen.move(126, 45) ; screen.text_right(string.format("x%.1f", clone_len))
+    if count < MIN_CORPUS then
+      screen.level(12) ; screen.move(2, 57) ; screen.text("corpus vide : joue d'abord")
+    else
+      screen.level(8)  ; screen.move(2, 57) ; screen.text(string.format("corpus %d  dernier echo %d", count, clone_echo_n))
+    end
+    screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
+    screen.update() ; return
+  end
   if page == 46 then
     screen.clear() ; screen.font_size(8)
     local N = REP_DIV[rep_div_idx] or 16
@@ -5142,16 +5437,20 @@ function redraw()
       end
       if cur then screen.level(15) ; screen.rect(x, 31, w, 1) ; screen.fill() end          -- playhead dessous
     end
-    -- caractere (E3) : les 3 pyramides, courant surligne
-    local xs = { 2, 46, 92 }
-    for i = 1, #FRAG_NAMES do
-      local sel = (i == frag_char)
-      screen.level((not frag_on) and 3 or (sel and 15 or 5))
-      screen.move(xs[i], 42) ; screen.text((sel and ">" or "") .. FRAG_NAMES[i])
+    -- caractere (E3) : nom courant + fleches (3 pyramides + 2 entites DATA)
+    local nm = FRAG_NAMES[frag_char] or "?"
+    local datam = (frag_char >= FRAG_DATA1)
+    screen.level((not frag_on) and 3 or 15) ; screen.move(2, 42) ; screen.text("< " .. nm .. " >")
+    if datam then                                            -- mode pilote par la DONNEE (SNOT/RF...)
+      screen.level(9)  ; screen.move(126, 42) ; screen.text_right("src:" .. (frag_src_lbl or "-"))
+      screen.level(3)  ; screen.rect(2, 49, 122, 5) ; screen.stroke()                       -- barre live du flux
+      screen.level(13) ; screen.rect(2, 49, math.max(0, math.min(1, frag_dv)) * 122, 5) ; screen.fill()
+      screen.level(15) ; screen.move(2, 64) ; screen.text(frag_inv and "K2:inv coupe" or "K2:bouge>joue")
+    else
+      screen.level(4)  ; screen.move(2, 54) ; screen.text("E3 caractere")
+      if frag_rand then screen.level(15) ; screen.move(126, 54) ; screen.text_right("RANDOM") end
+      screen.level(4)  ; screen.move(2, 64) ; screen.text("K2 random")
     end
-    screen.level(4)  ; screen.move(2, 54) ; screen.text("E3 caractere")
-    if frag_rand then screen.level(15) ; screen.move(126, 54) ; screen.text_right("RANDOM") end
-    screen.level(4)  ; screen.move(2, 64) ; screen.text("K2 random")
     screen.level(4)  ; screen.move(126, 64) ; screen.text_right("K3 on/off")
     screen.update() ; return
   end
