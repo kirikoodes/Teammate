@@ -70,6 +70,7 @@ clone_sens     = 0.7   -- sensibilite du detecteur d'attaques 0..1 (haut = capte
 clone_gap      = 1.0   -- silence (s) qui termine la phrase a capturer (long = garde les sequences complexes entieres)
 clone_len      = 1.6   -- allonge les grains (corpus "plus long, moins de grains")
 clone_echo_n   = 0     -- nb d'attaques du dernier echo (affichage)
+clone_gen      = 0     -- increment a chaque vidage du corpus / toggle -> coupe net un echo en cours
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -2334,9 +2335,11 @@ function clone_echo(cap)   -- global (limite 200 locals)
   clone_echo_n = #cap
   local emax = 0.0001
   for i = 1, #cap do if (cap[i].e or 0) > emax then emax = cap[i].e end end   -- pour les dynamiques relatives
+  local mygen = clone_gen
   clock.run(function()
     for i = 1, #cap do
       if i > 1 then clock.sleep(math.max(0.02, cap[i].t - cap[i - 1].t)) end   -- respecte TON rythme
+      if clone_gen ~= mygen or not clone_on or count < MIN_CORPUS then return end   -- corpus vide / clone coupe -> stop net
       local e = cap[i].e or 0.1
       local f = cap[i].f or 0                                                  -- TA hauteur a cette attaque
       local best, bd                                                           -- grain du corpus d'energie proche (= timbre)
@@ -4695,7 +4698,7 @@ function key(n, z)
   if page == 49 then                                   -- CLONE (sous-mode IMPRO)
     if n == 3 then
       clone_on = not clone_on                          -- K3 : on/off
-      clone_cap = {} ; clone_base = 0 ; clone_last_t = 0
+      clone_cap = {} ; clone_base = 0 ; clone_last_t = 0 ; clone_gen = clone_gen + 1   -- coupe un echo en cours
     end
     redraw() ; return
   end
@@ -4939,6 +4942,7 @@ function key(n, z)
     if page == 1 then
       corpus = {} ; count = 0 ; head = 1 ; last_slot = 0
       motifs = {} ; recent_slots = {} ; phrase_buf = {}          -- vide phrases + historique : l'agent n'a plus rien du vieux corpus a rejouer
+      clone_cap = {} ; clone_gen = clone_gen + 1                 -- CLONE : oublie la capture ET coupe net un echo en cours (plus de sons effaces)
       for _, v in ipairs(PLY_V) do pcall(softcut.play, v, 0) end  -- coupe net les grains impro en cours
     elseif page == 2 then
       if count >= MIN_CORPUS and state == "LISTEN" then
