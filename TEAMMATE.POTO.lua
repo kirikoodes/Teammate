@@ -3464,7 +3464,7 @@ LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IM
 -- HUB : E1/E2 deplacent le curseur, K1 entre, K3 arme (si armable). Dans une
 -- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
 NAV_CATS = {
-  { n = "IMPRO",  pg = {1,2,3,4,47,48},  arm = 8  },   -- 47 = CLONE ; 48 = SAMPLE BANK (gestion du corpus sur SD)
+  { n = "IMPRO",  pg = {1,2,3,4,49,48},  arm = 8  },   -- 49 = CLONE ; 48 = SAMPLE BANK (47 = TRIG BANK, dans PERU)
   { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
   { n = "8OS",    pg = {6,8,28},         arm = 2  },
   { n = "MGEN",   pg = {13,14,15,38,34,46,25,26}, arm = 3  },
@@ -4445,7 +4445,7 @@ function enc(n, d)
       frag_slices_idx = util.clamp(frag_slices_idx + d, 1, #FRAG_SLICES)   -- FRAG : nombre de tranches
     elseif page == 46 then
       rep_div_idx = util.clamp(rep_div_idx + d, 1, #REP_DIV)               -- REP : vitesse des repetitions
-    elseif page == 47 then
+    elseif page == 49 then
       clone_len = util.clamp(clone_len + d * 0.1, 1.0, 3.0)                -- CLONE : longueur des grains
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
@@ -4671,7 +4671,7 @@ function key(n, z)
     elseif n == 3 then rep_on = not rep_on end         -- K3 : on/off
     redraw() ; return
   end
-  if page == 47 then                                   -- CLONE (sous-mode IMPRO)
+  if page == 49 then                                   -- CLONE (sous-mode IMPRO)
     if n == 3 then
       clone_on = not clone_on                          -- K3 : on/off
       clone_cap = {} ; clone_onset_t = nil ; clone_peak = 0
@@ -5378,7 +5378,7 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
-  if page == 47 then
+  if page == 49 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("CLONE")
     screen.level(clone_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(clone_on and "ON" or "off")
