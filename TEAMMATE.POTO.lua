@@ -66,6 +66,8 @@ clone_on       = false
 clone_cap      = {}    -- squelette capte : { {t=abs, e=energie}, ... }
 clone_base     = 0     -- bruit de fond lisse (detecteur d'attaques)
 clone_last_t   = 0     -- derniere attaque detectee (anti double-declenchement)
+clone_sens     = 0.7   -- sensibilite du detecteur d'attaques 0..1 (haut = capte plus d'attaques)
+clone_gap      = 1.0   -- silence (s) qui termine la phrase a capturer (long = garde les sequences complexes entieres)
 clone_len      = 1.6   -- allonge les grains (corpus "plus long, moins de grains")
 clone_echo_n   = 0     -- nb d'attaques du dernier echo (affichage)
 local RECENT_MAX      = 4
@@ -538,7 +540,7 @@ function companion_feed(rms, freq, centroid, flatness)
   if flatness then comp_flatness = flatness end
 end
 
-local function play_event(ev, rate_mult, mstream, pan)
+local function play_event(ev, rate_mult, mstream, pan, amp)
   local vi  = ply_idx
   local v   = PLY_V[vi]
   ply_idx   = (ply_idx % #PLY_V) + 1
@@ -567,7 +569,7 @@ local function play_event(ev, rate_mult, mstream, pan)
 
   local fade = math.max(0.010, math.min(0.050, len * 0.3))    -- fondu proportionnel a la taille du grain (plancher anti-clic)
   softcut.level_slew_time(v, fade)                            -- rampe d'amplitude : fade-IN au depart, fade-OUT a l'arret (anti-clic)
-  softcut.level(v, spat.on and spat_depth_mult("impro") or 1.0)
+  softcut.level(v, (amp or 1.0) * (spat.on and spat_depth_mult("impro") or 1.0))   -- amp : CLONE suit TON energie a l'audio
   if pan then softcut.pan(v, pan)                           -- PERU : spatialise selon le point de collision
   elseif spat.on then softcut.pan(v, spat_eff_pan("impro")) end
   softcut.loop(v, 0)
@@ -2196,10 +2198,14 @@ local function on_rms(v)
 
   if clone_on and not p_deaf then                       -- CLONE : ANALYSEUR = detecte chaque attaque de ton jeu
     clone_base = clone_base * 0.94 + v * 0.06            -- bruit de fond lisse
-    local now = util.time()
-    if v > p_gate_thr and v > clone_base * 1.7 + 0.003   -- montee franche au-dessus du fond = une attaque
-       and (now - (clone_last_t or 0)) > 0.06 then       -- anti double-declenchement (60 ms mini)
-      if #clone_cap < 400 then clone_cap[#clone_cap + 1] = { t = now, e = v } end
+    local sens  = clone_sens or 0.7
+    local mult  = 2.2 - sens * 1.25                      -- sens haut -> seuil bas -> capte plus
+    local floor = 0.007 - sens * 0.0055
+    local ioi   = 0.10 - sens * 0.07                     -- anti double-declenchement (plus court si sensible)
+    local now   = util.time()
+    if v > clone_base * mult + floor                     -- montee franche au-dessus du fond = une attaque
+       and (now - (clone_last_t or 0)) > ioi then
+      if #clone_cap < 400 then clone_cap[#clone_cap + 1] = { t = now, e = v, f = cur_freq } end   -- + hauteur
       clone_last_t = now
     end
   end
@@ -2326,22 +2332,29 @@ end
 function clone_echo(cap)   -- global (limite 200 locals)
   if not cap or #cap < 1 then return end
   clone_echo_n = #cap
+  local emax = 0.0001
+  for i = 1, #cap do if (cap[i].e or 0) > emax then emax = cap[i].e end end   -- pour les dynamiques relatives
   clock.run(function()
     for i = 1, #cap do
       if i > 1 then clock.sleep(math.max(0.02, cap[i].t - cap[i - 1].t)) end   -- respecte TON rythme
       local e = cap[i].e or 0.1
-      local best, bd                                                           -- grain du corpus d'energie proche
+      local f = cap[i].f or 0                                                  -- TA hauteur a cette attaque
+      local best, bd                                                           -- grain du corpus d'energie proche (= timbre)
       for _, ev in pairs(corpus) do
         local d = math.abs((ev.rms or 0) - e)
         if not bd or d < bd then bd = d ; best = ev end
       end
       if best then
+        local rate = 1.0                                                       -- transpose le grain sur TA note
+        if f > 30 and (best.freq or 0) > 30 then rate = util.clamp(f / best.freq, 0.25, 4.0) end
+        local amp = 0.3 + 0.7 * (e / emax)                                     -- l'audio suit TON energie (dynamiques)
         local gi = {
-          slot = best.slot, freq = best.freq, centroid = best.centroid, flatness = best.flatness,
-          duration = math.min(MAX_DUR, (best.duration or 0.2) * (clone_len or 1.6)),   -- grain allonge
-          rms = e,                                                                      -- niveau = TON energie
+          slot = best.slot, centroid = best.centroid, flatness = best.flatness,
+          freq = (f > 30) and f or best.freq,                                  -- note MIDI = TA hauteur
+          duration = math.min(MAX_DUR, (best.duration or 0.2) * (clone_len or 1.6)),
+          rms = e,
         }
-        play_event(gi, 1.0, 1, nil)
+        play_event(gi, rate, 1, nil, amp)
       end
     end
   end)
@@ -2362,7 +2375,7 @@ local function silence_loop()
       if state ~= "LISTEN" then goto continue end
 
       if clone_on then                                     -- CLONE : echo du squelette a la fin de la phrase (pas de reponse normale)
-        if #clone_cap > 0 and sil_sec >= p_sil_min then
+        if #clone_cap > 0 and sil_sec >= (clone_gap or 1.0) then   -- gap long = garde les sequences complexes entieres
           local cap = clone_cap ; clone_cap = {}
           if count >= MIN_CORPUS then clone_echo(cap) end
         end
@@ -3669,7 +3682,7 @@ function state_save()
       mgen_len=mlen, mgen_div=mdiv,
       frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_inv=frag_inv, frag_slices_idx=frag_slices_idx,
       rep_on=rep_on, rep_char=rep_char, rep_div_idx=rep_div_idx, rep_rand=rep_rand,
-      clone_len=clone_len,
+      clone_len=clone_len, clone_sens=clone_sens, clone_gap=clone_gap,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3761,6 +3774,8 @@ function state_load()
     if st.rep_div_idx then rep_div_idx = util.clamp(st.rep_div_idx, 1, #REP_DIV) end
     if st.rep_rand ~= nil then rep_rand = st.rep_rand end
     if st.clone_len then clone_len = util.clamp(st.clone_len, 1.0, 3.0) end
+    if st.clone_sens then clone_sens = util.clamp(st.clone_sens, 0.0, 1.0) end
+    if st.clone_gap then clone_gap = util.clamp(st.clone_gap, 0.3, 4.0) end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -4450,7 +4465,7 @@ function enc(n, d)
     elseif page == 46 then
       rep_div_idx = util.clamp(rep_div_idx + d, 1, #REP_DIV)               -- REP : vitesse des repetitions
     elseif page == 49 then
-      clone_len = util.clamp(clone_len + d * 0.1, 1.0, 3.0)                -- CLONE : longueur des grains
+      clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- CLONE : sensibilite du detecteur d'attaques
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4567,6 +4582,8 @@ function enc(n, d)
     elseif page == 46 then
       rep_char = util.clamp(rep_char + d, 1, #REP_NAMES)      -- E3 : choisit l'entite (temps grec)
       rep_rand = false
+    elseif page == 49 then
+      clone_len = util.clamp(clone_len + d * 0.1, 1.0, 3.0)   -- CLONE : longueur des grains (E3)
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -5386,16 +5403,23 @@ function redraw()
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("CLONE")
     screen.level(clone_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(clone_on and "ON" or "off")
-    screen.level(4) ; screen.move(2, 22) ; screen.text("rejoue TA phrase avec")
-    screen.level(4) ; screen.move(2, 31) ; screen.text("les grains du corpus (echo)")
-    screen.level(4)  ; screen.move(2, 45) ; screen.text("E2 LONGUEUR grain")
-    screen.level(15) ; screen.move(126, 45) ; screen.text_right(string.format("x%.1f", clone_len))
+    -- sensibilite (E2)
+    screen.level(4)  ; screen.move(2, 20) ; screen.text("E2 SENSIB")
+    screen.level(15) ; screen.move(90, 20) ; screen.text_right(string.format("%d%%", math.floor(clone_sens * 100)))
+    screen.level(4)  ; screen.rect(2, 23, 100, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 23, 100 * clone_sens, 2) ; screen.fill()
+    -- longueur grain (E3)
+    screen.level(4)  ; screen.move(2, 34) ; screen.text("E3 LONG grain")
+    screen.level(15) ; screen.move(90, 34) ; screen.text_right(string.format("x%.1f", clone_len))
+    -- compteur d'attaques EN DIRECT : tu vois si ca accroche ton jeu
+    screen.level(clone_on and 15 or 4) ; screen.move(2, 48)
+    screen.text(string.format("attaques captees: %d", #clone_cap))
     if count < MIN_CORPUS then
-      screen.level(12) ; screen.move(2, 57) ; screen.text("corpus vide : joue d'abord")
+      screen.level(12) ; screen.move(2, 58) ; screen.text("corpus vide : joue d'abord")
     else
-      screen.level(8)  ; screen.move(2, 57) ; screen.text(string.format("corpus %d  dernier echo %d", count, clone_echo_n))
+      screen.level(8)  ; screen.move(2, 58) ; screen.text(string.format("corpus %d  dernier echo %d", count, clone_echo_n))
     end
-    screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
+    screen.level(4) ; screen.move(2, 64) ; screen.text("K2 -       K3 on/off")
     screen.update() ; return
   end
   if page == 46 then
