@@ -62,12 +62,12 @@ local recent_slots    = {}
 -- ===== CLONE (sous-mode IMPRO) : rejoue le squelette energie/rythme d'une phrase =====
 -- avec les grains DEJA dans le corpus (grain d'energie proche), en ECHO une fois.
 -- N'enregistre RIEN de neuf : capte juste les attaques (timing + pic d'energie).
-clone_on      = false
-clone_cap     = {}     -- squelette capte : { {t=abs, e=pic_rms}, ... }
-clone_onset_t = nil    -- debut de la note en cours
-clone_peak    = 0      -- pic de rms de la note en cours
-clone_len     = 1.6    -- allonge les grains (corpus "plus long, moins de grains")
-clone_echo_n  = 0      -- taille du dernier echo (affichage)
+clone_on       = false
+clone_cap      = {}    -- squelette capte : { {t=abs, e=energie}, ... }
+clone_base     = 0     -- bruit de fond lisse (detecteur d'attaques)
+clone_last_t   = 0     -- derniere attaque detectee (anti double-declenchement)
+clone_len      = 1.6   -- allonge les grains (corpus "plus long, moins de grains")
+clone_echo_n   = 0     -- nb d'attaques du dernier echo (affichage)
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -2133,7 +2133,7 @@ local function process_gate(new_gate)
   if new_gate > 0.5 and cur_gate < 0.5 and not rec_on and state ~= "REST" then
     last_sound_t = util.time()
     if clone_on then
-      clone_onset_t = util.time() ; clone_peak = cur_rms   -- CLONE : capte l'attaque, N'ENREGISTRE PAS
+      -- CLONE : on N'ENREGISTRE PAS ; la capture se fait par detection d'attaques dans on_rms
     else
       rec_slot = head
       rec_t0   = util.time()
@@ -2146,10 +2146,6 @@ local function process_gate(new_gate)
   if new_gate < 0.5 and cur_gate > 0.5 then
     midi_cc_all(3, 123, 0)
     midi_cc_all(2, 123, 0)
-    if clone_on and clone_onset_t then                     -- CLONE : fin de note -> ajoute l'attaque au squelette
-      table.insert(clone_cap, { t = clone_onset_t, e = math.max(clone_peak or 0, cur_rms) })
-      clone_onset_t = nil
-    end
   end
 
   if new_gate < 0.5 and cur_gate > 0.5 and rec_on then
@@ -2198,7 +2194,15 @@ local function on_rms(v)
     cur_gate = new_gate
   end
 
-  if clone_on and cur_gate > 0.5 then clone_peak = math.max(clone_peak or 0, v) end   -- CLONE : suit le pic d'energie de la note
+  if clone_on and not p_deaf then                       -- CLONE : ANALYSEUR = detecte chaque attaque de ton jeu
+    clone_base = clone_base * 0.94 + v * 0.06            -- bruit de fond lisse
+    local now = util.time()
+    if v > p_gate_thr and v > clone_base * 1.7 + 0.003   -- montee franche au-dessus du fond = une attaque
+       and (now - (clone_last_t or 0)) > 0.06 then       -- anti double-declenchement (60 ms mini)
+      if #clone_cap < 400 then clone_cap[#clone_cap + 1] = { t = now, e = v } end
+      clone_last_t = now
+    end
+  end
 
   if rec_on then
     rms_sum = rms_sum + v ; rms_n = rms_n + 1
@@ -4674,7 +4678,7 @@ function key(n, z)
   if page == 49 then                                   -- CLONE (sous-mode IMPRO)
     if n == 3 then
       clone_on = not clone_on                          -- K3 : on/off
-      clone_cap = {} ; clone_onset_t = nil ; clone_peak = 0
+      clone_cap = {} ; clone_base = 0 ; clone_last_t = 0
     end
     redraw() ; return
   end
