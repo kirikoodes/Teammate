@@ -71,6 +71,11 @@ clone_gap      = 1.0   -- silence (s) qui termine la phrase a capturer (long = g
 clone_len      = 1.6   -- allonge les grains (corpus "plus long, moins de grains")
 clone_echo_n   = 0     -- nb d'attaques du dernier echo (affichage)
 clone_gen      = 0     -- increment a chaque vidage du corpus / toggle -> coupe net un echo en cours
+clone_motifs   = {}    -- banque des motifs captes par CLONE (squelettes) pour les rejouer en IMPRO
+CLONE_MOTIFS_MAX = 8
+clone_inject   = false -- IMPRO : l'agent replace parfois un motif CLONE connu (melange impro + motifs)
+clone_chroma   = {}    -- 12 classes de hauteur entendues (analyse multi-notes depuis le moteur SC)
+for _ci = 0, 11 do clone_chroma[_ci] = 0 end
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -2206,7 +2211,14 @@ local function on_rms(v)
     local now   = util.time()
     if v > clone_base * mult + floor                     -- montee franche au-dessus du fond = une attaque
        and (now - (clone_last_t or 0)) > ioi then
-      if #clone_cap < 400 then clone_cap[#clone_cap + 1] = { t = now, e = v, f = cur_freq } end   -- + hauteur
+      local pcs                                           -- classes de hauteur presentes (accord) via chroma
+      local mx = 0 ; for pc = 0, 11 do if clone_chroma[pc] > mx then mx = clone_chroma[pc] end end
+      if mx > 0.004 then
+        pcs = {}
+        for pc = 0, 11 do if clone_chroma[pc] >= mx * 0.55 then pcs[#pcs + 1] = pc end end
+        if #pcs < 2 or #pcs > 4 then pcs = nil end        -- 1 note = mono ; trop touffu = bruit -> fallback mono
+      end
+      if #clone_cap < 400 then clone_cap[#clone_cap + 1] = { t = now, e = v, f = cur_freq, pcs = pcs } end
       clone_last_t = now
     end
   end
@@ -2339,25 +2351,33 @@ function clone_echo(cap)   -- global (limite 200 locals)
   clock.run(function()
     for i = 1, #cap do
       if i > 1 then clock.sleep(math.max(0.02, cap[i].t - cap[i - 1].t)) end   -- respecte TON rythme
-      if clone_gen ~= mygen or not clone_on or count < MIN_CORPUS then return end   -- corpus vide / clone coupe -> stop net
+      if clone_gen ~= mygen or count < MIN_CORPUS then return end   -- corpus vide / efface -> stop net
       local e = cap[i].e or 0.1
-      local f = cap[i].f or 0                                                  -- TA hauteur a cette attaque
+      local f = cap[i].f or 0                                                  -- TA hauteur dominante a cette attaque
       local best, bd                                                           -- grain du corpus d'energie proche (= timbre)
       for _, ev in pairs(corpus) do
         local d = math.abs((ev.rms or 0) - e)
         if not bd or d < bd then bd = d ; best = ev end
       end
       if best then
-        local rate = 1.0                                                       -- transpose le grain sur TA note
-        if f > 30 and (best.freq or 0) > 30 then rate = util.clamp(f / best.freq, 0.25, 4.0) end
-        local amp = 0.3 + 0.7 * (e / emax)                                     -- l'audio suit TON energie (dynamiques)
-        local gi = {
-          slot = best.slot, centroid = best.centroid, flatness = best.flatness,
-          freq = (f > 30) and f or best.freq,                                  -- note MIDI = TA hauteur
-          duration = math.min(MAX_DUR, (best.duration or 0.2) * (clone_len or 1.6)),
-          rms = e,
-        }
-        play_event(gi, rate, 1, nil, amp)
+        local amp0 = 0.3 + 0.7 * (e / emax)                                    -- l'audio suit TON energie
+        local function voice(nf, a)                                            -- joue le grain transpose sur la freq nf
+          local rate = ((best.freq or 0) > 30 and nf > 30) and util.clamp(nf / best.freq, 0.25, 4.0) or 1.0
+          play_event({ slot = best.slot, centroid = best.centroid, flatness = best.flatness, freq = nf,
+                       duration = math.min(MAX_DUR, (best.duration or 0.2) * (clone_len or 1.6)), rms = e }, rate, 1, nil, a)
+        end
+        local pcs = cap[i].pcs
+        if pcs and #pcs >= 2 then                                             -- ACCORD : une voix par classe de hauteur (strum)
+          local dom = (f > 30) and (freq_to_midi(f) or 60) or 60
+          local baseoct = math.floor(dom / 12) * 12
+          local va = amp0 / (0.6 + 0.4 * #pcs)
+          for _, pc in ipairs(pcs) do
+            voice(440 * 2 ^ ((baseoct + pc - 69) / 12), va)
+            clock.sleep(0.012)                                                 -- leger strum (2 voix softcut seulement)
+          end
+        else                                                                   -- mono : ta ligne melodique
+          voice((f > 30) and f or (best.freq or 440), amp0)
+        end
       end
     end
   end)
@@ -2380,6 +2400,10 @@ local function silence_loop()
       if clone_on then                                     -- CLONE : echo du squelette a la fin de la phrase (pas de reponse normale)
         if #clone_cap > 0 and sil_sec >= (clone_gap or 1.0) then   -- gap long = garde les sequences complexes entieres
           local cap = clone_cap ; clone_cap = {}
+          if #cap >= 2 then                                 -- memorise le motif (pour le rejouer en IMPRO)
+            clone_motifs[#clone_motifs + 1] = cap
+            while #clone_motifs > CLONE_MOTIFS_MAX do table.remove(clone_motifs, 1) end
+          end
           if count >= MIN_CORPUS then clone_echo(cap) end
         end
         goto continue
@@ -2405,6 +2429,11 @@ local function silence_loop()
         end
 
       elseif #phrase_buf == 0 and sil_sec > p_sil_max and count >= MIN_CORPUS then
+        -- INJECTION : parfois l'agent replace un MOTIF CLONE connu (melange impro + motifs)
+        if clone_inject and #clone_motifs > 0 and math.random() < 0.33 then
+          clone_echo(clone_motifs[math.random(#clone_motifs)])
+          goto continue
+        end
         if maybe_recall_motif() then goto continue end   -- il ramene une de tes phrases (transformee)
         local prob
         if    sil_sec > 8.0 then prob = 0.50
@@ -3685,7 +3714,7 @@ function state_save()
       mgen_len=mlen, mgen_div=mdiv,
       frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_inv=frag_inv, frag_slices_idx=frag_slices_idx,
       rep_on=rep_on, rep_char=rep_char, rep_div_idx=rep_div_idx, rep_rand=rep_rand,
-      clone_len=clone_len, clone_sens=clone_sens, clone_gap=clone_gap,
+      clone_len=clone_len, clone_sens=clone_sens, clone_gap=clone_gap, clone_inject=clone_inject,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3779,6 +3808,7 @@ function state_load()
     if st.clone_len then clone_len = util.clamp(st.clone_len, 1.0, 3.0) end
     if st.clone_sens then clone_sens = util.clamp(st.clone_sens, 0.0, 1.0) end
     if st.clone_gap then clone_gap = util.clamp(st.clone_gap, 0.3, 4.0) end
+    if st.clone_inject ~= nil then clone_inject = st.clone_inject end
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -3903,6 +3933,11 @@ function init()
     local pfl = poll.set("tm_flatness", on_flatness)
     if pc  then pc.time  = 1/30.0 ; pc:start()  end
     if pfl then pfl.time = 1/30.0 ; pfl:start() end
+    -- CHROMA (analyse multi-notes) : 12 classes de hauteur depuis le moteur SC
+    for ci = 0, 11 do
+      local pch = poll.set("tm_chr" .. ci, function(v) clone_chroma[ci] = v end)
+      if pch then pch.time = 1/20.0 ; pch:start() end
+    end
   end)
 
   silence_loop()
@@ -4699,6 +4734,8 @@ function key(n, z)
     if n == 3 then
       clone_on = not clone_on                          -- K3 : on/off
       clone_cap = {} ; clone_base = 0 ; clone_last_t = 0 ; clone_gen = clone_gen + 1   -- coupe un echo en cours
+    elseif n == 2 then
+      clone_inject = not clone_inject                  -- K2 : injecter les motifs CLONE dans l'IMPRO
     end
     redraw() ; return
   end
@@ -5421,9 +5458,10 @@ function redraw()
     if count < MIN_CORPUS then
       screen.level(12) ; screen.move(2, 58) ; screen.text("corpus vide : joue d'abord")
     else
-      screen.level(8)  ; screen.move(2, 58) ; screen.text(string.format("corpus %d  dernier echo %d", count, clone_echo_n))
+      screen.level(8)  ; screen.move(2, 58) ; screen.text(string.format("corpus %d  motifs %d", count, #clone_motifs))
     end
-    screen.level(4) ; screen.move(2, 64) ; screen.text("K2 -       K3 on/off")
+    screen.level(clone_inject and 15 or 4) ; screen.move(2, 64) ; screen.text("K2 INJECT " .. (clone_inject and "ON" or "off"))
+    screen.level(4) ; screen.move(126, 64) ; screen.text_right("K3 on/off")
     screen.update() ; return
   end
   if page == 46 then
