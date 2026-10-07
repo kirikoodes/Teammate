@@ -76,6 +76,11 @@ CLONE_MOTIFS_MAX = 8
 clone_inject   = false -- IMPRO : l'agent replace parfois un motif CLONE connu (melange impro + motifs)
 clone_chroma   = {}    -- 12 classes de hauteur entendues (analyse multi-notes depuis le moteur SC)
 for _ci = 0, 11 do clone_chroma[_ci] = 0 end
+-- ===== A2C (audio -> corpus) : en LIVE, ton input declenche le grain du corpus le plus proche =====
+a2c_on         = false
+a2c_base       = 0     -- fond lisse (detecteur d'attaques)
+a2c_last_t     = 0
+a2c_last_slot  = 0     -- affichage : dernier grain joue
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -1854,6 +1859,26 @@ local function distance(ev, ref)
   return dr + df + dc + dfl + dd
 end
 
+-- A2C : joue EN DIRECT le grain du corpus le plus proche de ce qui entre (synthese concatenative)
+function a2c_fire()   -- global (limite 200 locals)
+  if count < MIN_CORPUS then return end
+  local ref = { rms = cur_rms or 0, freq = cur_freq or 0, centroid = cur_centroid or 0,
+                flatness = cur_flatness or 0, duration = 0.2 }
+  local best, bd
+  for _, ev in pairs(corpus) do
+    local d = distance(ev, ref)
+    if not bd or d < bd then bd = d ; best = ev end
+  end
+  if best then
+    a2c_last_slot = best.slot
+    local amp = util.clamp(0.3 + (cur_rms or 0) * 4, 0.3, 1.0)   -- l'audio suit TON energie live
+    clock.run(function()
+      play_event({ slot = best.slot, freq = best.freq, centroid = best.centroid,
+                   flatness = best.flatness, duration = best.duration, rms = cur_rms or 0.1 }, 1.0, 1, nil, amp)
+    end)
+  end
+end
+
 ---------------------------------------------------------------------
 -- analyseur de fragment
 ---------------------------------------------------------------------
@@ -2220,6 +2245,17 @@ local function on_rms(v)
       end
       if #clone_cap < 400 then clone_cap[#clone_cap + 1] = { t = now, e = v, f = cur_freq, pcs = pcs } end
       clone_last_t = now
+    end
+  end
+
+  if a2c_on and not p_deaf then                         -- A2C : attaque live -> joue le grain du corpus le plus proche
+    a2c_base = a2c_base * 0.94 + v * 0.06
+    local sens = clone_sens or 0.7
+    local now = util.time()
+    if v > a2c_base * (2.2 - sens * 1.25) + (0.007 - sens * 0.0055)
+       and (now - (a2c_last_t or 0)) > (0.10 - sens * 0.07) then
+      a2c_last_t = now
+      a2c_fire()
     end
   end
 
@@ -3513,7 +3549,7 @@ LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IM
 -- HUB : E1/E2 deplacent le curseur, K1 entre, K3 arme (si armable). Dans une
 -- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
 NAV_CATS = {
-  { n = "IMPRO",  pg = {1,2,3,4,49,48},  arm = 8  },   -- 49 = CLONE ; 48 = SAMPLE BANK (47 = TRIG BANK, dans PERU)
+  { n = "IMPRO",  pg = {1,2,3,4,49,50,48},  arm = 8  },   -- 49 = CLONE ; 50 = A2C (audio->corpus) ; 48 = SAMPLE BANK (47 = TRIG BANK, dans PERU)
   { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
   { n = "8OS",    pg = {6,8,28},         arm = 2  },
   { n = "MGEN",   pg = {13,14,15,38,34,46,25,26}, arm = 3  },
@@ -4504,6 +4540,8 @@ function enc(n, d)
       rep_div_idx = util.clamp(rep_div_idx + d, 1, #REP_DIV)               -- REP : vitesse des repetitions
     elseif page == 49 then
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- CLONE : sensibilite du detecteur d'attaques
+    elseif page == 50 then
+      clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- A2C : meme sensibilite d'attaque
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4737,6 +4775,10 @@ function key(n, z)
     elseif n == 2 then
       clone_inject = not clone_inject                  -- K2 : injecter les motifs CLONE dans l'IMPRO
     end
+    redraw() ; return
+  end
+  if page == 50 then                                   -- A2C (audio -> corpus) en LIVE
+    if n == 3 then a2c_on = not a2c_on ; a2c_base = 0 ; a2c_last_t = 0 end   -- K3 : on/off
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -5440,6 +5482,24 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 50 then
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("A2C  audio>corpus")
+    screen.level(a2c_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(a2c_on and "ON" or "off")
+    screen.level(4) ; screen.move(2, 22) ; screen.text("tu joues -> le grain du")
+    screen.level(4) ; screen.move(2, 31) ; screen.text("corpus le + proche (live)")
+    screen.level(4)  ; screen.move(2, 44) ; screen.text("E2 SENSIB")
+    screen.level(15) ; screen.move(90, 44) ; screen.text_right(string.format("%d%%", math.floor(clone_sens * 100)))
+    screen.level(4)  ; screen.rect(2, 47, 100, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 47, 100 * clone_sens, 2) ; screen.fill()
+    if count < MIN_CORPUS then
+      screen.level(12) ; screen.move(2, 58) ; screen.text("corpus vide : joue d'abord")
+    else
+      screen.level(8)  ; screen.move(2, 58) ; screen.text(string.format("corpus %d  grain %d", count, a2c_last_slot))
+    end
+    screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
+    screen.update() ; return
+  end
   if page == 49 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("CLONE")
