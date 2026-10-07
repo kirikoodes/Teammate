@@ -31,7 +31,7 @@ Engine_Teammate : CroneEngine {
       // CHROMA : banc de resonateurs (12 classes x 3 octaves, UGens de base, sans plugin)
       // -> energie presente par classe de hauteur, pour capter les accords
       var chroma   = Array.fill(12, { |pc|
-        ([48, 60, 72].collect { |b| Amplitude.kr(BPF.ar(sig, (b + pc).midicps, 0.04), 0.01, 0.1) }).sum;
+        ([48, 60].collect { |b| Amplitude.kr(BPF.ar(sig, (b + pc).midicps, 0.05), 0.01, 0.1) }).sum;
       });
       Out.kr(rms_bus,      amp);
       Out.kr(freq_bus,     freq);
