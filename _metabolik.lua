@@ -454,73 +454,96 @@ local function note_name(n) return NOTE_NM[(n % 12) + 1] .. tostring(math.floor(
 -- glyphe ORCA par voie metabolique (une lettre = un operateur, facon Orca)
 local MGLYPH = { growth="G", glycolysis="Y", respiration="R", fermentation="F",
                  byproduct="B", co2="C", lactate="L" }
+local MCELLS = { {6,14},{24,14},{42,14},{60,14},{6,29},{24,29},{42,29} }   -- 7 cases (4+3), bien espacees
+
+-- carre ORCA a coins ouverts (tirets) : la signature de la DA
+local function orca_bracket(x, y, s, lvl)
+  local b = 3
+  screen.level(lvl)
+  screen.rect(x, y, b, 1) ;           screen.rect(x, y, 1, b)
+  screen.rect(x + s - b, y, b, 1) ;   screen.rect(x + s - 1, y, 1, b)
+  screen.rect(x, y + s - 1, b, 1) ;   screen.rect(x, y + s - b, 1, b)
+  screen.rect(x + s - b, y + s - 1, b, 1) ; screen.rect(x + s - 1, y + s - b, 1, b)
+  screen.fill()
+end
+
+-- une cellule : strong 0=vide(tirets) 1=actif(rempli) 2=bang(brillant+halo)
+local function orca_cell(x, y, s, glyph, act, strong)
+  if strong == 2 then
+    screen.level(4) ; screen.rect(x - 2, y - 2, s + 4, s + 4) ; screen.stroke()   -- halo (approx glow)
+    screen.level(15) ; screen.rect(x, y, s, s) ; screen.fill()
+    screen.level(0)
+  elseif strong == 1 then
+    screen.level(7 + math.floor((act or 0) * 8)) ; screen.rect(x, y, s, s) ; screen.fill()
+    screen.level(0)
+  else
+    orca_bracket(x, y, s, 2 + math.floor((act or 0) * 9))
+    screen.level(3 + math.floor((act or 0) * 10))
+  end
+  if glyph then screen.move(x + 3, y + s - 3) ; screen.text(glyph) end
+end
 
 function M.redraw()
   screen.clear()
   screen.font_size(8)
   screen.aa(0)
 
-  -- FOND ORCA : grille de points + "+" toutes les 4 cases (cellule 6x8)
+  -- FOND ORCA : grille de points + "+" toutes les 4 cases (cadree dans le workspace)
   screen.level(1)
-  for gy = 1, 5 do for gx = 1, 20 do
-    local x, y = gx * 6, gy * 9 + 8
-    if not (gx % 4 == 0 and gy % 2 == 0) then screen.rect(x, y, 1, 1) end
+  for gy = 0, 3 do for gx = 0, 19 do
+    if not (gx % 4 == 0 and gy % 2 == 0) then screen.rect(6 + gx * 6, 15 + gy * 9, 1, 1) end
   end end
   screen.fill()
   screen.level(3)
-  for gy = 1, 5 do for gx = 1, 20 do
+  for gy = 0, 3 do for gx = 0, 19 do
     if gx % 4 == 0 and gy % 2 == 0 then
-      local x, y = gx * 6, gy * 9 + 8
+      local x, y = 6 + gx * 6, 15 + gy * 9
       screen.rect(x - 1, y, 3, 1) ; screen.rect(x, y - 1, 1, 3)
     end
   end end
   screen.fill()
 
-  -- BANG : cadre qui pulse quand la cellule declenche (facon bang Orca)
-  if (M.flash or 0) > 0.3 then screen.level(15) ; screen.rect(0, 12, 128, 40) ; screen.stroke() end
-
   -- EN-TETE
-  screen.level(15) ; screen.move(2, 8) ; screen.text("METABO")
-  screen.level(M.on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(M.on and "ON" or "off")
+  screen.level(15) ; screen.move(4, 8) ; screen.text("METABO")
+  screen.level(M.on and 12 or 4) ; screen.move(124, 8) ; screen.text_right(M.on and "ON" or "off")
   if M.follow_amt > 0 and M.in_note then
-    screen.level(6) ; screen.move(60, 8) ; screen.text("in " .. note_name(M.in_note))
+    screen.level(6) ; screen.move(52, 8) ; screen.text("in " .. note_name(M.in_note))
   end
 
-  -- VOIES = glyphes Orca sur la grille ; brillance = activite ; dominante INVERSEE (bloc)
+  -- VOIES = cellules ORCA (4+3) ; remplies selon activite ; dominante = bang brillant
   local rk  = ranked_voices()
   local dom = rk[1] and rk[1].b.ch or nil
-  local gx  = 8
-  for _, b in ipairs(M.BIO) do
-    local v = M.ch[b.ch] or 0
-    local g = MGLYPH[b.ch] or "?"
-    if b.ch == dom then
-      screen.level(15) ; screen.rect(gx - 1, 20, 8, 10) ; screen.fill()   -- bloc inverse
-      screen.level(0)  ; screen.move(gx, 28) ; screen.text(g)
-    else
-      screen.level(2 + math.floor(v * 13)) ; screen.move(gx, 28) ; screen.text(g)
-    end
-    gx = gx + 10
+  for i, b in ipairs(M.BIO) do
+    local c   = MCELLS[i] ; if not c then break end
+    local act = M.ch[b.ch] or 0
+    local strong = 0
+    if b.ch == dom and (M.flash or 0) > 0.25 then strong = 2
+    elseif act > 0.45 then strong = 1 end
+    orca_cell(c[1], c[2], 11, MGLYPH[b.ch] or "?", act, strong)
   end
-  -- note de la voie dominante, a droite
+  -- 8e case = BANG de sortie (clignote quand la cellule declenche une note)
+  orca_cell(60, 29, 11, "*", M.flash or 0, (M.flash or 0) > 0.25 and 2 or 0)
+
+  -- COLONNE DROITE : voie dominante (cellule + note), facon label "BANG"
   if rk[1] then
-    screen.level(10) ; screen.move(126, 28) ; screen.text_right(note_name(M.bio_note(rk[1].b)))
+    screen.level(6)  ; screen.move(78, 12) ; screen.text("DOM")
+    orca_cell(78, 16, 11, MGLYPH[dom] or "?", 1, 1)
+    screen.level(12) ; screen.move(93, 25) ; screen.text(note_name(M.bio_note(rk[1].b)))
   end
 
-  -- STRESS : rampe de tirets (facon piste Orca)
-  local n = 20
+  -- STRESS : piste de tirets
+  local n = 18
   local fn = math.floor((M.stressFx or 0) * n + 0.5)
   for i = 0, n - 1 do
-    local x = 4 + i * 6
-    screen.level(i < fn and ((M.stressFx or 0) > 0.6 and 15 or 11) or 2)
-    screen.rect(x, 40, 4, 2) ; screen.fill()
+    screen.level(i < fn and ((M.stressFx or 0) > 0.6 and 15 or 10) or 2)
+    screen.rect(6 + i * 6, 44, 4, 2) ; screen.fill()
   end
-  screen.level(6) ; screen.move(2, 48) ; screen.text("STRESS " .. (M.state or ""))
 
-  -- BARRE D'ETAT (bas, facon Orca) : bpm | gamme/oct | densite (K2)
-  screen.level(3) ; screen.rect(0, 54, 128, 1) ; screen.fill()
-  screen.level(12) ; screen.move(2, 63) ; screen.text(math.floor(M.bpm()) .. "b")
-  screen.level(8)  ; screen.move(30, 63) ; screen.text(string.format("%s o%+d", M.scale_names[M.scale_idx], M.octave))
-  screen.level(6)  ; screen.move(126, 63) ; screen.text_right("K2:" .. M.density_names[M.density_idx])
+  -- BARRE D'ETAT (bas, facon Orca) : etat | gamme/oct | bpm | densite (K2)
+  screen.level(3) ; screen.rect(2, 51, 124, 1) ; screen.fill()
+  screen.level(10) ; screen.move(4, 60) ; screen.text(M.state or "")
+  screen.level(8)  ; screen.move(52, 60) ; screen.text(string.format("%s o%+d", M.scale_names[M.scale_idx], M.octave))
+  screen.level(6)  ; screen.move(124, 60) ; screen.text_right(math.floor(M.bpm()) .. "b " .. M.density_names[M.density_idx])
 
   screen.update()
 end
