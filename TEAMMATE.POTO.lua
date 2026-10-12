@@ -4660,6 +4660,9 @@ function enc(n, d)
       rep_rand = false
     elseif page == 49 then
       clone_len = util.clamp(clone_len + d * 0.1, 1.0, 3.0)   -- CLONE : longueur des grains (E3)
+    elseif page == 50 then
+      p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- A2C (E3) : niveau d'ecoute de l'input
+      pcall(function() audio.level_monitor(p_monitor) end)
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -5492,12 +5495,14 @@ function redraw()
     screen.level(15) ; screen.move(90, 44) ; screen.text_right(string.format("%d%%", math.floor(clone_sens * 100)))
     screen.level(4)  ; screen.rect(2, 47, 100, 2) ; screen.stroke()
     screen.level(12) ; screen.rect(2, 47, 100 * clone_sens, 2) ; screen.fill()
+    -- E3 : niveau d'ecoute de l'input (meme reglage que POtO)
+    screen.level(4)  ; screen.move(2, 57) ; screen.text("E3 INPUT")
+    screen.level(15) ; screen.move(90, 57) ; screen.text_right(string.format("%d%%", math.floor(p_monitor * 100)))
     if count < MIN_CORPUS then
-      screen.level(12) ; screen.move(2, 58) ; screen.text("corpus vide : joue d'abord")
+      screen.level(12) ; screen.move(2, 64) ; screen.text("corpus vide  K3 on/off")
     else
-      screen.level(8)  ; screen.move(2, 58) ; screen.text(string.format("corpus %d  grain %d", count, a2c_last_slot))
+      screen.level(8)  ; screen.move(2, 64) ; screen.text(string.format("corpus %d  grain %d  K3 on", count, a2c_last_slot))
     end
-    screen.level(4) ; screen.move(2, 64) ; screen.text("K3 on/off")
     screen.update() ; return
   end
   if page == 49 then
