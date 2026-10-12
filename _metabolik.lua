@@ -488,26 +488,25 @@ function M.redraw()
   screen.font_size(8)
   screen.aa(0)
 
-  -- FOND ORCA : grille de points + "+" toutes les 4 cases (cadree dans le workspace)
+  -- FOND ORCA : points faibles partout + "+" places ENTRE les cellules (jamais sur les lettres)
   screen.level(1)
-  for gy = 0, 3 do for gx = 0, 19 do
-    if not (gx % 4 == 0 and gy % 2 == 0) then screen.rect(6 + gx * 6, 15 + gy * 9, 1, 1) end
-  end end
+  for gy = 0, 3 do for gx = 0, 19 do screen.rect(6 + gx * 6, 15 + gy * 9, 1, 1) end end
   screen.fill()
   screen.level(3)
-  for gy = 0, 3 do for gx = 0, 19 do
-    if gx % 4 == 0 and gy % 2 == 0 then
-      local x, y = 6 + gx * 6, 15 + gy * 9
+  for _, x in ipairs({ 20, 38, 56, 74 }) do        -- milieux des espaces entre colonnes de cellules
+    for _, y in ipairs({ 11, 27 }) do              -- entre en-tete/rangee1 et entre rangee1/rangee2
       screen.rect(x - 1, y, 3, 1) ; screen.rect(x, y - 1, 1, 3)
     end
-  end end
+  end
   screen.fill()
 
   -- EN-TETE
   screen.level(15) ; screen.move(4, 8) ; screen.text("METABO")
   screen.level(M.on and 12 or 4) ; screen.move(124, 8) ; screen.text_right(M.on and "ON" or "off")
   if M.follow_amt > 0 and M.in_note then
-    screen.level(6) ; screen.move(52, 8) ; screen.text("in " .. note_name(M.in_note))
+    screen.level(6) ; screen.move(56, 8) ; screen.text("in " .. note_name(M.in_note))
+  else
+    screen.level(6) ; screen.move(56, 8) ; screen.text(M.scale_names[M.scale_idx])   -- E2 gamme
   end
 
   -- VOIES = cellules ORCA (4+3) ; remplies selon activite ; dominante = bang brillant
@@ -526,9 +525,8 @@ function M.redraw()
 
   -- COLONNE DROITE : voie dominante (cellule + note), facon label "BANG"
   if rk[1] then
-    screen.level(6)  ; screen.move(78, 12) ; screen.text("DOM")
-    orca_cell(78, 16, 11, MGLYPH[dom] or "?", 1, 1)
-    screen.level(12) ; screen.move(93, 25) ; screen.text(note_name(M.bio_note(rk[1].b)))
+    orca_cell(80, 16, 11, MGLYPH[dom] or "?", 1, 1)   -- voie dominante en bloc inverse
+    screen.level(12) ; screen.move(95, 25) ; screen.text(note_name(M.bio_note(rk[1].b)))
   end
 
   -- STRESS : piste de tirets
@@ -542,8 +540,7 @@ function M.redraw()
   -- BARRE D'ETAT (bas, facon Orca) : etat | gamme/oct | bpm | densite (K2)
   screen.level(3) ; screen.rect(2, 51, 124, 1) ; screen.fill()
   screen.level(10) ; screen.move(4, 60) ; screen.text(M.state or "")
-  screen.level(8)  ; screen.move(52, 60) ; screen.text(string.format("%s o%+d", M.scale_names[M.scale_idx], M.octave))
-  screen.level(6)  ; screen.move(124, 60) ; screen.text_right(math.floor(M.bpm()) .. "b " .. M.density_names[M.density_idx])
+  screen.level(8)  ; screen.move(124, 60) ; screen.text_right(string.format("o%+d  %s", M.octave, M.density_names[M.density_idx]))
 
   screen.update()
 end
