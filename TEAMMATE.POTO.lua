@@ -81,6 +81,10 @@ a2c_on         = false
 a2c_base       = 0     -- fond lisse (detecteur d'attaques)
 a2c_last_t     = 0
 a2c_last_slot  = 0     -- affichage : dernier grain joue
+-- ===== EFX : menu EFFETS (reverb integree Norns ; delai/glitch SC a venir) =====
+efx_rev_on     = false
+efx_amt        = 0.55  -- quantite de reverb (niveau de retour)
+efx_time       = 0.45  -- taille/temps de reverb
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -1862,6 +1866,23 @@ local function distance(ev, ref)
   return dr + df + dc + dfl + dd
 end
 
+-- EFX : applique les reglages d'effets (reverb integree Norns). pcall : sans danger si API absente.
+function efx_apply()   -- global
+  pcall(function()
+    if efx_rev_on then
+      audio.rev_on()
+      audio.rev_cut_input(0)        -- corpus (softcut) -> reverb
+      audio.rev_eng_input(0)        -- moteur -> reverb
+      audio.rev_monitor_input(-8)   -- input direct -> reverb (leger)
+      audio.rev_return_level(-40 + efx_amt * 46)   -- -40..+6 dB
+      local t = 0.8 + efx_time * 7.2               -- 0.8..8 s
+      audio.rev_mid_time(t) ; audio.rev_low_time(t * 1.2)
+    else
+      audio.rev_off()
+    end
+  end)
+end
+
 -- A2C : joue EN DIRECT le grain du corpus le plus proche de ce qui entre (synthese concatenative)
 function a2c_fire()   -- global (limite 200 locals)
   if count < MIN_CORPUS then return end
@@ -3564,6 +3585,7 @@ NAV_CATS = {
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
+  { n = "EFX",    pg = {55},             arm = nil },   -- effets (reverb ; delai/glitch a venir)
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
@@ -3753,6 +3775,7 @@ function state_save()
       frag_on=frag_on, frag_char=frag_char, frag_amt=frag_amt, frag_rand=frag_rand, frag_inv=frag_inv, frag_slices_idx=frag_slices_idx,
       rep_on=rep_on, rep_char=rep_char, rep_div_idx=rep_div_idx, rep_rand=rep_rand,
       clone_len=clone_len, clone_sens=clone_sens, clone_gap=clone_gap, clone_inject=clone_inject,
+      efx_rev_on=efx_rev_on, efx_amt=efx_amt, efx_time=efx_time,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3847,6 +3870,10 @@ function state_load()
     if st.clone_sens then clone_sens = util.clamp(st.clone_sens, 0.0, 1.0) end
     if st.clone_gap then clone_gap = util.clamp(st.clone_gap, 0.3, 4.0) end
     if st.clone_inject ~= nil then clone_inject = st.clone_inject end
+    if st.efx_rev_on ~= nil then efx_rev_on = st.efx_rev_on end
+    if st.efx_amt then efx_amt = util.clamp(st.efx_amt, 0, 1) end
+    if st.efx_time then efx_time = util.clamp(st.efx_time, 0, 1) end
+    pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
       if st.mgen_on[i]~=nil then mgen_ch[i].on=st.mgen_on[i] end
@@ -4546,6 +4573,8 @@ function enc(n, d)
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- A2C : meme sensibilite d'attaque
     elseif page >= 51 and page <= 54 then
       route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE : choisit l'appareil MIDI
+    elseif page == 55 then
+      efx_amt = util.clamp(efx_amt + d * 0.05, 0, 1) ; efx_apply()        -- EFX : quantite de reverb
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4670,6 +4699,8 @@ function enc(n, d)
     elseif page >= 51 and page <= 54 then
       local st = page - 50                                     -- ROUTE (E3) : canal MIDI de l'appareil
       midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
+    elseif page == 55 then
+      efx_time = util.clamp(efx_time + d * 0.05, 0, 1) ; efx_apply()   -- EFX (E3) : temps/taille de reverb
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4793,6 +4824,10 @@ function key(n, z)
   end
   if page >= 51 and page <= 54 then                    -- ROUTE (IMPRO/POtO/8OS/MGEN) : K3 arme/coupe l'appareil
     if n == 3 then local st = page - 50 ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
+    redraw() ; return
+  end
+  if page == 55 then                                   -- EFX : effets
+    if n == 3 then efx_rev_on = not efx_rev_on ; efx_apply() end   -- K3 : reverb on/off
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -5218,6 +5253,22 @@ function redraw()
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
+  if page == 55 then                                -- EFX : effets (reverb)
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("EFFETS")
+    screen.level(efx_rev_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(efx_rev_on and "REVERB ON" or "reverb off")
+    screen.level(4)  ; screen.move(2, 24) ; screen.text("E2 QUANTITE")
+    screen.level(15) ; screen.move(126, 24) ; screen.text_right(string.format("%d%%", math.floor(efx_amt * 100)))
+    screen.level(4)  ; screen.rect(2, 27, 124, 2) ; screen.stroke()
+    screen.level(efx_rev_on and 12 or 4) ; screen.rect(2, 27, 124 * efx_amt, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 40) ; screen.text("E3 TAILLE")
+    screen.level(15) ; screen.move(126, 40) ; screen.text_right(string.format("%.1fs", 0.8 + efx_time * 7.2))
+    screen.level(4)  ; screen.rect(2, 43, 124, 2) ; screen.stroke()
+    screen.level(efx_rev_on and 12 or 4) ; screen.rect(2, 43, 124 * efx_time, 2) ; screen.fill()
+    screen.level(3)  ; screen.move(2, 56) ; screen.text("delai / glitch : bientot (SC)")
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 reverb on/off")
+    screen.update() ; return
+  end
   if page >= 51 and page <= 54 then                 -- ROUTE : routing MIDI par mode (IMPRO/POtO/8OS/MGEN)
     local st = page - 50
     screen.clear() ; screen.font_size(8)
