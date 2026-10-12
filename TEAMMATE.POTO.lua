@@ -85,6 +85,11 @@ a2c_last_slot  = 0     -- affichage : dernier grain joue
 efx_rev_on     = false
 efx_amt        = 0.55  -- quantite de reverb (niveau de retour)
 efx_time       = 0.45  -- taille/temps de reverb
+-- GLITCH au niveau des grains (stutter / repetition) : sur le son reel de Teammate
+efx_glitch_on   = false
+efx_glitch_amt  = 0.5  -- probabilite + intensite du glitch 0..1
+efx_glitch_mode = 1    -- 1=STUTTER 2=REPEAT 3=BOTH
+EFX_GL_NAMES    = { "STUTTER", "REPEAT", "BOTH" }
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -585,6 +590,8 @@ local function play_event(ev, rate_mult, mstream, pan, amp)
 
   if style.on then len = style.artic_len(len) end          -- STYLE : articulation (staccato/legato)
 
+  local glitch = efx_glitch_on and (math.random() < 0.2 + (efx_glitch_amt or 0) * 0.7)   -- GLITCH grain (stutter/repeat)
+
   local fade = math.max(0.010, math.min(0.050, len * 0.3))    -- fondu proportionnel a la taille du grain (plancher anti-clic)
   softcut.level_slew_time(v, fade)                            -- rampe d'amplitude : fade-IN au depart, fade-OUT a l'arret (anti-clic)
   softcut.level(v, (amp or 1.0) * (spat.on and spat_depth_mult("impro") or 1.0))   -- amp : CLONE suit TON energie a l'audio
@@ -615,7 +622,28 @@ local function play_event(ev, rate_mult, mstream, pan, amp)
   if (mstream or 1) == 1 then impro_energy = math.max(impro_energy, imp_vel / 127) end   -- suivi d'enveloppe de l'impro (pour PERU src=IMPRO, continu)
 
   clock.run(function()
-    clock.sleep(math.max(0.04, len))              -- joue le grain
+    if glitch then                                 -- GLITCH : stutter (micro-tranche) ou repetition du grain
+      local mode = efx_glitch_mode or 1
+      if mode == 3 then mode = (math.random() < 0.5) and 1 or 2 end
+      if mode == 1 then                            -- STUTTER : re-declenche une micro-tranche tres vite
+        local k  = 3 + math.floor((efx_glitch_amt or 0.5) * 9)
+        local sl = math.max(0.02, len * (0.5 - (efx_glitch_amt or 0.5) * 0.35))
+        for _ = 1, k do
+          if ply_tokens[vi] ~= tok then break end
+          softcut.position(v, base) ; softcut.play(v, 1)
+          clock.sleep(sl)
+        end
+      else                                         -- REPEAT : rejoue le grain entier 2-4x
+        local r = 2 + math.floor((efx_glitch_amt or 0.5) * 2.5)
+        for _ = 1, r do
+          if ply_tokens[vi] ~= tok then break end
+          softcut.position(v, (rate < 0) and (base + len - 0.001) or base) ; softcut.play(v, 1)
+          clock.sleep(math.max(0.04, len))
+        end
+      end
+    else
+      clock.sleep(math.max(0.04, len))             -- joue le grain
+    end
     midi_note_off(mstream or 1, imp_note)
     if ply_tokens[vi] == tok then
       softcut.level(v, 0)                          -- fade-OUT via le level slew (rampe douce, pas de coupe seche)
@@ -3585,7 +3613,7 @@ NAV_CATS = {
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
-  { n = "EFX",    pg = {55},             arm = nil },   -- effets (reverb ; delai/glitch a venir)
+  { n = "EFX",    pg = {55,56},          arm = nil },   -- 55 = reverb ; 56 = glitch (stutter/repeat)
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
@@ -3776,6 +3804,7 @@ function state_save()
       rep_on=rep_on, rep_char=rep_char, rep_div_idx=rep_div_idx, rep_rand=rep_rand,
       clone_len=clone_len, clone_sens=clone_sens, clone_gap=clone_gap, clone_inject=clone_inject,
       efx_rev_on=efx_rev_on, efx_amt=efx_amt, efx_time=efx_time,
+      efx_glitch_on=efx_glitch_on, efx_glitch_amt=efx_glitch_amt, efx_glitch_mode=efx_glitch_mode,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3873,6 +3902,9 @@ function state_load()
     if st.efx_rev_on ~= nil then efx_rev_on = st.efx_rev_on end
     if st.efx_amt then efx_amt = util.clamp(st.efx_amt, 0, 1) end
     if st.efx_time then efx_time = util.clamp(st.efx_time, 0, 1) end
+    if st.efx_glitch_on ~= nil then efx_glitch_on = st.efx_glitch_on end
+    if st.efx_glitch_amt then efx_glitch_amt = util.clamp(st.efx_glitch_amt, 0, 1) end
+    if st.efx_glitch_mode then efx_glitch_mode = util.clamp(st.efx_glitch_mode, 1, #EFX_GL_NAMES) end
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -4575,6 +4607,8 @@ function enc(n, d)
       route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE : choisit l'appareil MIDI
     elseif page == 55 then
       efx_amt = util.clamp(efx_amt + d * 0.05, 0, 1) ; efx_apply()        -- EFX : quantite de reverb
+    elseif page == 56 then
+      efx_glitch_amt = util.clamp(efx_glitch_amt + d * 0.05, 0, 1)        -- GLITCH : intensite
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4701,6 +4735,8 @@ function enc(n, d)
       midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
     elseif page == 55 then
       efx_time = util.clamp(efx_time + d * 0.05, 0, 1) ; efx_apply()   -- EFX (E3) : temps/taille de reverb
+    elseif page == 56 then
+      efx_glitch_mode = util.clamp(efx_glitch_mode + d, 1, #EFX_GL_NAMES)  -- GLITCH (E3) : stutter/repeat/both
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4826,8 +4862,12 @@ function key(n, z)
     if n == 3 then local st = page - 50 ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
     redraw() ; return
   end
-  if page == 55 then                                   -- EFX : effets
+  if page == 55 then                                   -- EFX : reverb
     if n == 3 then efx_rev_on = not efx_rev_on ; efx_apply() end   -- K3 : reverb on/off
+    redraw() ; return
+  end
+  if page == 56 then                                   -- EFX : glitch (stutter/repeat)
+    if n == 3 then efx_glitch_on = not efx_glitch_on end           -- K3 : glitch on/off
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -5253,9 +5293,23 @@ function redraw()
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
+  if page == 56 then                                -- EFX : glitch (stutter / repeat)
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("EFFETS  GLITCH")
+    screen.level(efx_glitch_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(efx_glitch_on and "ON" or "off")
+    screen.level(4)  ; screen.move(2, 24) ; screen.text("E2 INTENSITE")
+    screen.level(15) ; screen.move(126, 24) ; screen.text_right(string.format("%d%%", math.floor(efx_glitch_amt * 100)))
+    screen.level(4)  ; screen.rect(2, 27, 124, 2) ; screen.stroke()
+    screen.level(efx_glitch_on and 12 or 4) ; screen.rect(2, 27, 124 * efx_glitch_amt, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 42) ; screen.text("E3 MODE")
+    screen.level(15) ; screen.move(126, 42) ; screen.text_right(EFX_GL_NAMES[efx_glitch_mode] or "?")
+    screen.level(3)  ; screen.move(2, 54) ; screen.text("decoupe les grains de Teammate")
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 glitch on/off")
+    screen.update() ; return
+  end
   if page == 55 then                                -- EFX : effets (reverb)
     screen.clear() ; screen.font_size(8)
-    screen.level(15) ; screen.move(2, 8) ; screen.text("EFFETS")
+    screen.level(15) ; screen.move(2, 8) ; screen.text("EFFETS  REVERB")
     screen.level(efx_rev_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(efx_rev_on and "REVERB ON" or "reverb off")
     screen.level(4)  ; screen.move(2, 24) ; screen.text("E2 QUANTITE")
     screen.level(15) ; screen.move(126, 24) ; screen.text_right(string.format("%d%%", math.floor(efx_amt * 100)))
