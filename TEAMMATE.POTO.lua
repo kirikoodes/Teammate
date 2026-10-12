@@ -366,7 +366,10 @@ local splash_active = false
 local midi_outs  = {}
 local midi_route = {{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false},{false,false,false,false}}
 local midi_ch    = {{1,1,1,1},{2,2,2,2},{3,3,3,3}}  -- canal par stream x device (streams 1-3)
-local midi_cur_stream    = 1   -- stream selectionne sur pages 9-12
+local midi_cur_stream    = 1   -- stream selectionne sur pages 9-12 (ancien menu MIDI, retire)
+-- ROUTE par mode (pages 51-54) : routing MIDI de IMPRO/POtO/8OS/MGEN dans leur propre menu
+route_cur_dev = 1              -- appareil selectionne (1-4), partage par les 4 pages ROUTE
+ROUTE_NAMES   = { "IMPRO", "POtO", "8OS", "MGEN" }   -- indexe par stream 1-4 (page-50)
 local midi_cur_dev       = 1   -- inutilise (ancienne nav colonne)
 local midi_ch_audio      = {5,5,5,5}  -- canal par device pour stream AUDIO
 midi_route[6] = {false, false, false, false}   -- METABO = stream 6 (matrice de routage)
@@ -3549,10 +3552,10 @@ LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IM
 -- HUB : E1/E2 deplacent le curseur, K1 entre, K3 arme (si armable). Dans une
 -- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
 NAV_CATS = {
-  { n = "IMPRO",  pg = {1,2,3,4,49,50,48},  arm = 8  },   -- 49 = CLONE ; 50 = A2C (audio->corpus) ; 48 = SAMPLE BANK (47 = TRIG BANK, dans PERU)
-  { n = "POtO",   pg = {5,7,30,29},      arm = 1  },
-  { n = "8OS",    pg = {6,8,28},         arm = 2  },
-  { n = "MGEN",   pg = {13,14,15,38,34,46,25,26}, arm = 3  },
+  { n = "IMPRO",  pg = {1,2,3,4,49,50,51,48}, arm = 8  },  -- 49 CLONE ; 50 A2C ; 51 ROUTE ; 48 SAMPLE BANK (47 TRIG BANK dans PERU)
+  { n = "POtO",   pg = {5,7,30,29,52},   arm = 1  },      -- 52 = ROUTE
+  { n = "8OS",    pg = {6,8,28,53},      arm = 2  },      -- 53 = ROUTE
+  { n = "MGEN",   pg = {13,14,15,38,34,46,25,26,54}, arm = 3 },  -- 54 = ROUTE
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
@@ -3561,7 +3564,6 @@ NAV_CATS = {
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
-  { n = "MIDI",   pg = {9,10,11,12},     arm = nil },
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
@@ -4542,6 +4544,8 @@ function enc(n, d)
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- CLONE : sensibilite du detecteur d'attaques
     elseif page == 50 then
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- A2C : meme sensibilite d'attaque
+    elseif page >= 51 and page <= 54 then
+      route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE : choisit l'appareil MIDI
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4663,6 +4667,9 @@ function enc(n, d)
     elseif page == 50 then
       p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- A2C (E3) : niveau d'ecoute de l'input
       pcall(function() audio.level_monitor(p_monitor) end)
+    elseif page >= 51 and page <= 54 then
+      local st = page - 50                                     -- ROUTE (E3) : canal MIDI de l'appareil
+      midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4782,6 +4789,10 @@ function key(n, z)
   end
   if page == 50 then                                   -- A2C (audio -> corpus) en LIVE
     if n == 3 then a2c_on = not a2c_on ; a2c_base = 0 ; a2c_last_t = 0 end   -- K3 : on/off
+    redraw() ; return
+  end
+  if page >= 51 and page <= 54 then                    -- ROUTE (IMPRO/POtO/8OS/MGEN) : K3 arme/coupe l'appareil
+    if n == 3 then local st = page - 50 ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -5207,6 +5218,27 @@ function redraw()
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
+  if page >= 51 and page <= 54 then                 -- ROUTE : routing MIDI par mode (IMPRO/POtO/8OS/MGEN)
+    local st = page - 50
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text((ROUTE_NAMES[st] or "?") .. " ROUTE")
+    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("MIDI OUT")
+    local ys = {22, 33, 44, 55}
+    for d = 1, 4 do
+      local sel    = (d == route_cur_dev)
+      local routed = midi_route[st][d]
+      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+      if #dname > 8 then dname = string.sub(dname, 1, 7) .. "~" end
+      screen.level(sel and 15 or (routed and 9 or 4))
+      screen.move(2, ys[d]) ; screen.text(string.format("%sd%d %s", sel and ">" or " ", d, dname))
+      screen.level(routed and 15 or 3)
+      screen.move(86, ys[d]) ; screen.text(routed and "[X]" or "[ ]")
+      screen.level(sel and 12 or 5)
+      screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[st][d])
+    end
+    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
+    screen.update() ; return
+  end
   if page == 19 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("METABO MIDI")
