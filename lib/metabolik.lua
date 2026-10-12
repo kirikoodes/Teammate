@@ -61,7 +61,7 @@ M.spat = false
 M.cc   = nil
 
 -- source qui nourrit le metabolisme : INPUT (micro/ligne) / COMP (le compagnon) / MIX (les deux)
-M.feed_names = {"INPUT","COMP","MIX","WIFI"}
+M.feed_names = {"INPUT","COMP","MIX","WIFI","SNOT"}
 M.feed_idx   = 1
 M.react      = 0.5    -- reactivite au compagnon : 0 = lisse/lent, 1 = vif/serre
 
@@ -451,49 +451,77 @@ end
 local NOTE_NM = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" }
 local function note_name(n) return NOTE_NM[(n % 12) + 1] .. tostring(math.floor(n / 12) - 1) end
 
+-- glyphe ORCA par voie metabolique (une lettre = un operateur, facon Orca)
+local MGLYPH = { growth="G", glycolysis="Y", respiration="R", fermentation="F",
+                 byproduct="B", co2="C", lactate="L" }
+
 function M.redraw()
   screen.clear()
   screen.font_size(8)
-  screen.level(15); screen.move(2, 8);   screen.text("METABO")
-  screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
-  if M.follow_amt > 0 and M.in_note then   -- note entrante suivie (echo)
-    screen.level(6); screen.move(56, 8); screen.text("in " .. note_name(M.in_note))
+  screen.aa(0)
+
+  -- FOND ORCA : grille de points + "+" toutes les 4 cases (cellule 6x8)
+  screen.level(1)
+  for gy = 1, 5 do for gx = 1, 20 do
+    local x, y = gx * 6, gy * 9 + 8
+    if not (gx % 4 == 0 and gy % 2 == 0) then screen.rect(x, y, 1, 1) end
+  end end
+  screen.fill()
+  screen.level(3)
+  for gy = 1, 5 do for gx = 1, 20 do
+    if gx % 4 == 0 and gy % 2 == 0 then
+      local x, y = gx * 6, gy * 9 + 8
+      screen.rect(x - 1, y, 3, 1) ; screen.rect(x, y - 1, 1, 3)
+    end
+  end end
+  screen.fill()
+
+  -- BANG : cadre qui pulse quand la cellule declenche (facon bang Orca)
+  if (M.flash or 0) > 0.3 then screen.level(15) ; screen.rect(0, 12, 128, 40) ; screen.stroke() end
+
+  -- EN-TETE
+  screen.level(15) ; screen.move(2, 8) ; screen.text("METABO")
+  screen.level(M.on and 12 or 4) ; screen.move(126, 8) ; screen.text_right(M.on and "ON" or "off")
+  if M.follow_amt > 0 and M.in_note then
+    screen.level(6) ; screen.move(60, 8) ; screen.text("in " .. note_name(M.in_note))
   end
 
-  -- cellule : cercle qui pulse avec la croissance
-  local cx, cy = 98, 36
-  local r = 5 + M.ch.growth * 13 + M.flash * 3
-  screen.level(M.flash > 0.2 and 15 or (3 + math.floor(M.ch.growth * 9)))
-  screen.circle(cx, cy, r); screen.stroke()
-  -- voies = points autour, brillance selon activite
-  local ang = 0
+  -- VOIES = glyphes Orca sur la grille ; brillance = activite ; dominante INVERSEE (bloc)
+  local rk  = ranked_voices()
+  local dom = rk[1] and rk[1].b.ch or nil
+  local gx  = 8
   for _, b in ipairs(M.BIO) do
-    local vv = M.ch[b.ch] or 0
-    local px = cx + math.cos(ang) * (r + 4)
-    local py = cy + math.sin(ang) * (r + 4)
-    screen.level(2 + math.floor(vv * 13))
-    screen.rect(px - 1, py - 1, 2, 2); screen.fill()
-    ang = ang + math.pi * 2 / #M.BIO
+    local v = M.ch[b.ch] or 0
+    local g = MGLYPH[b.ch] or "?"
+    if b.ch == dom then
+      screen.level(15) ; screen.rect(gx - 1, 20, 8, 10) ; screen.fill()   -- bloc inverse
+      screen.level(0)  ; screen.move(gx, 28) ; screen.text(g)
+    else
+      screen.level(2 + math.floor(v * 13)) ; screen.move(gx, 28) ; screen.text(g)
+    end
+    gx = gx + 10
   end
-
-  -- stress + bpm + etat
-  screen.level(8); screen.move(2, 22); screen.text("STRESS")
-  screen.level(4); screen.rect(2, 25, 52, 4); screen.stroke()
-  screen.level(M.stressFx > 0.5 and 15 or 10); screen.rect(2, 25, 52 * M.stressFx, 4); screen.fill()
-  screen.level(12); screen.move(2, 40); screen.text("BPM " .. math.floor(M.bpm()))
-  screen.move(2, 49); screen.text(M.state)
-  screen.level(8); screen.move(46, 49); screen.text("K2 " .. M.density_names[M.density_idx])
-
-  -- reglages encodeurs : retour visuel E2 gamme / E3 octave
-  screen.level(10); screen.move(2, 57)
-  screen.text(string.format("E2 %s  o%+d", M.scale_names[M.scale_idx], M.octave))
-
-  -- voie dominante -> sa note
-  local rk = ranked_voices()
+  -- note de la voie dominante, a droite
   if rk[1] then
-    screen.level(15); screen.move(2, 64)
-    screen.text(string.upper(string.sub(rk[1].b.ch, 1, 5)) .. " " .. note_name(M.bio_note(rk[1].b)))
+    screen.level(10) ; screen.move(126, 28) ; screen.text_right(note_name(M.bio_note(rk[1].b)))
   end
+
+  -- STRESS : rampe de tirets (facon piste Orca)
+  local n = 20
+  local fn = math.floor((M.stressFx or 0) * n + 0.5)
+  for i = 0, n - 1 do
+    local x = 4 + i * 6
+    screen.level(i < fn and ((M.stressFx or 0) > 0.6 and 15 or 11) or 2)
+    screen.rect(x, 40, 4, 2) ; screen.fill()
+  end
+  screen.level(6) ; screen.move(2, 48) ; screen.text("STRESS " .. (M.state or ""))
+
+  -- BARRE D'ETAT (bas, facon Orca) : bpm | gamme/oct | densite (K2)
+  screen.level(3) ; screen.rect(0, 54, 128, 1) ; screen.fill()
+  screen.level(12) ; screen.move(2, 63) ; screen.text(math.floor(M.bpm()) .. "b")
+  screen.level(8)  ; screen.move(30, 63) ; screen.text(string.format("%s o%+d", M.scale_names[M.scale_idx], M.octave))
+  screen.level(6)  ; screen.move(126, 63) ; screen.text_right("K2:" .. M.density_names[M.density_idx])
+
   screen.update()
 end
 
@@ -556,6 +584,7 @@ local FEED_DESC = {
   COMP  = "le compagnon",
   MIX   = "entree + compagnon",
   WIFI  = "activite des reseaux",
+  SNOT  = "instruments gestuels",
 }
 
 function M.redraw_feed()
