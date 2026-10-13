@@ -2518,7 +2518,7 @@ local function silence_loop()
 
       elseif #phrase_buf == 0 and sil_sec > p_sil_max and count >= MIN_CORPUS then
         -- INJECTION : parfois l'agent replace un MOTIF CLONE connu (melange impro + motifs)
-        if clone_inject and #clone_motifs > 0 and math.random() < 0.33 then
+        if comp_on and clone_inject and #clone_motifs > 0 and math.random() < 0.33 then   -- respecte le compagnon (coupe = silence)
           clone_echo(clone_motifs[math.random(#clone_motifs)])
           goto continue
         end
@@ -3702,7 +3702,10 @@ function live_toggle(i)
     audio_midi_on = not audio_midi_on
   elseif i == 8 then
     comp_on = not comp_on
-    if not comp_on then midi_cc_all(1, 123, 0) end   -- relache l'impro
+    if not comp_on then
+      midi_cc_all(1, 123, 0)                                       -- relache l'impro (MIDI)
+      for _, v in ipairs(PLY_V) do pcall(softcut.play, v, 0) end   -- coupe NET les grains du corpus en cours (l'agent se tait vraiment)
+    end
   elseif i == 9 then
     wifi.on = not wifi.on
   elseif i == 10 then
@@ -4726,7 +4729,8 @@ function enc(n, d)
       rep_char = util.clamp(rep_char + d, 1, #REP_NAMES)      -- E3 : choisit l'entite (temps grec)
       rep_rand = false
     elseif page == 49 then
-      clone_len = util.clamp(clone_len + d * 0.1, 1.0, 3.0)   -- CLONE : longueur des grains (E3)
+      p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- CLONE (E3) : volume du MONITEUR (t'entendre)
+      pcall(function() audio.level_monitor(p_monitor) end)
     elseif page == 50 then
       p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- A2C (E3) : niveau d'ecoute de l'input
       pcall(function() audio.level_monitor(p_monitor) end)
@@ -5633,7 +5637,7 @@ function redraw()
     screen.level(4)  ; screen.rect(2, 47, 100, 2) ; screen.stroke()
     screen.level(12) ; screen.rect(2, 47, 100 * clone_sens, 2) ; screen.fill()
     -- E3 : niveau d'ecoute de l'input (meme reglage que POtO)
-    screen.level(4)  ; screen.move(2, 57) ; screen.text("E3 INPUT")
+    screen.level(4)  ; screen.move(2, 57) ; screen.text("E3 MONITEUR")
     screen.level(15) ; screen.move(90, 57) ; screen.text_right(string.format("%d%%", math.floor(p_monitor * 100)))
     if count < MIN_CORPUS then
       screen.level(12) ; screen.move(2, 64) ; screen.text("corpus vide  K3 on/off")
@@ -5651,9 +5655,9 @@ function redraw()
     screen.level(15) ; screen.move(90, 20) ; screen.text_right(string.format("%d%%", math.floor(clone_sens * 100)))
     screen.level(4)  ; screen.rect(2, 23, 100, 2) ; screen.stroke()
     screen.level(12) ; screen.rect(2, 23, 100 * clone_sens, 2) ; screen.fill()
-    -- longueur grain (E3)
-    screen.level(4)  ; screen.move(2, 34) ; screen.text("E3 LONG grain")
-    screen.level(15) ; screen.move(90, 34) ; screen.text_right(string.format("x%.1f", clone_len))
+    -- moniteur (E3) : t'entendre pendant que tu clones
+    screen.level(4)  ; screen.move(2, 34) ; screen.text("E3 MONITEUR")
+    screen.level(15) ; screen.move(90, 34) ; screen.text_right(string.format("%d%%", math.floor(p_monitor * 100)))
     -- compteur d'attaques EN DIRECT : tu vois si ca accroche ton jeu
     screen.level(clone_on and 15 or 4) ; screen.move(2, 48)
     screen.text(string.format("attaques captees: %d", #clone_cap))
