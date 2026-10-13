@@ -90,6 +90,10 @@ efx_glitch_on   = false
 efx_glitch_amt  = 0.5  -- probabilite + intensite du glitch 0..1
 efx_glitch_mode = 1    -- 1=STUTTER 2=REPEAT 3=BOTH
 EFX_GL_NAMES    = { "STUTTER", "REPEAT", "BOTH" }
+-- DELAI : echo des grains (le seul delai possible sur le son softcut de Teammate)
+efx_delay_on    = false
+efx_delay_time  = 0.4  -- 0..1 -> 120..700 ms
+efx_delay_fb    = 0.4  -- 0..1 -> nombre d'echos + decroissance
 local RECENT_MAX      = 4
 local INTERRUPT_PROB  = 0.12
 local p_sil_min  = 0.8   -- silence min avant sceller fragment (0.2-3.0s)
@@ -563,7 +567,7 @@ function companion_feed(rms, freq, centroid, flatness)
   if flatness then comp_flatness = flatness end
 end
 
-local function play_event(ev, rate_mult, mstream, pan, amp)
+local function play_event(ev, rate_mult, mstream, pan, amp, no_fx)   -- no_fx : un ECHO de delai (pas de MIDI, pas de nouvel echo)
   local vi  = ply_idx
   local v   = PLY_V[vi]
   ply_idx   = (ply_idx % #PLY_V) + 1
@@ -590,7 +594,7 @@ local function play_event(ev, rate_mult, mstream, pan, amp)
 
   if style.on then len = style.artic_len(len) end          -- STYLE : articulation (staccato/legato)
 
-  local glitch = efx_glitch_on and (math.random() < 0.2 + (efx_glitch_amt or 0) * 0.7)   -- GLITCH grain (stutter/repeat)
+  local glitch = (not no_fx) and efx_glitch_on and (math.random() < 0.2 + (efx_glitch_amt or 0) * 0.7)   -- GLITCH grain (stutter/repeat)
 
   local fade = math.max(0.010, math.min(0.050, len * 0.3))    -- fondu proportionnel a la taille du grain (plancher anti-clic)
   softcut.level_slew_time(v, fade)                            -- rampe d'amplitude : fade-IN au depart, fade-OUT a l'arret (anti-clic)
@@ -616,10 +620,12 @@ local function play_event(ev, rate_mult, mstream, pan, amp)
   local imp_note = freq_to_midi(f) or 60
   local imp_vel  = math.max(1, math.min(127, math.floor(ev.rms * 800)))
   if style.on then imp_vel = style.vel_scale(imp_vel) end   -- STYLE : ta dynamique
-  midi_note_on(mstream or 1, imp_note, imp_vel)         -- stream 1 = IMPRO ; 8 = PERU
-  if niakaby and niakaby.hear then niakaby.hear((mstream or 1) == 1 and "comp" or nil, imp_note) end  -- memoire harmonique NIAKABY (COMP = impro)
-  companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
-  if (mstream or 1) == 1 then impro_energy = math.max(impro_energy, imp_vel / 127) end   -- suivi d'enveloppe de l'impro (pour PERU src=IMPRO, continu)
+  if not no_fx then                                     -- un ECHO ne re-declenche ni MIDI ni les feeds METABO/PERU
+    midi_note_on(mstream or 1, imp_note, imp_vel)         -- stream 1 = IMPRO ; 8 = PERU
+    if niakaby and niakaby.hear then niakaby.hear((mstream or 1) == 1 and "comp" or nil, imp_note) end  -- memoire harmonique NIAKABY (COMP = impro)
+    companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
+    if (mstream or 1) == 1 then impro_energy = math.max(impro_energy, imp_vel / 127) end   -- suivi d'enveloppe de l'impro (pour PERU src=IMPRO, continu)
+  end
 
   clock.run(function()
     if glitch then                                 -- GLITCH : stutter (micro-tranche) ou repetition du grain
@@ -644,13 +650,28 @@ local function play_event(ev, rate_mult, mstream, pan, amp)
     else
       clock.sleep(math.max(0.04, len))             -- joue le grain
     end
-    midi_note_off(mstream or 1, imp_note)
+    if not no_fx then midi_note_off(mstream or 1, imp_note) end
     if ply_tokens[vi] == tok then
       softcut.level(v, 0)                          -- fade-OUT via le level slew (rampe douce, pas de coupe seche)
       clock.sleep(fade + 0.005)
       if ply_tokens[vi] == tok then softcut.play(v, 0) end   -- coupe seulement apres le fondu, si la voix n'a pas ete reprise
     end
   end)
+
+  -- DELAI : echo du grain (temps + feedback), sans MIDI ni re-echo. Agit sur le son softcut de Teammate.
+  if (not no_fx) and efx_delay_on and not glitch then
+    clock.run(function()
+      local t    = 0.12 + (efx_delay_time or 0.4) * 0.58          -- 120..700 ms
+      local reps = 1 + math.floor((efx_delay_fb or 0.4) * 4)      -- 1..5 repetitions
+      local a    = amp or 1.0
+      for _ = 1, reps do
+        clock.sleep(t)
+        a = a * (0.5 + (efx_delay_fb or 0.4) * 0.38)              -- decroissance (feedback)
+        if a < 0.06 then break end
+        play_event(ev, rate_mult, mstream, pan, a, true)         -- re-joue en echo
+      end
+    end)
+  end
 
   return len
 end
@@ -3613,7 +3634,7 @@ NAV_CATS = {
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
-  { n = "EFX",    pg = {55,56},          arm = nil },   -- 55 = reverb ; 56 = glitch (stutter/repeat)
+  { n = "EFX",    pg = {55,56,57},       arm = nil },   -- 55 reverb ; 56 glitch ; 57 delai (echo de grains)
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
@@ -3808,6 +3829,7 @@ function state_save()
       clone_len=clone_len, clone_sens=clone_sens, clone_gap=clone_gap, clone_inject=clone_inject,
       efx_rev_on=efx_rev_on, efx_amt=efx_amt, efx_time=efx_time,
       efx_glitch_on=efx_glitch_on, efx_glitch_amt=efx_glitch_amt, efx_glitch_mode=efx_glitch_mode,
+      efx_delay_on=efx_delay_on, efx_delay_time=efx_delay_time, efx_delay_fb=efx_delay_fb,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
@@ -3908,6 +3930,9 @@ function state_load()
     if st.efx_glitch_on ~= nil then efx_glitch_on = st.efx_glitch_on end
     if st.efx_glitch_amt then efx_glitch_amt = util.clamp(st.efx_glitch_amt, 0, 1) end
     if st.efx_glitch_mode then efx_glitch_mode = util.clamp(st.efx_glitch_mode, 1, #EFX_GL_NAMES) end
+    if st.efx_delay_on ~= nil then efx_delay_on = st.efx_delay_on end
+    if st.efx_delay_time then efx_delay_time = util.clamp(st.efx_delay_time, 0, 1) end
+    if st.efx_delay_fb then efx_delay_fb = util.clamp(st.efx_delay_fb, 0, 1) end
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -4612,6 +4637,8 @@ function enc(n, d)
       efx_amt = util.clamp(efx_amt + d * 0.05, 0, 1) ; efx_apply()        -- EFX : quantite de reverb
     elseif page == 56 then
       efx_glitch_amt = util.clamp(efx_glitch_amt + d * 0.05, 0, 1)        -- GLITCH : intensite
+    elseif page == 57 then
+      efx_delay_time = util.clamp(efx_delay_time + d * 0.05, 0, 1)        -- DELAI : temps
     elseif page == 26 then
       mgen_browse = util.clamp(mgen_browse + d, 0, #mgen_liked)
       if mgen_browse >= 1 and mgen_liked[mgen_browse] then mgen_load_combo(mgen_liked[mgen_browse]) end
@@ -4741,6 +4768,8 @@ function enc(n, d)
       efx_time = util.clamp(efx_time + d * 0.05, 0, 1) ; efx_apply()   -- EFX (E3) : temps/taille de reverb
     elseif page == 56 then
       efx_glitch_mode = util.clamp(efx_glitch_mode + d, 1, #EFX_GL_NAMES)  -- GLITCH (E3) : stutter/repeat/both
+    elseif page == 57 then
+      efx_delay_fb = util.clamp(efx_delay_fb + d * 0.05, 0, 1)             -- DELAI (E3) : feedback
     elseif page == 18 then
       metabolik.enc(3, d)
     elseif page == 19 then
@@ -4872,6 +4901,10 @@ function key(n, z)
   end
   if page == 56 then                                   -- EFX : glitch (stutter/repeat)
     if n == 3 then efx_glitch_on = not efx_glitch_on end           -- K3 : glitch on/off
+    redraw() ; return
+  end
+  if page == 57 then                                   -- EFX : delai (echo de grains)
+    if n == 3 then efx_delay_on = not efx_delay_on end             -- K3 : delai on/off
     redraw() ; return
   end
   if page == 38 then                                   -- MGEN : longueur + grille rythmique PAR PISTE
@@ -5297,6 +5330,22 @@ function redraw()
     screen.update() ; return
   end
   if page == 18 then metabolik.redraw() ; return end
+  if page == 57 then                                -- EFX : delai (echo de grains)
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("EFFETS  DELAI")
+    screen.level(efx_delay_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(efx_delay_on and "ON" or "off")
+    screen.level(4)  ; screen.move(2, 24) ; screen.text("E2 TEMPS")
+    screen.level(15) ; screen.move(126, 24) ; screen.text_right(string.format("%d ms", math.floor((0.12 + efx_delay_time * 0.58) * 1000)))
+    screen.level(4)  ; screen.rect(2, 27, 124, 2) ; screen.stroke()
+    screen.level(efx_delay_on and 12 or 4) ; screen.rect(2, 27, 124 * efx_delay_time, 2) ; screen.fill()
+    screen.level(4)  ; screen.move(2, 42) ; screen.text("E3 FEEDBACK")
+    screen.level(15) ; screen.move(126, 42) ; screen.text_right(string.format("%d%%  (%d x)", math.floor(efx_delay_fb * 100), 1 + math.floor(efx_delay_fb * 4)))
+    screen.level(4)  ; screen.rect(2, 45, 124, 2) ; screen.stroke()
+    screen.level(efx_delay_on and 12 or 4) ; screen.rect(2, 45, 124 * efx_delay_fb, 2) ; screen.fill()
+    screen.level(3)  ; screen.move(2, 57) ; screen.text("echo des grains de Teammate")
+    screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 delai on/off")
+    screen.update() ; return
+  end
   if page == 56 then                                -- EFX : glitch (stutter / repeat)
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("EFFETS  GLITCH")
