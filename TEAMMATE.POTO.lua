@@ -3668,7 +3668,7 @@ NAV_CATS = {
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
-  { n = "NIAKA",  pg = {22,23,24},       arm = 6  },
+  { n = "NIAKA",  pg = {22,23,24,58},    arm = 6  },   -- 58 = GATE/sustain
   { n = "PERU",   pg = {39,40,47},       arm = 11 },
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
@@ -4687,6 +4687,8 @@ function enc(n, d)
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- CLONE : sensibilite du detecteur d'attaques
     elseif page == 50 then
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- A2C : meme sensibilite d'attaque
+    elseif page == 58 then
+      if niakaby.enc_gate then niakaby.enc_gate(d) end                   -- GATE : reglage (pas de 0.05)
     elseif page >= 51 and page <= 54 then
       route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE : choisit l'appareil MIDI
     elseif page == 55 then
@@ -4817,6 +4819,8 @@ function enc(n, d)
     elseif page == 50 then
       p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- A2C (E3) : niveau d'ecoute de l'input
       pcall(function() audio.level_monitor(p_monitor) end)
+    elseif page == 58 then
+      if niakaby then niakaby.arp_gate = util.clamp((niakaby.arp_gate or 0.8) + d * 0.01, 0.05, 1.3) end  -- GATE (E3) : reglage fin
     elseif page >= 51 and page <= 54 then
       local st = page - 50                                     -- ROUTE (E3) : canal MIDI de l'appareil
       midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
@@ -5764,6 +5768,35 @@ function redraw()
       screen.text("ch " .. tostring(niaka_ch[m][d]))
     end
     screen.level(4) ; screen.move(126, 62) ; screen.text_right("K2mode K3on E3ch")
+    screen.update() ; return
+  end
+  if page == 58 then                               -- NIAKABY GATE / SUSTAIN (page dediee)
+    screen.clear() ; screen.font_size(8)
+    local g = (niakaby and niakaby.arp_gate) or 0.8
+    screen.level(15) ; screen.move(0, 8) ; screen.text("NIAKABY GATE")
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right("NIAKA 4/4")
+    -- valeur en gros
+    local lbl = (g <= 0.12) and "TRIG" or ((g >= 1.0) and "LEGATO" or (math.floor(g * 100) .. "%"))
+    screen.level(15) ; screen.move(0, 26) ; screen.text("longueur note:")
+    screen.level(15) ; screen.move(126, 26) ; screen.text_right(lbl)
+    -- barre 0.05 .. 1.3
+    local bx, bw = 2, 124
+    local frac = (g - 0.05) / (1.3 - 0.05) ; if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+    screen.level(3)  ; screen.rect(bx, 32, bw, 4) ; screen.stroke()
+    screen.level(12) ; screen.rect(bx, 32, math.floor(bw * frac), 4) ; screen.fill()
+    -- reperes TRIG / LEG
+    screen.level(5) ; screen.move(0, 44) ; screen.text("TRIG")
+    screen.level(5) ; screen.move(126, 44) ; screen.text_right("LEGATO")
+    -- explication selon la zone
+    screen.level(8) ; screen.move(0, 54)
+    if g <= 0.12 then
+      screen.text("court: TON synthe fait l'ADSR")
+    elseif g >= 1.0 then
+      screen.text("tenu: note jusqu'a la suivante")
+    else
+      screen.text("note courte, puis TA release")
+    end
+    screen.level(4) ; screen.move(126, 63) ; screen.text_right("E2 regle / E3 fin")
     screen.update() ; return
   end
   if page == 50 then
