@@ -56,6 +56,8 @@ M.last_heard     = {}    -- derniere note entendue par source (pour TONALITE INP
 M.det_scale      = "MAJOR"   -- gamme detectee (MAJEUR/MINEUR) pour INPUT/IMPRO, avec hysteresis
 M.heard_new      = false     -- une nouvelle note a ete entendue depuis le dernier pas (FOLLOW/ARP : sinon on GARDE l'accord)
 M.hold           = false      -- HOLD/GEL : ignore TOUT l'input -> NIAKABY continue de tourner sans etre influence (tu joues librement)
+M.release_t      = 0.28       -- chevauchement/release des notes sortantes (laisse l'ADSR du synthe sonner)
+M.sil_rel        = 0.45       -- silence avant de relacher l'accord en NOTE (plus long = ne coupe pas sur un micro-silence)
 
 -- progressions (AUTO/BLEND) : suites de degres (1 = tonique de la gamme MGEN)
 M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
@@ -208,7 +210,7 @@ local function play_chord(deg, oct, vel, root, sc)
       if not newset[n] then
         local off = n
         clock.run(function()
-          clock.sleep(0.12)                              -- chevauchement : la note sortante tient un peu
+          clock.sleep(M.release_t or 0.28)               -- chevauchement/release : la note sortante tient pour laisser l'ADSR du synthe sonner
           for _, cn in ipairs(cur_notes) do if cn == off then return end end   -- revenue dans l'accord : ne pas couper
           if M.note_off then M.note_off(off) end
         end)
@@ -361,7 +363,7 @@ function M.update(rms, freq, centroid, flatness, dt)
     end
   else
     sil_t = sil_t + dt
-    if sounding and sil_t > 0.18 then release() end   -- relache apres un court silence
+    if sounding and sil_t > (M.sil_rel or 0.45) then release() end   -- relache apres un silence (plus long -> pas de coupe sur micro-silence)
   end
 end
 
