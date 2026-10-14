@@ -71,9 +71,39 @@ M.hold           = false      -- HOLD/GEL : ignore TOUT l'input -> NIAKABY conti
 M.release_t      = 0.28       -- chevauchement/release des notes sortantes (laisse l'ADSR du synthe sonner)
 M.sil_rel        = 0.45       -- silence avant de relacher l'accord en NOTE (plus long = ne coupe pas sur un micro-silence)
 
--- progressions (AUTO/BLEND) : suites de degres (1 = tonique de la gamme MGEN)
-M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
-M.prog_names = { "I-V-vi-IV", "I-vi-IV-V", "I-IV-V", "vi-IV-I-V", "ii-V-I", "I-iii-IV-V", "I-IV-V" }
+-- progressions (AUTO/BLEND/ARP-CHORD) : suites de degres (1 = tonique de la gamme active).
+-- Longueurs variees (3,4,5,6,8,12) = patterns differents ; le degre s'adapte a la gamme (meme penta).
+M.progs = {
+  {1,5,6,4},                      -- POP     I-V-vi-IV
+  {6,4,1,5},                      -- POP2    vi-IV-I-V
+  {1,6,4,5},                      -- 50s     I-vi-IV-V (doo-wop)
+  {1,4,5},                        -- 3CH     I-IV-V
+  {1,5,4,5},                      -- POPV    I-V-IV-V
+  {1,4,1,5},                      -- GOSPEL  I-IV-I-V
+  {2,5,1},                        -- 251     ii-V-I (jazz)
+  {2,5,1,6},                      -- 251vi   ii-V-I-vi
+  {1,6,2,5},                      -- RHYTHM  I-vi-ii-V (rhythm changes)
+  {3,6,2,5},                      -- 3625    iii-vi-ii-V
+  {1,4,3,6,2,5},                  -- JAZZ6   I-IV-iii-vi-ii-V
+  {1,1,1,1,4,4,1,1,5,4,1,5},      -- BLUES12 blues 12 mesures
+  {1,4,1,1,4,4,1,1,5,4,1,1},      -- BLUESqk quick-change
+  {1,5,6,3,4,1,4,5},              -- CANON   Pachelbel
+  {1,7,6,5},                      -- ANDAL   i-VII-VI-V (andalou)
+  {1,6,3,7},                      -- EPIC    i-VI-III-VII
+  {1,7,6,7},                      -- EPIC2   i-VII-VI-VII
+  {1,4,7,3},                      -- MINjz   i-iv-VII-III
+  {1,6,7},                        -- MIN67   i-VI-VII
+  {6,5,4,5},                      -- viV     vi-V-IV-V
+  {1,3,4,5},                      -- I-iii   I-iii-IV-V
+  {1,2,3,4,5,6,7,1},              -- CLIMB   gamme montante
+  {1,7,6,5,4,3,2,1},              -- DESCEND run descendant
+  {1,5,2,6,3,7,4,1},              -- CIRCLE  quintes descendantes
+}
+M.prog_names = {
+  "POP","POP2","50s","3CH","POPV","GOSPEL","251","251vi","RHYTHM","3625","JAZZ6",
+  "BLUES12","BLUESqk","CANON","ANDAL","EPIC","EPIC2","MINjz","MIN67","viV","I-iii",
+  "CLIMB","DESCEND","CIRCLE",
+}
 M.prog_idx   = 1
 -- vitesse de changement d'accord (FOLLOW/AUTO/BLEND) : toutes les X beats (du lent au tres rapide ~arpege)
 M.HARM_RATE_NAMES = { "2 mes", "1 mes", "1/2", "1 tps", "1/8", "1/8T", "1/16", "1/32" }
