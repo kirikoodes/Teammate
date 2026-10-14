@@ -87,6 +87,9 @@ local sounding  = false
 local sil_t     = 0
 local since     = 0
 local prog_pos  = 1
+local pend_deg  = nil    -- degre candidat (confirmation anti-saut d'harmonique)
+local pend_oct  = 0
+local pend_cnt  = 0
 M.last_root     = nil    -- pour affichage
 
 local function scale() return M.scales[M.scale_names[M.scale_idx]] end
@@ -348,9 +351,16 @@ function M.update(rms, freq, centroid, flatness, dt)
     if m then
       local deg, oct = nearest_degree(m)
       M.last_root = M.root + oct * 12 + scale()[deg]
-      if (deg ~= cur_deg or not sounding) and since > 0.08 then   -- debounce anti-flutter
+      -- CONFIRMATION anti-saut d'harmonique : les sons forts/aigus accrochent
+      -- une harmonique une frame -> le degre saute -> ca re-declenchait et COUPAIT
+      -- la note (DSR coupee). On ne change de degre que s'il est confirme 3 frames.
+      if deg == pend_deg then pend_cnt = pend_cnt + 1
+      else pend_deg, pend_oct, pend_cnt = deg, oct, 1 end
+      local same   = (deg == cur_deg)
+      local stable = (not sounding) or same or (pend_cnt >= 3)   -- 1re note instant ; changement = ~100ms confirme
+      if ((deg ~= cur_deg) or not sounding) and stable and since > 0.08 then
         local vel = math.max(20, math.min(127, math.floor((rms or 0) * 600 + 25)))
-        play_chord(deg, oct, vel)
+        play_chord(deg, pend_oct, vel)
         since = 0
       end
     end
