@@ -452,7 +452,7 @@ function M.redraw_src()
   screen.level(4);  screen.move(2, 58);  screen.text("E3 TONALITE")
   local kftxt = M.KEY_FROM_NAMES[M.key_from]
   if M.key_from == 3 or M.key_from == 4 then kftxt = kftxt .. " " .. (M.det_scale == "MINOR" and "min" or "MAJ") end
-  screen.level(15); screen.move(86, 58); screen.text(kftxt)
+  screen.level(15); screen.move(126, 58); screen.text_right(kftxt)
   screen.level(4);  screen.move(2, 64);  screen.text("E2 sel  K3 on  K2 all")
   screen.update()
 end
