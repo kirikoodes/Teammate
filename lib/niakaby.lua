@@ -53,6 +53,7 @@ M.mgen_key = nil    -- function() return root, scale_table end : cale FOLLOW/AUT
 M.KEY_FROM_NAMES = { "MGEN", "NIAKA", "INPUT", "IMPRO" }
 M.key_from       = 1     -- 1=MGEN (defaut)
 M.last_heard     = {}    -- derniere note entendue par source (pour TONALITE INPUT/IMPRO)
+M.det_scale      = "MAJOR"   -- gamme detectee (MAJEUR/MINEUR) pour INPUT/IMPRO, avec hysteresis
 
 -- progressions (AUTO/BLEND) : suites de degres (1 = tonique de la gamme MGEN)
 M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
@@ -83,14 +84,28 @@ M.last_root     = nil    -- pour affichage
 local function scale() return M.scales[M.scale_names[M.scale_idx]] end
 
 -- tonique + gamme actives : MGEN si cale (FOLLOW/AUTO/BLEND), sinon les reglages NIAKABY (NOTE)
+-- detecte MAJEUR/MINEUR a partir du chroma entendu, relatif a la tonique pc (hysteresis)
+local function detect_scale(pc)
+  local maj = (M.chroma[(pc + 4) % 12] or 0) + (M.chroma[(pc + 9) % 12] or 0) * 0.5   -- tierce + sixte majeures
+  local min = (M.chroma[(pc + 3) % 12] or 0) + (M.chroma[(pc + 8) % 12] or 0) * 0.5   -- tierce + sixte mineures
+  if maj + min > 0.3 then                              -- assez d'evidence pour trancher
+    if      min > maj * 1.2 then M.det_scale = "MINOR"
+    elseif  maj > min * 1.2 then M.det_scale = "MAJOR" end
+  end
+  return M.scales[M.det_scale] or M.scales.MAJOR
+end
+
 local function key_now()
   local kf = M.key_from or 1
   if kf == 1 and M.mgen_key then                      -- MGEN : gamme + tonique de MGEN
     local r, sc = M.mgen_key()
     if r and type(sc) == "table" and #sc > 0 then return r, sc end
-  elseif kf == 3 or kf == 4 then                      -- INPUT / IMPRO : tonique = ce que tu joues / l'agent joue
+  elseif kf == 3 or kf == 4 then                      -- INPUT / IMPRO : tonique + MAJ/MIN detectes de la source
     local ln = M.last_heard[(kf == 3) and "input" or "comp"]
-    if ln then return M.root + ((ln - M.root) % 12), scale() end   -- classe de hauteur entendue, ramenee en registre, gamme NIAKA
+    if ln then
+      local root = M.root + ((ln - M.root) % 12)       -- classe de hauteur entendue, ramenee en registre
+      return root, detect_scale(root % 12)             -- gamme majeur/mineur detectee
+    end
   end
   return M.root, scale()                              -- NIAKA (ou fallback) : gamme + tonique propres
 end
@@ -433,9 +448,11 @@ function M.redraw_src()
     screen.level(M.src[k] and 15 or 3)
     screen.move(86, ys[i]); screen.text(M.src[k] and "[X]" or "[ ]")
   end
-  -- TONALITE (E3) : d'ou vient la cle (accords/arpege)
+  -- TONALITE (E3) : d'ou vient la cle (accords/arpege) ; + gamme detectee en INPUT/IMPRO
   screen.level(4);  screen.move(2, 58);  screen.text("E3 TONALITE")
-  screen.level(15); screen.move(86, 58); screen.text(M.KEY_FROM_NAMES[M.key_from])
+  local kftxt = M.KEY_FROM_NAMES[M.key_from]
+  if M.key_from == 3 or M.key_from == 4 then kftxt = kftxt .. " " .. (M.det_scale == "MINOR" and "min" or "MAJ") end
+  screen.level(15); screen.move(86, 58); screen.text(kftxt)
   screen.level(4);  screen.move(2, 64);  screen.text("E2 sel  K3 on  K2 all")
   screen.update()
 end
