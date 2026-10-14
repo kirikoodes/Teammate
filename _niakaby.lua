@@ -165,8 +165,9 @@ local function build_chord(deg, oct, root, sc)
   return notes
 end
 
--- liste de notes de l'arpege : l'accord deploye sur arp_oct octaves, trie ascendant (dedupe)
-local function build_arp(deg, root, sc)
+-- liste de notes de l'arpege : l'accord (degre deg, octave oct) deploye sur arp_oct octaves, trie/dedupe
+local function build_arp(deg, oct, root, sc)
+  root = root or M.root ; sc = sc or scale()
   local L = #sc
   local shape = M.CHORD_STEPS[M.chord_names[M.chord_idx]]
   local seen, notes = {}, {}
@@ -174,7 +175,7 @@ local function build_arp(deg, root, sc)
     for _, st in ipairs(shape) do
       local d   = (deg - 1) + st
       local idx = (d % L) + 1
-      local oo  = math.floor(d / L) + o
+      local oo  = math.floor(d / L) + o + (oct or 0)
       local n   = root + (M.octave + oo) * 12 + sc[idx]
       while n < 24 do n = n + 12 end ; while n > 100 do n = n - 12 end
       if not seen[n] then seen[n] = true ; notes[#notes + 1] = n end
@@ -243,35 +244,15 @@ end
 
 -- pas harmonique (appele a chaque mesure par le script principal, cale sur l'horloge)
 function M.harmonic_step(vel)
-  if not M.on or M.mode == 1 then return end   -- NOTE : gere par M.update
+  if not M.on or M.mode == 1 or M.mode == 5 then return end   -- NOTE et ARP : geres par M.update (suivi direct de la note)
   vel = vel or 78
   local root, sc = key_now() ; local L = #sc
   -- energie harmonique reellement entendue cette mesure (FOLLOW/BLEND)
   local tot = 0 ; for i = 0, 11 do tot = tot + (M.chroma[i] or 0) end
-  local newd = M.heard_new ; M.heard_new = false   -- une nouvelle note depuis le dernier pas ? (LATCH FOLLOW/ARP)
-  -- TONALITE INPUT/IMPRO : l'accord est bati DIRECTEMENT sur la note jouee (deg 1 sur ta note = reconnaissable,
-  -- progression = tes notes). Il TIENT jusqu'a ce que tu joues une autre note (la tonique suit last_heard).
+  local newd = M.heard_new ; M.heard_new = false   -- une nouvelle note depuis le dernier pas ? (LATCH FOLLOW)
+  -- TONALITE INPUT/IMPRO : l'accord est bati DIRECTEMENT sur la note jouee (deg 1 sur ta note = reconnaissable).
   local direct = (M.key_from == 3 or M.key_from == 4)
-
-  if M.mode == 5 then                            -- ARP : construit l'accord puis l'ARPEGE (pas de nappe)
-    if sounding then release() end
-    local deg
-    if direct then deg = 1                       -- accord sur TA note
-    elseif (not newd) or tot < 0.3 then deg = cur_deg or 1
-    else
-      local best, bs = cur_deg or 1, -1
-      for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
-      local cs = cur_deg and chord_score(root, sc, cur_deg) or -1
-      deg = (not cur_deg or bs > cs * 1.25) and best or cur_deg
-    end
-    if deg ~= cur_deg or root ~= (M.arp_root or -999) or not M.arp_notes then
-      M.arp_notes = build_arp(deg, root, sc) ; M.arp_i = 1 ; M.arp_bounce = 1 ; M.arp_root = root
-    end
-    cur_deg = deg
-    M.last_root = root + sc[((deg - 1) % L) + 1]
-    for i = 0, 11 do M.chroma[i] = (M.chroma[i] or 0) * 0.35 end
-    return
-  end
+  -- NB : le mode ARP (5) ne passe PAS par ici -> il suit la note jouee en direct dans M.update (comme NOTE)
 
   local deg
   local restrike = true                         -- AUTO : re-declenche a chaque mesure (progression rythmee)
@@ -316,13 +297,6 @@ end
 -- joue UNE note a la fois ; la note precedente est coupee au pas suivant (pas de nappe).
 function M.arp_tick(vel)
   if not M.on or M.mode ~= 5 then return end
-  -- TONALITE INPUT/IMPRO : suit TA note tout de suite (reconstruit l'arpege des que la tonique change)
-  if M.key_from == 3 or M.key_from == 4 then
-    local root, sc = key_now()
-    if root ~= (M.arp_root or -999) then
-      M.arp_notes = build_arp(1, root, sc) ; M.arp_i = 1 ; M.arp_bounce = 1 ; M.arp_root = root
-    end
-  end
   local notes = M.arp_notes
   if not notes or #notes == 0 then return end
   if M.arp_playing and M.note_off then M.note_off(M.arp_playing) ; M.arp_playing = nil end
@@ -351,6 +325,23 @@ function M.update(rms, freq, centroid, flatness, dt)
   dt = dt or (1/30)
   since = since + dt
   if not M.on then if sounding then release() end ; return end
+  if M.mode == 5 then                              -- ARP : suit la NOTE JOUEE en direct (meme mecanisme fiable que NOTE)
+    local active = (rms or 0) > M.thr and (freq or 0) > 30
+    if active then
+      local m = freq_to_midi(freq)
+      if m then
+        local deg, oct = nearest_degree(m)         -- degre + octave de la gamme les plus proches de ta note
+        if (deg ~= M.arp_deg or oct ~= M.arp_octd) and since > 0.08 then
+          M.arp_notes = build_arp(deg, oct, M.root, scale())   -- arpege l'accord diatonique sur TA note
+          if (M.arp_i or 1) > #M.arp_notes then M.arp_i = 1 end  -- garde la position (pas de reset brutal = pas de scission)
+          M.arp_deg = deg ; M.arp_octd = oct
+          M.last_root = M.root + oct * 12 + scale()[deg]
+          since = 0
+        end
+      end
+    end
+    return                                         -- quand tu t'arretes : l'arp TIENT le dernier accord (pas de release)
+  end
   if M.mode ~= 1 then return end   -- FOLLOW/AUTO/BLEND : gere par M.harmonic_step
   local active = (rms or 0) > M.thr and (freq or 0) > 30
   if active then
