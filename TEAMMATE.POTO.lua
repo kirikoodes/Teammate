@@ -5753,7 +5753,7 @@ function redraw()
     screen.level(6)  ; screen.move(126, 8) ; screen.text_right("E2 dev")
     screen.level(3)  ; screen.move(0, 11) ; screen.line(127, 11) ; screen.stroke()
     -- 5 modes : chacun -> actif ? + canal sur CE device
-    local ys = {22, 31, 40, 49, 58}
+    local ys = {20, 28, 36, 44, 52}
     for m = 1, 5 do
       local sel = (m == niaka_route_cur)
       local on  = niaka_on[m][d]
@@ -5763,7 +5763,7 @@ function redraw()
       screen.level(on and (sel and 15 or 10) or 3) ; screen.move(88, ys[m])
       screen.text("ch " .. tostring(niaka_ch[m][d]))
     end
-    screen.level(4) ; screen.move(126, 63) ; screen.text_right("K2mode K3on E3ch")
+    screen.level(4) ; screen.move(126, 62) ; screen.text_right("K2mode K3on E3ch")
     screen.update() ; return
   end
   if page == 50 then
