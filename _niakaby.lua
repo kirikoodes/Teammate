@@ -36,10 +36,10 @@ M.mode_names = { "NOTE", "FOLLOW", "AUTO", "BLEND", "ARP" }
 M.mode = 2          -- FOLLOW par defaut
 -- ARP (facon CHORDimist, Leestrument) : arpege l'accord deduit, PAS de nappe tenue. Direction + rythme.
 M.ARP_DIR_NAMES  = { "UP", "DOWN", "UP-DN", "RAND" }
-M.ARP_RATE_NAMES = { "1/4", "1/8", "1/8T", "1/16" }
-M.ARP_RATE       = { 1, 0.5, 1/3, 0.25 }   -- en beats (clock.sync cote script principal)
+M.ARP_RATE_NAMES = { "1/2", "1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32" }   -- vitesse : lent -> rapide
+M.ARP_RATE       = { 2, 1, 0.5, 1/3, 0.25, 1/6, 0.125 }   -- en beats (clock.sync cote script principal)
 M.arp_dir        = 1
-M.arp_rate_idx   = 2
+M.arp_rate_idx   = 3      -- 1/8 par defaut
 M.arp_oct        = 2
 M.arp_notes      = nil
 M.arp_i          = 1
@@ -348,7 +348,7 @@ function M.redraw()
   if M.mode == 5 then                          -- ARP : direction + rythme
     screen.level(4);  screen.move(2, 22);  screen.text("E2 DIR")
     screen.level(15); screen.move(74, 22); screen.text(M.ARP_DIR_NAMES[M.arp_dir])
-    screen.level(4);  screen.move(2, 32);  screen.text("E3 RYTHME")
+    screen.level(4);  screen.move(2, 32);  screen.text("E3 VITESSE")
     screen.level(15); screen.move(74, 32); screen.text(M.ARP_RATE_NAMES[M.arp_rate_idx])
   elseif M.mode == 3 or M.mode == 4 then       -- AUTO / BLEND : progression
     screen.level(4);  screen.move(2, 22);  screen.text("E2 PROG")
