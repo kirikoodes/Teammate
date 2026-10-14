@@ -195,14 +195,30 @@ end
 M.release = release
 
 local function play_chord(deg, oct, vel, root, sc)
+  local newn = build_chord(deg, oct, root, sc)
+  -- VOICE LEADING : garde les notes communes TENUES (pas de re-declenchement = plus de coupure),
+  -- ne coupe que les notes qui partent (avec un leger chevauchement = release plus longue),
+  -- ne declenche que les nouvelles notes.
+  local newset = {} ; for _, n in ipairs(newn) do newset[n] = true end
+  local oldset = {} ; for _, n in ipairs(cur_notes) do oldset[n] = true end
   if sounding and M.note_off then
-    for _, n in ipairs(cur_notes) do M.note_off(n) end
+    for _, n in ipairs(cur_notes) do
+      if not newset[n] then
+        local off = n
+        clock.run(function()
+          clock.sleep(0.12)                              -- chevauchement : la note sortante tient un peu
+          for _, cn in ipairs(cur_notes) do if cn == off then return end end   -- revenue dans l'accord : ne pas couper
+          if M.note_off then M.note_off(off) end
+        end)
+      end
+    end
   end
-  cur_notes = build_chord(deg, oct, root, sc)
   if M.note_on then
-    for _, n in ipairs(cur_notes) do M.note_on(n, vel) end
+    for _, n in ipairs(newn) do
+      if not (sounding and oldset[n]) then M.note_on(n, vel) end   -- seulement les notes vraiment nouvelles
+    end
   end
-  sounding = true ; cur_deg = deg
+  cur_notes = newn ; sounding = true ; cur_deg = deg
 end
 
 -- adequation de la triade du degre d (dans root, sc) au chroma (memoire harmonique)
