@@ -218,7 +218,7 @@ local function play_chord(deg, oct, vel, root, sc)
       if not (sounding and oldset[n]) then M.note_on(n, vel) end   -- seulement les notes vraiment nouvelles
     end
   end
-  cur_notes = newn ; sounding = true ; cur_deg = deg
+  cur_notes = newn ; sounding = true ; cur_deg = deg ; M.cur_root = root
 end
 
 -- adequation de la triade du degre d (dans root, sc) au chroma (memoire harmonique)
@@ -234,11 +234,11 @@ end
 -- une source genere une note -> nourrit la memoire harmonique (si ecoutee ; FOLLOW/BLEND)
 function M.hear(key, note)
   if type(note) ~= "number" then return end
-  if key then M.last_heard[key] = note end     -- TONALITE : garde la derniere note de chaque source
   if not M.on or M.mode == 1 then return end
-  if not key or (M.src and not M.src[key]) then return end
+  if not key or (M.src and not M.src[key]) then return end   -- SWITCH : la case SRC coupe toute l'influence de cette source
+  M.last_heard[key] = note     -- TONALITE : derniere note de la source ECOUTEE (donc coupable via SRC)
   M.chroma[note % 12] = (M.chroma[note % 12] or 0) + 1
-  M.heard_new = true     -- nouvelle note d'une source ecoutee -> autorise un changement d'accord
+  M.heard_new = true           -- nouvelle note d'une source ecoutee -> autorise un changement d'accord
 end
 
 -- pas harmonique (appele a chaque mesure par le script principal, cale sur l'horloge)
@@ -249,19 +249,23 @@ function M.harmonic_step(vel)
   -- energie harmonique reellement entendue cette mesure (FOLLOW/BLEND)
   local tot = 0 ; for i = 0, 11 do tot = tot + (M.chroma[i] or 0) end
   local newd = M.heard_new ; M.heard_new = false   -- une nouvelle note depuis le dernier pas ? (LATCH FOLLOW/ARP)
+  -- TONALITE INPUT/IMPRO : l'accord est bati DIRECTEMENT sur la note jouee (deg 1 sur ta note = reconnaissable,
+  -- progression = tes notes). Il TIENT jusqu'a ce que tu joues une autre note (la tonique suit last_heard).
+  local direct = (M.key_from == 3 or M.key_from == 4)
 
-  if M.mode == 5 then                            -- ARP : deduit l'accord (comme FOLLOW) puis l'ARPEGE (pas de nappe)
-    if sounding then release() end               -- jamais d'accord tenu en ARP
+  if M.mode == 5 then                            -- ARP : construit l'accord puis l'ARPEGE (pas de nappe)
+    if sounding then release() end
     local deg
-    if (not newd) or tot < 0.3 then deg = cur_deg or 1   -- rien de nouveau entendu -> GARDE le dernier accord
+    if direct then deg = 1                       -- accord sur TA note
+    elseif (not newd) or tot < 0.3 then deg = cur_deg or 1
     else
       local best, bs = cur_deg or 1, -1
       for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
       local cs = cur_deg and chord_score(root, sc, cur_deg) or -1
       deg = (not cur_deg or bs > cs * 1.25) and best or cur_deg
     end
-    if deg ~= cur_deg or not M.arp_notes then
-      M.arp_notes = build_arp(deg, root, sc) ; M.arp_i = 1 ; M.arp_bounce = 1
+    if deg ~= cur_deg or root ~= (M.arp_root or -999) or not M.arp_notes then
+      M.arp_notes = build_arp(deg, root, sc) ; M.arp_i = 1 ; M.arp_bounce = 1 ; M.arp_root = root
     end
     cur_deg = deg
     M.last_root = root + sc[((deg - 1) % L) + 1]
@@ -275,9 +279,11 @@ function M.harmonic_step(vel)
     local pr = M.progs[M.prog_idx]
     deg = ((pr[prog_pos] - 1) % L) + 1
     prog_pos = (prog_pos % #pr) + 1
-  elseif M.mode == 2 then                       -- FOLLOW : deduit du chroma (hysteresis)
-    restrike = false                            -- FOLLOW : pad tenu, ne re-declenche QUE si l'accord change
-    if (not newd) or tot < 0.3 then
+  elseif M.mode == 2 then                       -- FOLLOW : accord sur ta note (INPUT/IMPRO) ou deduit (MGEN)
+    restrike = false                            -- pad tenu, ne re-declenche QUE si l'accord change
+    if direct then
+      deg = 1                                    -- accord bati sur TA note (tonique = last_heard)
+    elseif (not newd) or tot < 0.3 then
       deg = cur_deg or 1                         -- rien de NOUVEAU entendu : on GARDE le dernier accord joue
     else
       local best, bs = cur_deg or 1, -1
@@ -298,8 +304,8 @@ function M.harmonic_step(vel)
       deg = (bs > math.max(as * 1.4, 1.5)) and best or auto_deg
     end
   end
-  -- ne re-declenche PAS un accord inchange (pad tenu -> ne casse pas le rythme)
-  if restrike or deg ~= cur_deg or not sounding then
+  -- ne re-declenche PAS un accord inchange (pad tenu -> ne casse pas le rythme) ; mais SI la tonique change (INPUT), rejoue
+  if restrike or deg ~= cur_deg or root ~= (M.cur_root or -999) or not sounding then
     play_chord(deg, 0, vel, root, sc)
   end
   M.last_root = root + sc[((deg - 1) % L) + 1]
@@ -310,6 +316,13 @@ end
 -- joue UNE note a la fois ; la note precedente est coupee au pas suivant (pas de nappe).
 function M.arp_tick(vel)
   if not M.on or M.mode ~= 5 then return end
+  -- TONALITE INPUT/IMPRO : suit TA note tout de suite (reconstruit l'arpege des que la tonique change)
+  if M.key_from == 3 or M.key_from == 4 then
+    local root, sc = key_now()
+    if root ~= (M.arp_root or -999) then
+      M.arp_notes = build_arp(1, root, sc) ; M.arp_i = 1 ; M.arp_bounce = 1 ; M.arp_root = root
+    end
+  end
   local notes = M.arp_notes
   if not notes or #notes == 0 then return end
   if M.arp_playing and M.note_off then M.note_off(M.arp_playing) ; M.arp_playing = nil end
