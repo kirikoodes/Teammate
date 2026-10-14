@@ -2057,7 +2057,7 @@ function a2c_fire()   -- global (limite 200 locals)
     a2c_last_slot = best.slot
     local amp = util.clamp(0.3 + (cur_rms or 0) * 4, 0.3, 1.0)   -- l'audio suit TON energie live
     clock.run(function()
-      play_event({ slot = best.slot, freq = best.freq, centroid = best.centroid,
+      play_event({ slot = best.slot, pos = best.pos, freq = best.freq, centroid = best.centroid,
                    flatness = best.flatness, duration = best.duration, rms = cur_rms or 0.1 }, 1.0, 1, nil, amp)
     end)
   end
@@ -2584,7 +2584,7 @@ function clone_echo(cap)   -- global (limite 200 locals)
         local amp0 = 0.3 + 0.7 * (e / emax)                                    -- l'audio suit TON energie
         local function voice(nf, a)                                            -- joue le grain transpose sur la freq nf
           local rate = ((best.freq or 0) > 30 and nf > 30) and util.clamp(nf / best.freq, 0.25, 4.0) or 1.0
-          play_event({ slot = best.slot, centroid = best.centroid, flatness = best.flatness, freq = nf,
+          play_event({ slot = best.slot, pos = best.pos, centroid = best.centroid, flatness = best.flatness, freq = nf,
                        duration = math.min(MAX_DUR, (best.duration or 0.2) * (clone_len or 1.6)), rms = e }, rate, 1, nil, a)
         end
         local pcs = cap[i].pcs
