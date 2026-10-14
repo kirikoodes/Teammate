@@ -35,7 +35,7 @@ M.thr  = 0.01       -- seuil de detection (mode NOTE)
 M.mode_names = { "NOTE", "FOLLOW", "AUTO", "BLEND", "ARP" }
 M.mode = 2          -- FOLLOW par defaut
 -- ARP (facon CHORDimist, Leestrument) : arpege l'accord deduit, PAS de nappe tenue. Direction + rythme.
-M.ARP_DIR_NAMES  = { "UP", "DOWN", "UP-DN", "RAND" }
+M.ARP_DIR_NAMES  = { "UP", "DOWN", "UP-DN", "RAND", "CHORD" }   -- CHORD : accords de la progression (comme AUTO) en pulse rythme
 M.ARP_RATE_NAMES = { "1/2", "1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32" }   -- vitesse : lent -> rapide
 M.ARP_RATE       = { 2, 1, 0.5, 1/3, 0.25, 1/6, 0.125 }   -- en beats (clock.sync cote script principal)
 M.arp_dir        = 1
@@ -196,7 +196,10 @@ local function release()
     for _, n in ipairs(cur_notes) do M.note_off(n) end
   end
   if M.arp_playing and M.note_off then M.note_off(M.arp_playing) end
-  M.arp_playing = nil
+  if M.arp_block and M.note_off then
+    for _, n in ipairs(M.arp_block) do M.note_off(n) end
+  end
+  M.arp_playing = nil ; M.arp_block = nil
   cur_notes = {} ; sounding = false ; cur_deg = nil
 end
 M.release = release
@@ -246,6 +249,7 @@ function M.hear(key, note)
   if not key or (M.src and not M.src[key]) then return end   -- SWITCH : la case SRC coupe toute l'influence de cette source
   M.last_heard[key] = note     -- TONALITE : derniere note de la source ECOUTEE (donc coupable via SRC)
   if M.mode == 5 then          -- ARP : construit l'arpege sur la NOTE ENTENDUE (meme chemin fiable que FOLLOW)
+    if M.arp_dir == 5 then return end   -- CHORD : avance la progression (comme AUTO), pas pilote par l'input
     local deg, oct = nearest_degree(note)
     if deg ~= M.arp_deg or oct ~= M.arp_octd then
       M.arp_notes = build_arp(deg, oct, M.root, scale())
@@ -314,6 +318,27 @@ end
 -- joue UNE note a la fois ; la note precedente est coupee au pas suivant (pas de nappe).
 function M.arp_tick(vel)
   if not M.on or M.mode ~= 5 then return end
+  -- CHORD : joue des ACCORDS (pas note par note), en suivant la progression comme AUTO,
+  -- mais re-declenches sur la grille rapide de l'arpege -> "accords par accord".
+  if M.arp_dir == 5 then
+    if M.arp_block and M.note_off then                       -- coupe l'accord precedent
+      for _, n in ipairs(M.arp_block) do M.note_off(n) end
+    end
+    local root, sc = key_now() ; local L = #sc
+    local pr = M.progs[M.prog_idx]
+    M.arp_ci = ((M.arp_ci or 0) % #pr) + 1                    -- pas suivant de la progression
+    local deg = ((pr[M.arp_ci] - 1) % L) + 1
+    local notes = build_chord(deg, 0, root, sc)
+    M.arp_block = {}
+    if M.note_on then
+      for _, n in ipairs(notes) do M.note_on(n, vel or 92) ; M.arp_block[#M.arp_block + 1] = n end
+    end
+    M.last_root = root + sc[((deg - 1) % L) + 1]
+    return
+  end
+  if M.arp_block and M.note_off then                         -- sortie de CHORD : nettoie l'accord tenu
+    for _, n in ipairs(M.arp_block) do M.note_off(n) end ; M.arp_block = nil
+  end
   local notes = M.arp_notes
   if not notes or #notes == 0 then return end
   if M.arp_playing and M.note_off then M.note_off(M.arp_playing) ; M.arp_playing = nil end
@@ -403,7 +428,12 @@ function M.redraw()
   -- accord / note courante
   screen.level(4); screen.move(2, 54); screen.text("K1 mode")
   if M.mode == 5 then
-    if M.arp_notes and M.arp_notes[1] then
+    if M.arp_dir == 5 then                       -- CHORD : montre la progression + l'accord courant
+      screen.level(15); screen.move(52, 54)
+      local pr = M.progs[M.prog_idx]
+      screen.text((M.prog_names and M.prog_names[M.prog_idx] or "") ..
+        (pr and (" " .. tostring(pr[M.arp_ci or 1] or "")) or ""))
+    elseif M.arp_notes and M.arp_notes[1] then
       screen.level(15); screen.move(52, 54)
       screen.text((M.arp_playing and (note_name(M.arp_playing) .. " ") or "") .. "(" .. #M.arp_notes .. ")")
     end
