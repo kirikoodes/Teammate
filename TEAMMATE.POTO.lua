@@ -3674,7 +3674,7 @@ NAV_CATS = {
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
   { n = "NIAKA",  pg = {22,23,24,58},    arm = 6  },   -- 58 = GATE/sustain
-  { n = "PERU",   pg = {39,40,47},       arm = 11 },
+  { n = "PERU",   pg = {39,40,47,60},    arm = 11 },   -- 60 = PERU ROUTE
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
@@ -4697,8 +4697,8 @@ function enc(n, d)
       if niakaby.enc_gate then niakaby.enc_gate(d) end                   -- GATE : reglage (pas de 0.05)
     elseif page == 59 then
       route_hub_dev = util.clamp(route_hub_dev + d, 1, 4)                 -- HUB : choisit le device
-    elseif page >= 51 and page <= 54 then
-      route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE : choisit l'appareil MIDI
+    elseif (page >= 51 and page <= 54) or page == 60 then
+      route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE/PERU : choisit l'appareil MIDI
     elseif page == 55 then
       efx_amt = util.clamp(efx_amt + d * 0.05, 0, 1) ; efx_apply()        -- EFX : quantite de reverb
     elseif page == 56 then
@@ -4832,8 +4832,8 @@ function enc(n, d)
     elseif page == 59 then
       local st = ROUTE_HUB_ST[route_hub_cur]                   -- HUB (E3) : canal de la source sur le device
       if midi_ch[st] then midi_ch[st][route_hub_dev] = util.clamp(midi_ch[st][route_hub_dev] + d, 1, 16) end
-    elseif page >= 51 and page <= 54 then
-      local st = page - 50                                     -- ROUTE (E3) : canal MIDI de l'appareil
+    elseif (page >= 51 and page <= 54) or page == 60 then
+      local st = (page == 60) and 8 or (page - 50)            -- ROUTE/PERU (E3) : canal MIDI de l'appareil
       midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
     elseif page == 55 then
       efx_time = util.clamp(efx_time + d * 0.05, 0, 1) ; efx_apply()   -- EFX (E3) : temps/taille de reverb
@@ -4973,8 +4973,8 @@ function key(n, z)
     if n == 3 then a2c_on = not a2c_on ; a2c_base = 0 ; a2c_last_t = 0 end   -- K3 : on/off
     redraw() ; return
   end
-  if page >= 51 and page <= 54 then                    -- ROUTE (IMPRO/POtO/8OS/MGEN) : K3 arme/coupe l'appareil
-    if n == 3 then local st = page - 50 ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
+  if (page >= 51 and page <= 54) or page == 60 then    -- ROUTE/PERU : K3 arme/coupe l'appareil
+    if n == 3 then local st = (page == 60) and 8 or (page - 50) ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
     redraw() ; return
   end
   if page == 59 then                                   -- HUB ROUTING central
@@ -5301,6 +5301,30 @@ end
 ---------------------------------------------------------------------
 -- ecran
 ---------------------------------------------------------------------
+-- rendu propre et unifie du routing MIDI d'une source (stream) : 4 devices par NOM,
+-- [X]/[ ] + canal, curseur = route_cur_dev. Partage par IMPRO/POtO/8OS/MGEN/PERU...
+function draw_route_page(st, label, curdev)
+  curdev = curdev or route_cur_dev
+  screen.clear() ; screen.font_size(8)
+  screen.level(15) ; screen.move(0, 8) ; screen.text((label or "?") .. " ROUTE")
+  screen.level(6)  ; screen.move(126, 8) ; screen.text_right("MIDI OUT")
+  screen.level(3)  ; screen.move(0, 11) ; screen.line(127, 11) ; screen.stroke()
+  local ys = { 22, 32, 42, 52 }
+  for d = 1, 4 do
+    local sel   = (d == curdev)
+    local on    = midi_route[st] and midi_route[st][d]
+    local dname = (midi and midi.vports and midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
+    if #dname > 11 then dname = string.sub(dname, 1, 10) .. "~" end
+    screen.level(sel and 15 or 4) ; screen.move(0, ys[d])
+    screen.text((sel and ">" or " ") .. "d" .. d .. " " .. dname)
+    screen.level(on and 15 or 3) ; screen.move(86, ys[d]) ; screen.text(on and "[X]" or "[ ]")
+    screen.level(on and (sel and 15 or 10) or 3) ; screen.move(110, ys[d])
+    screen.text("c" .. tostring((midi_ch[st] and midi_ch[st][d]) or 1))
+  end
+  screen.level(4) ; screen.move(126, 63) ; screen.text_right("E2 dev / E3 ch / K3 on")
+  screen.update()
+end
+
 function redraw()
   screen.clear()
   screen.aa(0)
@@ -5465,46 +5489,14 @@ function redraw()
     screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 reverb on/off")
     screen.update() ; return
   end
-  if page >= 51 and page <= 54 then                 -- ROUTE : routing MIDI par mode (IMPRO/POtO/8OS/MGEN)
-    local st = page - 50
-    screen.clear() ; screen.font_size(8)
-    screen.level(15) ; screen.move(2, 8) ; screen.text((ROUTE_NAMES[st] or "?") .. " ROUTE")
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("MIDI OUT")
-    local ys = {22, 33, 44, 55}
-    for d = 1, 4 do
-      local sel    = (d == route_cur_dev)
-      local routed = midi_route[st][d]
-      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
-      if #dname > 8 then dname = string.sub(dname, 1, 7) .. "~" end
-      screen.level(sel and 15 or (routed and 9 or 4))
-      screen.move(2, ys[d]) ; screen.text(string.format("%sd%d %s", sel and ">" or " ", d, dname))
-      screen.level(routed and 15 or 3)
-      screen.move(86, ys[d]) ; screen.text(routed and "[X]" or "[ ]")
-      screen.level(sel and 12 or 5)
-      screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[st][d])
-    end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
-    screen.update() ; return
+  if page >= 51 and page <= 54 then                 -- ROUTE : IMPRO/POtO/8OS/MGEN (style unifie)
+    draw_route_page(page - 50, ROUTE_NAMES[page - 50]) ; return
+  end
+  if page == 60 then                                -- PERU ROUTE (stream 8)
+    draw_route_page(8, "PERU") ; return
   end
   if page == 19 then
-    screen.clear() ; screen.font_size(8)
-    screen.level(15) ; screen.move(2, 8) ; screen.text("METABO MIDI")
-    screen.level(4)  ; screen.move(126, 8) ; screen.text_right("str6")
-    local ys = {22, 33, 44, 55}
-    for d = 1, 4 do
-      local sel    = (d == metabo_cur_dev)
-      local routed = midi_route[6][d]
-      local dname  = (midi.vports[d] and midi.vports[d].name) or ("DEV " .. d)
-      if #dname > 8 then dname = string.sub(dname, 1, 7) .. "~" end
-      screen.level(sel and 15 or (routed and 9 or 4))
-      screen.move(2, ys[d]) ; screen.text(string.format("%sd%d %s", sel and ">" or " ", d, dname))
-      screen.level(routed and 15 or 3)
-      screen.move(86, ys[d]) ; screen.text(routed and "[X]" or "[ ]")
-      screen.level(sel and 12 or 5)
-      screen.move(108, ys[d]) ; screen.text("c" .. midi_ch[6][d])
-    end
-    screen.level(4) ; screen.move(2, 63) ; screen.text("E2 dev  E3 ch  K3 route")
-    screen.update() ; return
+    draw_route_page(6, "METABO", metabo_cur_dev) ; return   -- style unifie
   end
   if page == BK_PAGE then                       -- SAMPLE BANK : gestion des jeux sur la SD
     screen.clear() ; screen.font_size(8)
