@@ -9,11 +9,20 @@
 
 local M = {}
 
-M.scale_names = {"MAJOR","MINOR","DORIC","PHRYG","HIJAZ","PENMIN","PENMAJ","HIRA","INSEN"}
+M.scale_names = {"MAJOR","MINOR","DORIC","PHRYG","HIJAZ","PENMIN","PENMAJ",
+  "HIRA","INSEN","KUMOI","IWATO","PELOG","SLENDRO","SABA","NAHAW","BYZANT"}
 M.scales = {
   MAJOR = {0,2,4,5,7,9,11}, MINOR = {0,2,3,5,7,8,10}, DORIC = {0,2,3,5,7,9,10},
   PHRYG = {0,1,3,5,7,8,10}, HIJAZ = {0,1,4,5,7,8,11},
   PENMIN = {0,3,5,7,10}, PENMAJ = {0,2,4,7,9}, HIRA = {0,2,3,7,8}, INSEN = {0,1,5,7,10},
+  -- gammes du monde (toniques) : japon, gamelan indonesien, arabo-andalou/maqam
+  KUMOI   = {0,2,3,7,9},            -- japon (kumoi)
+  IWATO   = {0,1,5,6,10},           -- japon (iwato)
+  PELOG   = {0,1,3,7,8},            -- gamelan (pelog, approx. en temperament egal)
+  SLENDRO = {0,2,5,7,9},            -- gamelan (slendro, approx.)
+  SABA    = {0,2,3,5,6,8,10},       -- arabo (maqam saba, approx. sans quarts de ton)
+  NAHAW   = {0,2,3,5,7,8,11},       -- arabo (maqam nahawand)
+  BYZANT  = {0,1,4,5,7,8,11},       -- byzantin / double harmonique (arabo-andalou)
 }
 M.scale_idx = 1     -- MAJOR par defaut (utilise en mode NOTE ; FOLLOW/AUTO/BLEND suivent MGEN)
 M.root      = 48    -- C3 (mode NOTE ; sinon tonique MGEN)
@@ -205,12 +214,19 @@ end
 -- joue UNE note d'arpege avec le GATE choisi : si gate < 1, on programme un note_off
 -- TOT (a gate*pas) -> le reste du pas laisse sonner la RELEASE de ton synthe.
 -- gate >= 1 : pas de coupe anticipee -> legato (la note tient jusqu'au pas suivant).
+-- duree d'un note_on selon le GATE : g<=0.12 = TRIG (impulsion fixe 30ms, TON synthe
+-- fait tout le reste de l'enveloppe) ; sinon fraction du pas.
+local function gate_dur(g)
+  if g <= 0.12 then return 0.03 end
+  return arp_step_sec() * g
+end
+
 local function arp_fire(note, vel)
   if M.note_on then M.note_on(note, vel or 92) end
   M.arp_playing = note
   local g = M.arp_gate or 0.8
   if g < 1.0 and M.note_off and clock and clock.run then
-    local held = note ; local dur = arp_step_sec() * g
+    local held = note ; local dur = gate_dur(g)
     clock.run(function()
       clock.sleep(dur)
       if M.arp_playing == held and M.note_off then M.note_off(held) ; M.arp_playing = nil end
@@ -226,7 +242,7 @@ local function arp_fire_block(notes, vel)
   end
   local g = M.arp_gate or 0.8
   if g < 1.0 and M.note_off and clock and clock.run then
-    local blk = M.arp_block ; local dur = arp_step_sec() * g
+    local blk = M.arp_block ; local dur = gate_dur(g)
     clock.run(function()
       clock.sleep(dur)
       if M.arp_block == blk and M.note_off then
@@ -238,7 +254,7 @@ end
 
 -- GATE/sustain reglable par l'utilisateur (page ARP : K2 maintenu + E3)
 function M.enc_gate(d)
-  M.arp_gate = util.clamp((M.arp_gate or 0.8) + d * 0.05, 0.1, 1.3)
+  M.arp_gate = util.clamp((M.arp_gate or 0.8) + d * 0.05, 0.05, 1.3)
 end
 
 local function release()
@@ -254,8 +270,38 @@ local function release()
 end
 M.release = release
 
+-- GATE pour les accords (NOTE/FOLLOW/AUTO/BLEND) : duree du note_on avant de relacher.
+-- g<=0.12 = TRIG (30ms) ; sinon fraction d'un pas d'accord (HARM_RATE) ; plafonne a 2s.
+local function chord_gate_dur(g)
+  if g <= 0.12 then return 0.03 end
+  local beats = (M.HARM_RATE and M.HARM_RATE[M.harm_rate_idx or 2]) or 4
+  local tempo = (clock and clock.tempo) or 120
+  if not tempo or tempo <= 0 then tempo = 120 end
+  return math.min(2.0, beats * 60 / tempo * g)
+end
+
 local function play_chord(deg, oct, vel, root, sc)
   local newn = build_chord(deg, oct, root, sc)
+  local g = M.arp_gate or 0.8
+  if g < 1.0 then
+    -- GATE/STAB : coupe l'accord precedent, joue le nouveau EN ENTIER, puis programme
+    -- son note_off apres gate -> c'est la RELEASE de TON synthe qui sonne ensuite.
+    if sounding and M.note_off then for _, n in ipairs(cur_notes) do M.note_off(n) end end
+    if M.note_on then for _, n in ipairs(newn) do M.note_on(n, vel) end end
+    cur_notes = newn ; sounding = true ; cur_deg = deg ; M.cur_root = root
+    if M.note_off and clock and clock.run then
+      local blk = newn ; local dur = chord_gate_dur(g)
+      clock.run(function()
+        clock.sleep(dur)
+        if cur_notes == blk and M.note_off then
+          for _, n in ipairs(blk) do M.note_off(n) end
+          cur_notes = {} ; sounding = false ; cur_deg = nil
+        end
+      end)
+    end
+    return
+  end
+  -- LEG (gate >= 1) : comportement d'origine (pad tenu, voice leading).
   -- VOICE LEADING : garde les notes communes TENUES (pas de re-declenchement = plus de coupure),
   -- ne coupe que les notes qui partent (avec un leger chevauchement = release plus longue),
   -- ne declenche que les nouvelles notes.
@@ -302,21 +348,12 @@ function M.hear(key, note)
     if M.arp_dir == 5 then return end   -- CHORD : avance la progression (comme AUTO), pas pilote par l'input
     local deg, oct = nearest_degree(note)
     if deg ~= M.arp_deg or oct ~= M.arp_octd then
+      -- On NE COUPE PAS la note en cours : elle FINIT proprement (son gate), puis l'arp
+      -- enchaine sur le nouvel accord au pas suivant, depuis la fondamentale (arp_i=1).
       M.arp_notes = build_arp(deg, oct, M.root, scale())
-      M.arp_i = 1                                   -- repart du debut (reponse immediate, pas de fin de cycle a attendre)
+      M.arp_i = 1
       M.arp_deg = deg ; M.arp_octd = oct
       M.last_root = M.root + oct * 12 + scale()[deg]
-      -- REPONSE IMMEDIATE : l'arp attendait le prochain pas de grille (jusqu'a ~250ms
-      -- = "temps d'adaptation"). On joue TOUT DE SUITE la 1re note du nouvel accord.
-      -- Anti-rebond 60ms : une attaque de synthe qui fait vaciller la hauteur ne
-      -- doit pas re-declencher en rafale.
-      local now = (util and util.time and util.time()) or 0
-      if M.arp_notes[1] and (now - (M.arp_imm_t or 0) > 0.06) then
-        if M.arp_playing and M.note_off then M.note_off(M.arp_playing) end
-        arp_fire(M.arp_notes[1], 96)                -- reponse immediate, avec le GATE choisi
-        M.arp_i = (#M.arp_notes > 1) and 2 or 1     -- le prochain pas de grille enchaine
-        M.arp_imm_t = now
-      end
     end
     return
   end
@@ -484,15 +521,14 @@ function M.redraw()
     screen.level(4);  screen.move(2, 32);  screen.text("E3 OCT")
     screen.level(15); screen.move(74, 32); screen.text(string.format("%+d", M.octave))
   end
-  if M.mode == 5 then                           -- ARP : K2 accord (abrege) + GATE/sustain (K2 maintenu + E3)
-    screen.level(4);  screen.move(2, 42);  screen.text("K2")
-    screen.level(15); screen.move(20, 42); screen.text(M.chord_names[M.chord_idx])
+  -- K2 accord (abrege) + GATE/sustain (K2 maintenu + E3) : affiche dans TOUS les modes
+  screen.level(4);  screen.move(2, 42);  screen.text("K2")
+  screen.level(15); screen.move(20, 42); screen.text(M.chord_names[M.chord_idx])
+  do
     local g = M.arp_gate or 0.8
     screen.level(4);  screen.move(66, 42);  screen.text("GATE")
-    screen.level(15); screen.move(126, 42); screen.text_right((g >= 1.0) and "LEG" or (math.floor(g * 100) .. "%"))
-  else
-    screen.level(4);  screen.move(2, 42);  screen.text("K2 ACCORD")
-    screen.level(15); screen.move(74, 42); screen.text(M.chord_names[M.chord_idx])
+    screen.level(15); screen.move(126, 42)
+    screen.text_right((g <= 0.12) and "TRIG" or ((g >= 1.0) and "LEG" or (math.floor(g * 100) .. "%")))
   end
 
   -- accord / note courante
