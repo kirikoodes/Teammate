@@ -62,8 +62,8 @@ M.arp_gate       = 0.8    -- GATE/SUSTAIN de l'arp (fraction du pas) : <1 = NIAK
 M.chroma = {} ; for _i = 0, 11 do M.chroma[_i] = 0 end
 M.mgen_key = nil    -- function() return root, scale_table end : cale FOLLOW/AUTO/BLEND sur la gamme+tonique de MGEN
 -- TONALITE : d'ou vient la tonique (FOLLOW/AUTO/BLEND/ARP). MGEN, la gamme propre NIAKA, ton INPUT, ou l'IMPRO.
-M.KEY_FROM_NAMES = { "MGEN", "NIAKA", "INPUT", "IMPRO" }
-M.key_from       = 1     -- 1=MGEN (defaut)
+M.KEY_FROM_NAMES = { "AUTO", "MGEN", "NIAKA", "INPUT", "IMPRO" }
+M.key_from       = 1     -- 1=AUTO (suit la source COCHEE dans SRC : MGEN si coche, sinon INPUT/COMP, sinon NIAKA)
 M.last_heard     = {}    -- derniere note entendue par source (pour TONALITE INPUT/IMPRO)
 M.det_scale      = "MAJOR"   -- gamme detectee (MAJEUR/MINEUR) pour INPUT/IMPRO, avec hysteresis
 M.heard_new      = false     -- une nouvelle note a ete entendue depuis le dernier pas (FOLLOW/ARP : sinon on GARDE l'accord)
@@ -118,19 +118,31 @@ local function detect_scale(pc)
   return M.scales[M.det_scale] or M.scales.MAJOR
 end
 
+-- tonique + gamme a partir d'une note entendue d'une source (classe de hauteur + maj/min detecte)
+local function key_from_heard(ln)
+  local root = M.root + ((ln - M.root) % 12)
+  return root, detect_scale(root % 12)
+end
+
 local function key_now()
   local kf = M.key_from or 1
-  if kf == 1 and M.mgen_key then                      -- MGEN : gamme + tonique de MGEN
+  if kf == 1 then                                     -- AUTO : suit la SOURCE COCHEE (SRC)
+    local s = M.src or {}
+    if s.mgen and M.mgen_key then                     -- MGEN coche + en train de jouer -> clef de MGEN
+      local r, sc = M.mgen_key()
+      if r and type(sc) == "table" and #sc > 0 then return r, sc end
+    end
+    if s.input and M.last_heard.input then return key_from_heard(M.last_heard.input) end
+    if s.comp  and M.last_heard.comp  then return key_from_heard(M.last_heard.comp)  end
+    return M.root, scale()                            -- rien de coche/entendu -> NIAKA
+  elseif kf == 2 and M.mgen_key then                  -- MGEN force
     local r, sc = M.mgen_key()
     if r and type(sc) == "table" and #sc > 0 then return r, sc end
-  elseif kf == 3 or kf == 4 then                      -- INPUT / IMPRO : tonique + MAJ/MIN detectes de la source
-    local ln = M.last_heard[(kf == 3) and "input" or "comp"]
-    if ln then
-      local root = M.root + ((ln - M.root) % 12)       -- classe de hauteur entendue, ramenee en registre
-      return root, detect_scale(root % 12)             -- gamme majeur/mineur detectee
-    end
+  elseif kf == 4 or kf == 5 then                      -- INPUT / IMPRO force
+    local ln = M.last_heard[(kf == 4) and "input" or "comp"]
+    if ln then return key_from_heard(ln) end
   end
-  return M.root, scale()                              -- NIAKA (ou fallback) : gamme + tonique propres
+  return M.root, scale()                              -- NIAKA (kf==3) ou fallback
 end
 
 local function freq_to_midi(f)
@@ -138,13 +150,14 @@ local function freq_to_midi(f)
   return math.floor(69 + 12 * math.log(f / 440) / math.log(2) + 0.5)
 end
 
--- degre de gamme + octave le plus proche d'une note MIDI (mode NOTE)
-local function nearest_degree(note)
-  local sc = scale() ; local L = #sc
+-- degre de gamme + octave le plus proche d'une note MIDI, dans une tonalite (root, sc).
+-- Par defaut la gamme NIAKA ; en ARP on passe la tonalite RESOLUE (key_now) pour suivre la source.
+local function nearest_degree(note, root, sc)
+  root = root or M.root ; sc = sc or scale() ; local L = #sc
   local best, bestd, bestoct = 1, 999, 0
   for o = -3, 4 do
     for i = 1, L do
-      local cand = M.root + o * 12 + sc[i]
+      local cand = root + o * 12 + sc[i]
       local dd = math.abs(cand - note)
       if dd < bestd then bestd = dd ; best = i ; bestoct = o end
     end
@@ -346,14 +359,15 @@ function M.hear(key, note)
   M.last_heard[key] = note     -- TONALITE : derniere note de la source ECOUTEE (donc coupable via SRC)
   if M.mode == 5 then          -- ARP : construit l'arpege sur la NOTE ENTENDUE (meme chemin fiable que FOLLOW)
     if M.arp_dir == 5 then return end   -- CHORD : avance la progression (comme AUTO), pas pilote par l'input
-    local deg, oct = nearest_degree(note)
+    local r, sc = key_now()             -- tonalite RESOLUE (AUTO -> suit la source cochee, ex. MGEN)
+    local deg, oct = nearest_degree(note, r, sc)
     if deg ~= M.arp_deg or oct ~= M.arp_octd then
       -- On NE COUPE PAS la note en cours : elle FINIT proprement (son gate), puis l'arp
       -- enchaine sur le nouvel accord au pas suivant, depuis la fondamentale (arp_i=1).
-      M.arp_notes = build_arp(deg, oct, M.root, scale())
+      M.arp_notes = build_arp(deg, oct, r, sc)
       M.arp_i = 1
       M.arp_deg = deg ; M.arp_octd = oct
-      M.last_root = M.root + oct * 12 + scale()[deg]
+      M.last_root = r + oct * 12 + sc[deg]
     end
     return
   end
@@ -369,8 +383,8 @@ function M.harmonic_step(vel)
   -- energie harmonique reellement entendue cette mesure (FOLLOW/BLEND)
   local tot = 0 ; for i = 0, 11 do tot = tot + (M.chroma[i] or 0) end
   local newd = M.heard_new ; M.heard_new = false   -- une nouvelle note depuis le dernier pas ? (LATCH FOLLOW)
-  -- TONALITE INPUT/IMPRO : l'accord est bati DIRECTEMENT sur la note jouee (deg 1 sur ta note = reconnaissable).
-  local direct = (M.key_from == 3 or M.key_from == 4)
+  -- TONALITE INPUT/IMPRO (forcee) : l'accord est bati DIRECTEMENT sur la note jouee (deg 1 = reconnaissable).
+  local direct = (M.key_from == 4 or M.key_from == 5)
   -- NB : le mode ARP (5) ne passe PAS par ici -> il suit la note jouee en direct dans M.update (comme NOTE)
 
   local deg
@@ -630,7 +644,7 @@ function M.redraw_src()
   -- TONALITE (E3) : d'ou vient la cle (accords/arpege) ; + gamme detectee en INPUT/IMPRO
   screen.level(4);  screen.move(2, 58);  screen.text("E3 TONALITE")
   local kftxt = M.KEY_FROM_NAMES[M.key_from]
-  if M.key_from == 3 or M.key_from == 4 then kftxt = kftxt .. " " .. (M.det_scale == "MINOR" and "min" or "MAJ") end
+  if M.key_from == 4 or M.key_from == 5 then kftxt = kftxt .. " " .. (M.det_scale == "MINOR" and "min" or "MAJ") end
   screen.level(15); screen.move(126, 58); screen.text_right(kftxt)
   screen.level(4);  screen.move(2, 64);  screen.text("E2 sel  K3 src")
   screen.level(M.hold and 15 or 5);  screen.move(126, 64);  screen.text_right("K2 HOLD " .. (M.hold and "ON" or "off"))
