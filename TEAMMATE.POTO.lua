@@ -3126,6 +3126,7 @@ peru_energy = 0             -- enveloppe : PIC a chaque collision (selon la forc
 peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=0.5}, {src=2, amt=1.0}, {src=3, amt=0.5}, {src=3, amt=1.0}, {src=4, amt=0.5}, {src=4, amt=1.0} }
 peru_rmode  = 1
 peru_k2_down = false ; peru_k2_moved = false   -- K2 maintenu sur PERU = shift (E3 -> threshold SAMT)
+niak_k2_down = false ; niak_k2_moved = false   -- K2 maintenu sur NIAKABY = shift (E3 -> GATE/sustain arp)
 PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 100%", "SM 50%", "SM 100%" }
 
 function peru_add(slot)
@@ -3837,7 +3838,7 @@ function state_save()
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
       m_react=metabolik.react, m_infl=metabolik.influence_idx,
       n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
-      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx, n_keyfrom=niakaby.key_from, n_harm=niakaby.harm_rate_idx,
+      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx, n_keyfrom=niakaby.key_from, n_harm=niakaby.harm_rate_idx, n_arpgate=niakaby.arp_gate,
     }
     tab.save(st, norns.state.data .. "state.data")
   end)
@@ -3957,6 +3958,7 @@ function state_load()
     niakaby.mode=g(st.n_mode,niakaby.mode) ; niakaby.prog_idx=g(st.n_prog,niakaby.prog_idx)
     niakaby.arp_dir=g(st.n_arpdir,niakaby.arp_dir) ; niakaby.arp_rate_idx=g(st.n_arprate,niakaby.arp_rate_idx)
     niakaby.key_from=g(st.n_keyfrom,niakaby.key_from) ; niakaby.harm_rate_idx=g(st.n_harm,niakaby.harm_rate_idx)
+    niakaby.arp_gate=g(st.n_arpgate,niakaby.arp_gate)
     if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
   end)
 end
@@ -4790,7 +4792,8 @@ function enc(n, d)
     elseif page == 21 then
       metabolik.enc_feed(3, d)
     elseif page == 22 then
-      niakaby.enc(3, d)
+      if niak_k2_down and niakaby.enc_gate then niakaby.enc_gate(d) ; niak_k2_moved = true   -- K2 maintenu : GATE/sustain
+      else niakaby.enc(3, d) end
     elseif page == 23 then
       midi_ch[7][niaka_cur_dev] = util.clamp(midi_ch[7][niaka_cur_dev] + d, 1, 16)
     elseif page == 24 then
@@ -4860,6 +4863,11 @@ function key(n, z)
   if page == TB_PAGE and n == 1 then        -- TRIG BANK : K1 tap = test ; maintenu + E3 = sensibilite
     if z == 1 then tb_k1_down = true ; tb_k1_moved = false
     else tb_k1_down = false ; if not tb_k1_moved and tb_nodes[tb_node_cur] then tb_fire(tb_nodes[tb_node_cur]) end end
+    redraw() ; return
+  end
+  if page == 22 and n == 2 then             -- NIAKABY : K2 tap = type d'accord ; maintenu + E3 = GATE/sustain
+    if z == 1 then niak_k2_down = true ; niak_k2_moved = false
+    else niak_k2_down = false ; if not niak_k2_moved then niakaby.key(2) end end
     redraw() ; return
   end
   if z == 0 then return end
