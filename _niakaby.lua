@@ -253,9 +253,21 @@ function M.hear(key, note)
     local deg, oct = nearest_degree(note)
     if deg ~= M.arp_deg or oct ~= M.arp_octd then
       M.arp_notes = build_arp(deg, oct, M.root, scale())
-      if (M.arp_i or 1) > #M.arp_notes then M.arp_i = 1 end
+      M.arp_i = 1                                   -- repart du debut (reponse immediate, pas de fin de cycle a attendre)
       M.arp_deg = deg ; M.arp_octd = oct
       M.last_root = M.root + oct * 12 + scale()[deg]
+      -- REPONSE IMMEDIATE : l'arp attendait le prochain pas de grille (jusqu'a ~250ms
+      -- = "temps d'adaptation"). On joue TOUT DE SUITE la 1re note du nouvel accord.
+      -- Anti-rebond 60ms : une attaque de synthe qui fait vaciller la hauteur ne
+      -- doit pas re-declencher en rafale.
+      local now = (util and util.time and util.time()) or 0
+      if M.arp_notes[1] and (now - (M.arp_imm_t or 0) > 0.06) then
+        if M.arp_playing and M.note_off then M.note_off(M.arp_playing) end
+        if M.note_on then M.note_on(M.arp_notes[1], 96) end
+        M.arp_playing = M.arp_notes[1]
+        M.arp_i = (#M.arp_notes > 1) and 2 or 1     -- le prochain pas de grille enchaine
+        M.arp_imm_t = now
+      end
     end
     return
   end
