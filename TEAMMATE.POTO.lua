@@ -90,6 +90,9 @@ lc_len       = 0       -- duree enregistree (s)
 lc_feat      = {}      -- timeline features pendant le REC : {t,rms,freq,ctr,flat}
 lc_frag_n    = 0       -- nb de grains du dernier FRAG (affichage)
 grain_fade   = 0.020   -- fondu in/out par grain (anti-clic), reglable (page LONG CAP)
+corpus_long_mode = false  -- MODE CORPUS : true = LONG (coupe la capture auto grain-par-grain
+                          -- pour ne pas ecraser les grains du FRAG) ; false = GRAIN (capture auto normale).
+                          -- Le FRAG l'active automatiquement. Reglable page LONG CAP (E3).
 -- ===== EFX : menu EFFETS (reverb integree Norns ; delai/glitch SC a venir) =====
 efx_rev_on     = false
 efx_amt        = 0.55  -- quantite de reverb (niveau de retour)
@@ -547,6 +550,7 @@ function lc_frag48()
     }
   end
   count = N ; head = 1 ; last_slot = 0 ; lc_frag_n = N
+  corpus_long_mode = true   -- protege le corpus fragmente : coupe la capture auto grain-par-grain
   return N
 end
 
@@ -2347,7 +2351,7 @@ local function on_centroid(v) cur_centroid = v end
 local function on_flatness(v) cur_flatness = v end
 
 local function process_gate(new_gate)
-  if lc_recording then return end   -- LONG CAPTURE en cours : pas de capture grain-par-grain
+  if lc_recording or corpus_long_mode then return end   -- LONG : pas de capture auto grain-par-grain (protege le FRAG)
   if new_gate > 0.5 and cur_gate < 0.5 and not rec_on and state ~= "REST" then
     last_sound_t = util.time()
     if clone_on then
@@ -3947,7 +3951,7 @@ function state_save()
       efx_rev_on=efx_rev_on, efx_amt=efx_amt, efx_time=efx_time,
       efx_glitch_on=efx_glitch_on, efx_glitch_amt=efx_glitch_amt, efx_glitch_mode=efx_glitch_mode,
       efx_delay_on=efx_delay_on, efx_delay_time=efx_delay_time, efx_delay_fb=efx_delay_fb,
-      grain_fade=grain_fade,
+      grain_fade=grain_fade, corpus_long_mode=corpus_long_mode,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
@@ -4053,6 +4057,7 @@ function state_load()
     if st.efx_delay_time then efx_delay_time = util.clamp(st.efx_delay_time, 0, 1) end
     if st.efx_delay_fb then efx_delay_fb = util.clamp(st.efx_delay_fb, 0, 1) end
     if st.grain_fade then grain_fade = util.clamp(st.grain_fade, 0.002, 0.120) end
+    if st.corpus_long_mode ~= nil then corpus_long_mode = st.corpus_long_mode end
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -4914,6 +4919,8 @@ function enc(n, d)
     elseif page == 50 then
       p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- A2C (E3) : niveau d'ecoute de l'input
       pcall(function() audio.level_monitor(p_monitor) end)
+    elseif page == 61 then
+      if d > 0 then corpus_long_mode = true elseif d < 0 then corpus_long_mode = false end  -- E3 : MODE GRAIN/LONG
     elseif page == 58 then
       if niakaby then niakaby.arp_gate = util.clamp((niakaby.arp_gate or 0.8) + d * 0.01, 0.05, 1.3) end  -- GATE (E3) : reglage fin
     elseif page == 59 then
@@ -5964,10 +5971,14 @@ function redraw()
     -- FADE
     screen.level(4) ; screen.move(2, 46) ; screen.text("E2 FADE")
     screen.level(15) ; screen.move(126, 46) ; screen.text_right(string.format("%d ms", math.floor((grain_fade or 0.02) * 1000 + 0.5)))
-    screen.level(4) ; screen.rect(2, 49, 100, 2) ; screen.stroke()
-    screen.level(12) ; screen.rect(2, 49, 100 * util.clamp((grain_fade or 0.02) / 0.120, 0, 1), 2) ; screen.fill()
-    screen.level(8) ; screen.move(2, 62)
-    screen.text(lc_recording and "enregistre... K3 stop" or "REC long, STOP, puis FRAG")
+    screen.level(4) ; screen.rect(2, 49, 60, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 49, 60 * util.clamp((grain_fade or 0.02) / 0.120, 0, 1), 2) ; screen.fill()
+    -- MODE CORPUS : LONG (capture auto grain coupee) ou GRAIN (capture auto normale)
+    screen.level(4) ; screen.move(2, 57) ; screen.text("E3 MODE")
+    screen.level(corpus_long_mode and 15 or 10) ; screen.move(126, 57)
+    screen.text_right(corpus_long_mode and "LONG" or "GRAIN")
+    screen.level(8) ; screen.move(2, 64)
+    screen.text(lc_recording and "enregistre... K3 stop" or (corpus_long_mode and "grain auto OFF (protege)" or "REC, STOP, FRAG"))
     screen.update() ; return
   end
   if page == 49 then
