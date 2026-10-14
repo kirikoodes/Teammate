@@ -391,11 +391,18 @@ metabo_cur_dev = 1                              -- device selectionne (page 19 M
 midi_route[7] = {false, false, false, false}   -- NIAKABY = stream 7 (accords MIDI) [ancien routage global, remplace par le routage par mode ci-dessous]
 midi_ch[7]    = {7, 7, 7, 7}                    -- canal NIAKABY par device
 niaka_cur_dev = 1                               -- device selectionne (page 23 NIAKABY MIDI ; global)
--- NIAKABY : routage PAR MODE (NOTE/FOLLOW/AUTO/BLEND/ARP) -> chaque mode vers UN device + UN canal.
-niaka_mode_dev    = {1, 1, 1, 1, 1}            -- device 1..4 par mode
-niaka_mode_ch     = {7, 7, 7, 7, 7}            -- canal 1..16 par mode
-niaka_mode_on     = {false, false, false, false, false}  -- routage actif par mode (defaut off = silencieux tant que non regle)
-niaka_route_cur   = 1                          -- mode en cours d'edition (page 23)
+-- NIAKABY : routage PAR MODE, MULTI-DESTINATIONS. Pour chaque mode (NOTE/FOLLOW/AUTO/
+-- BLEND/ARP) et chaque device (1-4), un masque de 16 canaux : un mode peut sortir sur
+-- plusieurs device ET plusieurs canaux a la fois (ex. BLEND -> d1/ch1 + d1/ch2 + d3/ch10).
+niaka_route = {}
+for _m = 1, 5 do niaka_route[_m] = {}
+  for _d = 1, 4 do niaka_route[_m][_d] = {}
+    for _c = 1, 16 do niaka_route[_m][_d][_c] = false end
+  end
+end
+niaka_route_cur = 1    -- mode en cours d'edition (page 23)
+niaka_route_dev = 1    -- device en cours d'edition
+niaka_route_ch  = 1    -- curseur canal (1-16)
 midi_route[8] = {false, false, false, false}   -- PERU = stream 8 (grains gravitationnels)
 midi_ch[8]    = {8, 8, 8, 8}                    -- canal PERU par device
 peru_cur_dev  = 1                               -- device selectionne (page PERU MIDI)
@@ -484,15 +491,23 @@ local function midi_note_on(stream, note, vel)
   if stream_energy and stream_energy[stream] then   -- suit l'activite du mode (meme sans device MIDI) -> source CC/OSC
     stream_energy[stream] = math.max(stream_energy[stream], (vel or 0) / 127)
   end
-  -- NIAKABY (stream 7) : routage PAR MODE -> un seul device + canal, choisi par le mode courant.
+  -- NIAKABY (stream 7) : routage MULTI-DESTINATIONS selon le mode courant -> tous les
+  -- (device, canal) actives pour ce mode.
   if stream == 7 then
     local m   = (niakaby and niakaby.mode) or 1
-    if not niaka_mode_on[m] then return end
-    local out = midi_outs[niaka_mode_dev[m] or 1]
-    if not out then return end
-    local ch  = niaka_mode_ch[m] or 7
-    if rep_on then rep_fire({ { out = out, ch = ch } }, note, vel) ; return end
-    out:note_on(note, vel, ch) ; return
+    local msk = niaka_route[m]
+    if not msk then return end
+    local list = {}
+    for d = 1, 4 do
+      local out = midi_outs[d]
+      if out and msk[d] then
+        for c = 1, 16 do if msk[d][c] then list[#list + 1] = { out = out, ch = c } end end
+      end
+    end
+    if #list == 0 then return end
+    if rep_on then rep_fire(list, note, vel) ; return end
+    for _, t in ipairs(list) do t.out:note_on(note, vel, t.ch) end
+    return
   end
   if rep_on then                                    -- REPETITEUR : roule la note (tous les channels)
     local list = {}
@@ -507,15 +522,16 @@ local function midi_note_on(stream, note, vel)
 end
 local function midi_note_off(stream, note)
   if stream == 7 then
-    -- NIAKABY : envoie le note_off sur TOUS les device/canaux que les modes peuvent utiliser
+    -- NIAKABY : note_off sur TOUS les (device, canal) actives de TOUS les modes
     -- (evite les notes bloquees si on change de mode pendant qu'une note sonne).
-    local seen = {}
-    for m = 1, 5 do
-      local out = midi_outs[niaka_mode_dev[m] or 1]
+    for d = 1, 4 do
+      local out = midi_outs[d]
       if out then
-        local ch = niaka_mode_ch[m] or 7
-        local kk = tostring(niaka_mode_dev[m]) .. ":" .. tostring(ch)
-        if not seen[kk] then seen[kk] = true ; out:note_off(note, 0, ch) end
+        local on = {}
+        for m = 1, 5 do local msk = niaka_route[m] and niaka_route[m][d]
+          if msk then for c = 1, 16 do if msk[c] then on[c] = true end end end
+        end
+        for c = 1, 16 do if on[c] then out:note_off(note, 0, c) end end
       end
     end
     return
@@ -3861,7 +3877,7 @@ function state_save()
       efx_glitch_on=efx_glitch_on, efx_glitch_amt=efx_glitch_amt, efx_glitch_mode=efx_glitch_mode,
       efx_delay_on=efx_delay_on, efx_delay_time=efx_delay_time, efx_delay_fb=efx_delay_fb,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
-      niaka_mode_dev=niaka_mode_dev, niaka_mode_ch=niaka_mode_ch, niaka_mode_on=niaka_mode_on,
+      niaka_route=niaka_route,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
       m_scale=metabolik.scale_idx, m_oct=metabolik.octave, m_dens=metabolik.density_idx,
@@ -3977,9 +3993,10 @@ function state_load()
     if type(st.midi_ch)=="table" then for s=1,8 do if type(st.midi_ch[s])=="table" and midi_ch[s] then
       for d=1,4 do if st.midi_ch[s][d] then midi_ch[s][d]=st.midi_ch[s][d] end end end end end
     if type(st.midi_ch_audio)=="table" then for d=1,4 do if st.midi_ch_audio[d] then midi_ch_audio[d]=st.midi_ch_audio[d] end end end
-    if type(st.niaka_mode_dev)=="table" then for m=1,5 do if st.niaka_mode_dev[m] then niaka_mode_dev[m]=st.niaka_mode_dev[m] end end end
-    if type(st.niaka_mode_ch)=="table"  then for m=1,5 do if st.niaka_mode_ch[m]  then niaka_mode_ch[m] =st.niaka_mode_ch[m]  end end end
-    if type(st.niaka_mode_on)=="table"  then for m=1,5 do if st.niaka_mode_on[m]~=nil then niaka_mode_on[m]=st.niaka_mode_on[m] end end end
+    if type(st.niaka_route)=="table" then for m=1,5 do if type(st.niaka_route[m])=="table" then
+      for d=1,4 do if type(st.niaka_route[m][d])=="table" then
+        for c=1,16 do if st.niaka_route[m][d][c]~=nil then niaka_route[m][d][c]=st.niaka_route[m][d][c] end end
+      end end end end end
     meta_mgen_drive=g(st.meta_drive,meta_mgen_drive) ; meta_mgen_scope=g(st.meta_scope,meta_mgen_scope) ; meta_note_inf=g(st.meta_note,meta_note_inf)
     spat.mode=g(st.spat_mode,spat.mode) ; spat.mass=g(st.spat_mass,spat.mass) ; spat.tempo=g(st.spat_tempo,spat.tempo)
     metabolik.scale_idx=g(st.m_scale,metabolik.scale_idx) ; metabolik.octave=g(st.m_oct,metabolik.octave)
@@ -4828,7 +4845,7 @@ function enc(n, d)
       if niak_k2_down and niakaby.enc_gate then niakaby.enc_gate(d) ; niak_k2_moved = true   -- K2 maintenu : GATE/sustain
       else niakaby.enc(3, d) end
     elseif page == 23 then
-      niaka_mode_ch[niaka_route_cur] = util.clamp(niaka_mode_ch[niaka_route_cur] + d, 1, 16)   -- E3 : canal du mode
+      niaka_route_ch = util.clamp(niaka_route_ch + d, 1, 16)   -- E3 : curseur canal (1-16)
     elseif page == 24 then
       niakaby.enc_src(3, d)
     elseif page == TB_PAGE then
@@ -4909,9 +4926,11 @@ function key(n, z)
   if page == 21 then metabolik.key_feed(n) ; redraw() ; return end
   if page == 22 then niakaby.key(n) ; redraw() ; return end
   if page == 23 then
-    local m = niaka_route_cur
-    if n == 2 then niaka_mode_dev[m] = (niaka_mode_dev[m] % 4) + 1        -- K2 : device du mode (1..4)
-    elseif n == 3 then niaka_mode_on[m] = not niaka_mode_on[m] end        -- K3 : routage on/off du mode
+    if n == 2 then niaka_route_dev = (niaka_route_dev % 4) + 1             -- K2 : device en cours d'edition (1..4)
+    elseif n == 3 then                                                     -- K3 : active/coupe (mode, device, canal au curseur)
+      local msk = niaka_route[niaka_route_cur][niaka_route_dev]
+      msk[niaka_route_ch] = not msk[niaka_route_ch]
+    end
     redraw() ; return
   end
   if page == 24 then niakaby.key_src(n) ; redraw() ; return end
@@ -5729,6 +5748,35 @@ function redraw()
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
   if page == 24 then niakaby.redraw_src() ; return end
+  if page == 23 then                               -- NIAKABY ROUTING (page dediee, multi-destinations)
+    screen.clear() ; screen.font_size(8)
+    local mn = (niakaby and niakaby.mode_names) or {"NOTE","FOLLOW","AUTO","BLEND","ARP"}
+    screen.level(15) ; screen.move(0, 8) ; screen.text("NIAKABY ROUTE")
+    screen.level(8)  ; screen.move(126, 8) ; screen.text_right("NIAKA 2/3")
+    -- selecteurs mode + device
+    screen.level(15) ; screen.move(0, 19) ; screen.text("MODE " .. (mn[niaka_route_cur] or "?"))
+    screen.level(15) ; screen.move(86, 19) ; screen.text("DEV d" .. niaka_route_dev)
+    -- total de destinations actives pour ce mode (tous devices) -> l'utilisateur voit s'il sort
+    local tot = 0
+    for d = 1, 4 do local msk = niaka_route[niaka_route_cur][d]
+      if msk then for c = 1, 16 do if msk[c] then tot = tot + 1 end end end
+    end
+    screen.level(tot > 0 and 10 or 3) ; screen.move(126, 19) ; screen.text_right(tot .. " dst")
+    -- grille 16 canaux (mode courant, device courant) : 2 rangees de 8
+    local gx, gy, cw, chh = 1, 26, 16, 13
+    local msk = niaka_route[niaka_route_cur][niaka_route_dev]
+    for c = 1, 16 do
+      local col = (c - 1) % 8 ; local row = math.floor((c - 1) / 8)
+      local x = gx + col * cw ; local y = gy + row * (chh + 4)
+      local en = msk[c] ; local cur = (c == niaka_route_ch)
+      if en then screen.level(15) ; screen.rect(x, y, cw - 2, chh) ; screen.fill()
+      else screen.level(3) ; screen.rect(x, y, cw - 2, chh) ; screen.stroke() end
+      screen.level(en and 0 or 9) ; screen.move(x + 2, y + 9) ; screen.text(tostring(c))
+      if cur then screen.level(15) ; screen.rect(x - 1, y - 1, cw, chh + 2) ; screen.stroke() end
+    end
+    screen.level(4) ; screen.move(0, 63) ; screen.text("E2mode K2dev E3ch K3on/off")
+    screen.update() ; return
+  end
   if page == 50 then
     screen.clear() ; screen.font_size(8)
     screen.level(15) ; screen.move(2, 8) ; screen.text("A2C  audio>corpus")
@@ -6122,9 +6170,6 @@ function redraw()
   elseif page == 16 then
     local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
     screen.text(string.format("AUDIO>MIDI  live:%s  E2 dev  E3 ch", an))
-  elseif page == 23 then
-    screen.level(10)
-    screen.text("NIAKABY>MIDI par MODE  E2 mode")
   elseif page == 17 then
     screen.level(spat.on and 15 or 6)
     screen.text(SPAT_MODES[spat.mode])
@@ -6390,23 +6435,6 @@ function redraw()
       screen.move(100, ys[d])
       screen.text(string.format("ch%2d", midi_ch_audio[d]))
     end
-
-  elseif page == 23 then
-    -- routage PAR MODE : une ligne par mode (NOTE/FOLLOW/AUTO/BLEND/ARP) -> device + canal + on/off
-    local ys = {28, 35, 42, 49, 56}
-    local mn = niakaby.mode_names or {"NOTE","FOLLOW","AUTO","BLEND","ARP"}
-    for m = 1, 5 do
-      local sel = (m == niaka_route_cur)
-      local onm = niaka_mode_on[m]
-      screen.level(sel and 15 or (onm and 10 or 4))
-      screen.move(0, ys[m]) ; screen.text((sel and ">" or " ") .. (mn[m] or ("M" .. m)))
-      screen.level(onm and 15 or 3)
-      screen.move(48, ys[m]) ; screen.text(onm and "[X]" or "[ ]")
-      screen.level(sel and 12 or 5)
-      screen.move(72, ys[m]) ; screen.text("d" .. niaka_mode_dev[m])
-      screen.move(92, ys[m]) ; screen.text(string.format("ch%2d", niaka_mode_ch[m]))
-    end
-    screen.level(3) ; screen.move(0, 63) ; screen.text("K2 device  K3 on  E3 canal")
 
   elseif page == 17 then
     screen.level(6)
