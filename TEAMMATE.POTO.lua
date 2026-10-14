@@ -3837,7 +3837,7 @@ function state_save()
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
       m_react=metabolik.react, m_infl=metabolik.influence_idx,
       n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
-      n_mode=niakaby.mode, n_prog=niakaby.prog_idx,
+      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx,
     }
     tab.save(st, norns.state.data .. "state.data")
   end)
@@ -3955,6 +3955,7 @@ function state_load()
     niakaby.scale_idx=g(st.n_scale,niakaby.scale_idx) ; niakaby.octave=g(st.n_oct,niakaby.octave)
     niakaby.chord_idx=g(st.n_chord,niakaby.chord_idx)
     niakaby.mode=g(st.n_mode,niakaby.mode) ; niakaby.prog_idx=g(st.n_prog,niakaby.prog_idx)
+    niakaby.arp_dir=g(st.n_arpdir,niakaby.arp_dir) ; niakaby.arp_rate_idx=g(st.n_arprate,niakaby.arp_rate_idx)
     if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
   end)
 end
@@ -4368,11 +4369,20 @@ function init()
   niakaby.note_off = function(note)      midi_note_off(7, note) end
   niakaby.metabo   = metabolik           -- lecture stress/croissance pour colorer les accords
   niakaby.mgen_key = function() return mgen_root, MGEN_SCALES[MGEN_SCALE_NAMES[mgen_scale_idx]] end  -- FOLLOW/AUTO/BLEND cales sur gamme+tonique MGEN
-  -- PROGRESSION NIAKABY (FOLLOW/AUTO/BLEND) : 1 pas harmonique par mesure, cale sur l'horloge (BPM MGEN / clock externe)
+  -- PROGRESSION NIAKABY (FOLLOW/AUTO/BLEND/ARP) : 1 pas harmonique par mesure, cale sur l'horloge (BPM MGEN / clock externe)
   clock.run(function()
     while true do
       clock.sync(4)
       if niakaby.on and niakaby.harmonic_step and (niakaby.mode or 1) ~= 1 then pcall(niakaby.harmonic_step, 78) end
+    end
+  end)
+
+  -- NIAKABY ARP : un pas d'arpege cale sur l'horloge au rythme choisi (mode ARP seulement)
+  clock.run(function()
+    while true do
+      local r = (niakaby.ARP_RATE and niakaby.ARP_RATE[niakaby.arp_rate_idx or 2]) or 0.5
+      clock.sync(r)
+      if niakaby.on and (niakaby.mode or 1) == 5 and niakaby.arp_tick then pcall(niakaby.arp_tick, 96) end
     end
   end)
 

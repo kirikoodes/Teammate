@@ -32,8 +32,19 @@ M.on   = false
 M.thr  = 0.01       -- seuil de detection (mode NOTE)
 
 -- ===== MODES =====
-M.mode_names = { "NOTE", "FOLLOW", "AUTO", "BLEND" }
+M.mode_names = { "NOTE", "FOLLOW", "AUTO", "BLEND", "ARP" }
 M.mode = 2          -- FOLLOW par defaut
+-- ARP (facon CHORDimist, Leestrument) : arpege l'accord deduit, PAS de nappe tenue. Direction + rythme.
+M.ARP_DIR_NAMES  = { "UP", "DOWN", "UP-DN", "RAND" }
+M.ARP_RATE_NAMES = { "1/4", "1/8", "1/8T", "1/16" }
+M.ARP_RATE       = { 1, 0.5, 1/3, 0.25 }   -- en beats (clock.sync cote script principal)
+M.arp_dir        = 1
+M.arp_rate_idx   = 2
+M.arp_oct        = 2
+M.arp_notes      = nil
+M.arp_i          = 1
+M.arp_bounce     = 1
+M.arp_playing    = nil
 
 -- memoire harmonique (classes de hauteur 0..11) : nourrie par ce que NIAKABY entend
 M.chroma = {} ; for _i = 0, 11 do M.chroma[_i] = 0 end
@@ -126,10 +137,31 @@ local function build_chord(deg, oct, root, sc)
   return notes
 end
 
+-- liste de notes de l'arpege : l'accord deploye sur arp_oct octaves, trie ascendant (dedupe)
+local function build_arp(deg, root, sc)
+  local L = #sc
+  local shape = M.CHORD_STEPS[M.chord_names[M.chord_idx]]
+  local seen, notes = {}, {}
+  for o = 0, (M.arp_oct or 2) - 1 do
+    for _, st in ipairs(shape) do
+      local d   = (deg - 1) + st
+      local idx = (d % L) + 1
+      local oo  = math.floor(d / L) + o
+      local n   = root + (M.octave + oo) * 12 + sc[idx]
+      while n < 24 do n = n + 12 end ; while n > 100 do n = n - 12 end
+      if not seen[n] then seen[n] = true ; notes[#notes + 1] = n end
+    end
+  end
+  table.sort(notes)
+  return notes
+end
+
 local function release()
   if sounding and M.note_off then
     for _, n in ipairs(cur_notes) do M.note_off(n) end
   end
+  if M.arp_playing and M.note_off then M.note_off(M.arp_playing) end
+  M.arp_playing = nil
   cur_notes = {} ; sounding = false ; cur_deg = nil
 end
 M.release = release
@@ -170,6 +202,26 @@ function M.harmonic_step(vel)
   local root, sc = key_now() ; local L = #sc
   -- energie harmonique reellement entendue cette mesure (FOLLOW/BLEND)
   local tot = 0 ; for i = 0, 11 do tot = tot + (M.chroma[i] or 0) end
+
+  if M.mode == 5 then                            -- ARP : deduit l'accord (comme FOLLOW) puis l'ARPEGE (pas de nappe)
+    if sounding then release() end               -- jamais d'accord tenu en ARP
+    local deg
+    if tot < 0.75 then deg = cur_deg or 1
+    else
+      local best, bs = cur_deg or 1, -1
+      for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
+      local cs = cur_deg and chord_score(root, sc, cur_deg) or -1
+      deg = (not cur_deg or bs > cs * 1.25) and best or cur_deg
+    end
+    if deg ~= cur_deg or not M.arp_notes then
+      M.arp_notes = build_arp(deg, root, sc) ; M.arp_i = 1 ; M.arp_bounce = 1
+    end
+    cur_deg = deg
+    M.last_root = root + sc[((deg - 1) % L) + 1]
+    for i = 0, 11 do M.chroma[i] = (M.chroma[i] or 0) * 0.35 end
+    return
+  end
+
   local deg
   local restrike = true                         -- AUTO : re-declenche a chaque mesure (progression rythmee)
   if M.mode == 3 then                          -- AUTO : progression programmee
@@ -207,6 +259,33 @@ function M.harmonic_step(vel)
   for i = 0, 11 do M.chroma[i] = (M.chroma[i] or 0) * 0.35 end   -- oubli progressif
 end
 
+-- un pas d'arpege (appele par le script principal, cale sur l'horloge au rythme M.arp_rate_idx)
+-- joue UNE note a la fois ; la note precedente est coupee au pas suivant (pas de nappe).
+function M.arp_tick(vel)
+  if not M.on or M.mode ~= 5 then return end
+  local notes = M.arp_notes
+  if not notes or #notes == 0 then return end
+  if M.arp_playing and M.note_off then M.note_off(M.arp_playing) ; M.arp_playing = nil end
+  local n   = #notes
+  local dir = M.arp_dir or 1
+  local idx = (dir == 4) and math.random(n) or math.max(1, math.min(n, M.arp_i or 1))
+  local note = notes[idx]
+  if M.note_on then M.note_on(note, vel or 92) end
+  M.arp_playing = note
+  if dir == 1 then                                 -- UP
+    M.arp_i = (idx % n) + 1
+  elseif dir == 2 then                             -- DOWN
+    local ni = idx - 1 ; M.arp_i = (ni < 1) and n or ni
+  elseif dir == 3 then                             -- UP-DOWN (rebond)
+    if n <= 1 then M.arp_i = 1
+    else
+      local step = M.arp_bounce or 1 ; local ni = idx + step
+      if ni > n then ni = n - 1 ; step = -1 elseif ni < 1 then ni = 2 ; step = 1 end
+      M.arp_bounce = step ; M.arp_i = ni
+    end
+  end
+end
+
 -- mise a jour ~30 Hz avec les features audio (mode NOTE uniquement)
 function M.update(rms, freq, centroid, flatness, dt)
   dt = dt or (1/30)
@@ -242,21 +321,33 @@ function M.redraw()
   screen.level(M.on and 13 or 5); screen.move(126, 8)
   screen.text_right(M.mode_names[M.mode] .. (M.on and " ON" or " off"))
 
-  if M.mode == 3 or M.mode == 4 then           -- AUTO / BLEND : progression
+  if M.mode == 5 then                          -- ARP : direction + rythme
+    screen.level(4);  screen.move(2, 22);  screen.text("E2 DIR")
+    screen.level(15); screen.move(74, 22); screen.text(M.ARP_DIR_NAMES[M.arp_dir])
+    screen.level(4);  screen.move(2, 32);  screen.text("E3 RYTHME")
+    screen.level(15); screen.move(74, 32); screen.text(M.ARP_RATE_NAMES[M.arp_rate_idx])
+  elseif M.mode == 3 or M.mode == 4 then       -- AUTO / BLEND : progression
     screen.level(4);  screen.move(2, 22);  screen.text("E2 PROG")
     screen.level(15); screen.move(56, 22); screen.text(M.prog_names[M.prog_idx])
+    screen.level(4);  screen.move(2, 32);  screen.text("E3 OCT")
+    screen.level(15); screen.move(74, 32); screen.text(string.format("%+d", M.octave))
   else                                          -- NOTE / FOLLOW : gamme
     screen.level(4);  screen.move(2, 22);  screen.text("E2 GAMME")
     screen.level(15); screen.move(74, 22); screen.text((M.mode == 2) and "MGEN" or M.scale_names[M.scale_idx])
+    screen.level(4);  screen.move(2, 32);  screen.text("E3 OCT")
+    screen.level(15); screen.move(74, 32); screen.text(string.format("%+d", M.octave))
   end
-  screen.level(4);  screen.move(2, 32);  screen.text("E3 OCT")
-  screen.level(15); screen.move(74, 32); screen.text(string.format("%+d", M.octave))
   screen.level(4);  screen.move(2, 42);  screen.text("K2 ACCORD")
   screen.level(15); screen.move(74, 42); screen.text(M.chord_names[M.chord_idx])
 
-  -- accord courant
+  -- accord / note courante
   screen.level(4); screen.move(2, 54); screen.text("K1 mode")
-  if sounding and cur_notes[1] then
+  if M.mode == 5 then
+    if M.arp_notes and M.arp_notes[1] then
+      screen.level(15); screen.move(52, 54)
+      screen.text((M.arp_playing and (note_name(M.arp_playing) .. " ") or "") .. "(" .. #M.arp_notes .. ")")
+    end
+  elseif sounding and cur_notes[1] then
     local s = ""
     for i, n in ipairs(cur_notes) do s = s .. note_name(n) .. " " end
     if #s > 20 then s = string.sub(s, 1, 20) end
@@ -271,13 +362,19 @@ end
 
 function M.enc(n, d)
   if n == 2 then
-    if M.mode == 3 or M.mode == 4 then
-      M.prog_idx = ((M.prog_idx - 1 + d) % #M.progs) + 1     -- AUTO/BLEND : choisit la progression
+    if M.mode == 5 then
+      M.arp_dir = util.clamp(M.arp_dir + d, 1, #M.ARP_DIR_NAMES)   -- ARP : direction
+    elseif M.mode == 3 or M.mode == 4 then
+      M.prog_idx = ((M.prog_idx - 1 + d) % #M.progs) + 1          -- AUTO/BLEND : choisit la progression
     else
       M.scale_idx = ((M.scale_idx - 1 + d) % #M.scale_names) + 1
     end
   elseif n == 3 then
-    M.octave = util.clamp(M.octave + d, -2, 2)
+    if M.mode == 5 then
+      M.arp_rate_idx = util.clamp(M.arp_rate_idx + d, 1, #M.ARP_RATE)   -- ARP : rythme
+    else
+      M.octave = util.clamp(M.octave + d, -2, 2)
+    end
   end
 end
 
