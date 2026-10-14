@@ -354,6 +354,23 @@ mclk_src         = 0    -- port MIDI verrouille : on ne suit QU'UN port (evite l
 mclk_last_t      = 0    -- horodatage du dernier pulse (watchdog + re-verrouillage)
 mclk_bpm_f       = 0    -- BPM lisse (passe-bas) : absorbe la gigue de l'USB MIDI
 mclk_src_name    = "?"  -- nom du device verrouille (affiche sur MGEN)
+-- SYNC HORLOGE NATIVE : quand l'OP-XY (ou autre) envoie son horloge MIDI, on bascule le
+-- Norns en source d'horloge MIDI (clock.sync se VERROUILLE phase+tempo sur le device) ->
+-- MGEN, NIAKABY (arp/accords), tout suit. Retour en interne quand le flux s'arrete.
+mclk_sync_ext    = true   -- auto-sync natif active (peut se couper : page MGEN BPM, K2 maintenu? -> non, flag simple)
+clock_ext_applied = false -- etat applique (anti-spam de params:set)
+
+function apply_ext_clock(on)
+  if on == clock_ext_applied then return end
+  clock_ext_applied = on
+  if on then
+    pcall(function() if mclk_src and mclk_src > 0 then params:set("clock_midi_in", mclk_src) end end)
+    pcall(function() params:set("clock_source", 2) end)   -- 2 = midi (sync externe)
+  else
+    pcall(function() params:set("clock_source", 1) end)   -- 1 = internal
+    pcall(function() if mgen_bpm then clock.tempo = mgen_bpm end end)
+  end
+end
 
 local mgen_ch = {}
 for i = 1, 16 do
@@ -2653,6 +2670,7 @@ local function midi_clock_in(data, src)
     mclk_t           = {}
     mclk_pulse_count = 0
     mclk_active      = false
+    apply_ext_clock(false)         -- stop transport -> horloge interne
   elseif b == 0xF8 then            -- timing clock pulse (24 par noire)
     mclk_pulse_count = mclk_pulse_count + 1
     local now = util.time()
@@ -2665,9 +2683,11 @@ local function midi_clock_in(data, src)
       if bpm >= 30 and bpm <= 300 then
         mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.08)   -- passe-bas doux (plus stable)
         if math.abs(mclk_bpm_f - mgen_bpm) > 0.6 then   -- hysteresis : ne change l'entier qu'au vrai changement de tempo (pas de flottement +-1)
-          mgen_bpm = math.floor(mclk_bpm_f + 0.5) ; clock.tempo = mgen_bpm
+          mgen_bpm = math.floor(mclk_bpm_f + 0.5)
+          if not (mclk_sync_ext and clock_ext_applied) then clock.tempo = mgen_bpm end  -- en sync native, le Norns gere le tempo
         end
         mclk_active = true   -- active des que des pulses valides arrivent
+        if mclk_sync_ext then apply_ext_clock(true) end   -- VERROUILLAGE NATIF sur le device (phase+tempo)
       end
     end
   end
@@ -4014,6 +4034,9 @@ end
 
 function init()
   math.randomseed(os.time())
+  -- demarre en horloge INTERNE (on ne passe en sync MIDI native que si un device envoie
+  -- vraiment des pulses -> pas de blocage si clock_source=midi avait persiste sans flux)
+  pcall(function() params:set("clock_source", 1) end) ; clock_ext_applied = false
   mgen_taste_load()        -- recharge les gouts MGEN appris (memoire persistante)
   pcall(function() local t = tab.load(norns.state.data .. "wifi_places.data") ; if type(t) == "table" then wifi_places = t end end)  -- lieux WiFi memorises
   pcall(function() local t = tab.load(norns.state.data .. "lora_senders.data") ; if type(t) == "table" then lora.senders = t end end)  -- signatures d'expediteurs LoRa
@@ -4318,7 +4341,10 @@ function init()
       clock.sleep(1/30)
       -- WATCHDOG horloge externe : si le flux de pulses s'arrete (sans Stop) -> on coupe l'horloge
       -- externe et on libere le verrou de port, pour ne pas figer les sequenceurs ni rester bloque.
-      if mclk_active and (util.time() - mclk_last_t) > 1.0 then mclk_active = false ; mclk_src = 0 end
+      if mclk_active and (util.time() - mclk_last_t) > 1.0 then
+        mclk_active = false ; mclk_src = 0
+        apply_ext_clock(false)   -- flux stoppe -> retour horloge interne (ne fige pas les sequenceurs)
+      end
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
       peru_energy = (peru_energy or 0) * 0.85                                 -- pic de collision PERU : retombe vite
@@ -4570,6 +4596,7 @@ end
 function cleanup()
   mgen_taste_save()        -- sauve les gouts MGEN
   state_save()             -- sauve tous les reglages
+  pcall(function() params:set("clock_source", 1) end)   -- rend l'horloge interne au Norns en quittant
   mgen_stop()
   for v = 1, 6 do
     softcut.rec(v, 0)
