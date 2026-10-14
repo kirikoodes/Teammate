@@ -55,6 +55,7 @@ M.key_from       = 1     -- 1=MGEN (defaut)
 M.last_heard     = {}    -- derniere note entendue par source (pour TONALITE INPUT/IMPRO)
 M.det_scale      = "MAJOR"   -- gamme detectee (MAJEUR/MINEUR) pour INPUT/IMPRO, avec hysteresis
 M.heard_new      = false     -- une nouvelle note a ete entendue depuis le dernier pas (FOLLOW/ARP : sinon on GARDE l'accord)
+M.hold           = false      -- HOLD/GEL : ignore TOUT l'input -> NIAKABY continue de tourner sans etre influence (tu joues librement)
 
 -- progressions (AUTO/BLEND) : suites de degres (1 = tonique de la gamme MGEN)
 M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
@@ -235,6 +236,7 @@ end
 -- une source genere une note -> nourrit la memoire harmonique (si ecoutee ; FOLLOW/BLEND)
 function M.hear(key, note)
   if type(note) ~= "number" then return end
+  if M.hold then return end     -- HOLD : on ignore l'input (NIAKABY garde son accord/arpege)
   if not M.on or M.mode == 1 then return end
   if not key or (M.src and not M.src[key]) then return end   -- SWITCH : la case SRC coupe toute l'influence de cette source
   M.last_heard[key] = note     -- TONALITE : derniere note de la source ECOUTEE (donc coupable via SRC)
@@ -325,6 +327,7 @@ function M.update(rms, freq, centroid, flatness, dt)
   dt = dt or (1/30)
   since = since + dt
   if not M.on then if sounding then release() end ; return end
+  if M.hold then return end                        -- HOLD : ignore l'input -> l'arpege/l'accord continue tel quel
   if M.mode == 5 then                              -- ARP : suit la NOTE JOUEE en direct (meme mecanisme fiable que NOTE)
     local active = (rms or 0) > M.thr and (freq or 0) > 30
     if active then
@@ -369,6 +372,7 @@ local function note_name(n) return NOTE_NM[(n % 12) + 1] .. tostring(math.floor(
 function M.redraw()
   screen.clear() ; screen.font_size(8)
   screen.level(15); screen.move(2, 8);  screen.text("NIAKABY")
+  if M.hold then screen.level(15); screen.move(60, 8); screen.text("[HOLD]") end   -- gel : ignore l'input
   screen.level(M.on and 13 or 5); screen.move(126, 8)
   screen.text_right(M.mode_names[M.mode] .. (M.on and " ON" or " off"))
 
@@ -457,9 +461,7 @@ function M.key_src(n)
     local k = M.src_keys[M.src_cursor]
     M.src[k] = not M.src[k]
   elseif n == 2 then
-    local all = true
-    for _, k in ipairs(M.src_keys) do if not M.src[k] then all = false end end
-    for _, k in ipairs(M.src_keys) do M.src[k] = not all end
+    M.hold = not M.hold     -- K2 : HOLD/GEL = NIAKABY ignore l'input et continue tout seul
   end
 end
 
@@ -482,7 +484,8 @@ function M.redraw_src()
   local kftxt = M.KEY_FROM_NAMES[M.key_from]
   if M.key_from == 3 or M.key_from == 4 then kftxt = kftxt .. " " .. (M.det_scale == "MINOR" and "min" or "MAJ") end
   screen.level(15); screen.move(126, 58); screen.text_right(kftxt)
-  screen.level(4);  screen.move(2, 64);  screen.text("E2 sel  K3 on  K2 all")
+  screen.level(4);  screen.move(2, 64);  screen.text("E2 sel  K3 src")
+  screen.level(M.hold and 15 or 5);  screen.move(126, 64);  screen.text_right("K2 HOLD " .. (M.hold and "ON" or "off"))
   screen.update()
 end
 
