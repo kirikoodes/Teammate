@@ -54,14 +54,15 @@ M.KEY_FROM_NAMES = { "MGEN", "NIAKA", "INPUT", "IMPRO" }
 M.key_from       = 1     -- 1=MGEN (defaut)
 M.last_heard     = {}    -- derniere note entendue par source (pour TONALITE INPUT/IMPRO)
 M.det_scale      = "MAJOR"   -- gamme detectee (MAJEUR/MINEUR) pour INPUT/IMPRO, avec hysteresis
+M.heard_new      = false     -- une nouvelle note a ete entendue depuis le dernier pas (FOLLOW/ARP : sinon on GARDE l'accord)
 
 -- progressions (AUTO/BLEND) : suites de degres (1 = tonique de la gamme MGEN)
 M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
 M.prog_names = { "I-V-vi-IV", "I-vi-IV-V", "I-IV-V", "vi-IV-I-V", "ii-V-I", "I-iii-IV-V", "I-IV-V" }
 M.prog_idx   = 1
--- vitesse de changement d'accord (FOLLOW/AUTO/BLEND) : toutes les X beats
-M.HARM_RATE_NAMES = { "2 mes", "1 mes", "1/2", "1 tps" }
-M.HARM_RATE       = { 8, 4, 2, 1 }   -- en beats (clock.sync cote script principal)
+-- vitesse de changement d'accord (FOLLOW/AUTO/BLEND) : toutes les X beats (du lent au tres rapide ~arpege)
+M.HARM_RATE_NAMES = { "2 mes", "1 mes", "1/2", "1 tps", "1/8", "1/8T", "1/16", "1/32" }
+M.HARM_RATE       = { 8, 4, 2, 1, 0.5, 1/3, 0.25, 0.125 }   -- en beats (clock.sync cote script principal)
 M.harm_rate_idx   = 2                -- 1 mesure (4 beats) = comportement d'origine
 
 -- ce que NIAKABY ecoute (combinable) -> harmonisation (NOTE) et memoire harmonique (FOLLOW/BLEND)
@@ -221,6 +222,7 @@ function M.hear(key, note)
   if not M.on or M.mode == 1 then return end
   if not key or (M.src and not M.src[key]) then return end
   M.chroma[note % 12] = (M.chroma[note % 12] or 0) + 1
+  M.heard_new = true     -- nouvelle note d'une source ecoutee -> autorise un changement d'accord
 end
 
 -- pas harmonique (appele a chaque mesure par le script principal, cale sur l'horloge)
@@ -230,11 +232,12 @@ function M.harmonic_step(vel)
   local root, sc = key_now() ; local L = #sc
   -- energie harmonique reellement entendue cette mesure (FOLLOW/BLEND)
   local tot = 0 ; for i = 0, 11 do tot = tot + (M.chroma[i] or 0) end
+  local newd = M.heard_new ; M.heard_new = false   -- une nouvelle note depuis le dernier pas ? (LATCH FOLLOW/ARP)
 
   if M.mode == 5 then                            -- ARP : deduit l'accord (comme FOLLOW) puis l'ARPEGE (pas de nappe)
     if sounding then release() end               -- jamais d'accord tenu en ARP
     local deg
-    if tot < 0.75 then deg = cur_deg or 1
+    if (not newd) or tot < 0.3 then deg = cur_deg or 1   -- rien de nouveau entendu -> GARDE le dernier accord
     else
       local best, bs = cur_deg or 1, -1
       for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
@@ -258,8 +261,8 @@ function M.harmonic_step(vel)
     prog_pos = (prog_pos % #pr) + 1
   elseif M.mode == 2 then                       -- FOLLOW : deduit du chroma (hysteresis)
     restrike = false                            -- FOLLOW : pad tenu, ne re-declenche QUE si l'accord change
-    if tot < 0.75 then
-      deg = cur_deg or 1                         -- rien d'audible : on TIENT l'accord (pas de saut arbitraire)
+    if (not newd) or tot < 0.3 then
+      deg = cur_deg or 1                         -- rien de NOUVEAU entendu : on GARDE le dernier accord joue
     else
       local best, bs = cur_deg or 1, -1
       for d = 1, L do local s = chord_score(root, sc, d) ; if s > bs then bs = s ; best = d end end
