@@ -242,6 +242,16 @@ function M.hear(key, note)
   if not M.on or M.mode == 1 then return end
   if not key or (M.src and not M.src[key]) then return end   -- SWITCH : la case SRC coupe toute l'influence de cette source
   M.last_heard[key] = note     -- TONALITE : derniere note de la source ECOUTEE (donc coupable via SRC)
+  if M.mode == 5 then          -- ARP : construit l'arpege sur la NOTE ENTENDUE (meme chemin fiable que FOLLOW)
+    local deg, oct = nearest_degree(note)
+    if deg ~= M.arp_deg or oct ~= M.arp_octd then
+      M.arp_notes = build_arp(deg, oct, M.root, scale())
+      if (M.arp_i or 1) > #M.arp_notes then M.arp_i = 1 end
+      M.arp_deg = deg ; M.arp_octd = oct
+      M.last_root = M.root + oct * 12 + scale()[deg]
+    end
+    return
+  end
   M.chroma[note % 12] = (M.chroma[note % 12] or 0) + 1
   M.heard_new = true           -- nouvelle note d'une source ecoutee -> autorise un changement d'accord
 end
@@ -329,25 +339,8 @@ function M.update(rms, freq, centroid, flatness, dt)
   dt = dt or (1/30)
   since = since + dt
   if not M.on then if sounding then release() end ; return end
-  if M.hold then return end                        -- HOLD : ignore l'input -> l'arpege/l'accord continue tel quel
-  if M.mode == 5 then                              -- ARP : suit la NOTE JOUEE en direct (meme mecanisme fiable que NOTE)
-    local active = (rms or 0) > M.thr and (freq or 0) > 30
-    if active then
-      local m = freq_to_midi(freq)
-      if m then
-        local deg, oct = nearest_degree(m)         -- degre + octave de la gamme les plus proches de ta note
-        if (deg ~= M.arp_deg or oct ~= M.arp_octd) and since > 0.08 then
-          M.arp_notes = build_arp(deg, oct, M.root, scale())   -- arpege l'accord diatonique sur TA note
-          if (M.arp_i or 1) > #M.arp_notes then M.arp_i = 1 end  -- garde la position (pas de reset brutal = pas de scission)
-          M.arp_deg = deg ; M.arp_octd = oct
-          M.last_root = M.root + oct * 12 + scale()[deg]
-          since = 0
-        end
-      end
-    end
-    return                                         -- quand tu t'arretes : l'arp TIENT le dernier accord (pas de release)
-  end
-  if M.mode ~= 1 then return end   -- FOLLOW/AUTO/BLEND : gere par M.harmonic_step
+  if M.hold then return end        -- HOLD : ignore l'input (NOTE garde son accord)
+  if M.mode ~= 1 then return end   -- ARP : gere par M.hear (onset) ; FOLLOW/AUTO/BLEND : M.harmonic_step
   local active = (rms or 0) > M.thr and (freq or 0) > 30
   if active then
     sil_t = 0
