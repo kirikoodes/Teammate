@@ -406,9 +406,14 @@ function M.redraw()
   screen.level(M.on and 13 or 5); screen.move(126, 8)
   screen.text_right(M.mode_names[M.mode] .. (M.on and " ON" or " off"))
 
-  if M.mode == 5 then                          -- ARP : direction + rythme
-    screen.level(4);  screen.move(2, 22);  screen.text("E2 DIR")
-    screen.level(15); screen.move(74, 22); screen.text(M.ARP_DIR_NAMES[M.arp_dir])
+  if M.mode == 5 then                          -- ARP : direction (ou progression en CHORD) + rythme
+    if M.arp_dir == 5 then                     -- CHORD : E2 choisit la PROGRESSION
+      screen.level(4);  screen.move(2, 22);  screen.text("E2 PROG")
+      screen.level(15); screen.move(126, 22); screen.text_right("CH " .. (M.prog_names[M.prog_idx] or "?"))
+    else
+      screen.level(4);  screen.move(2, 22);  screen.text("E2 DIR")
+      screen.level(15); screen.move(74, 22); screen.text(M.ARP_DIR_NAMES[M.arp_dir])
+    end
     screen.level(4);  screen.move(2, 32);  screen.text("E3 VITESSE")
     screen.level(15); screen.move(74, 32); screen.text(M.ARP_RATE_NAMES[M.arp_rate_idx])
   elseif M.mode == 3 or M.mode == 4 then       -- AUTO / BLEND : progression
@@ -453,7 +458,14 @@ end
 function M.enc(n, d)
   if n == 2 then
     if M.mode == 5 then
-      M.arp_dir = util.clamp(M.arp_dir + d, 1, #M.ARP_DIR_NAMES)   -- ARP : direction
+      -- E2 : liste a plat = 4 directions de notes, puis UNE entree CHORD par progression
+      -- (UP, DOWN, UP-DN, RAND, CH:prog1, CH:prog2, ...). Scroller au-dela de CHORD
+      -- change donc la PROGRESSION (partagee avec AUTO via M.prog_idx).
+      local nprog = #M.progs
+      local flat  = (M.arp_dir < 5) and M.arp_dir or (4 + (M.prog_idx or 1))
+      flat = util.clamp(flat + d, 1, 4 + nprog)
+      if flat <= 4 then M.arp_dir = flat
+      else M.arp_dir = 5 ; M.prog_idx = flat - 4 end
     elseif M.mode == 3 or M.mode == 4 then
       M.prog_idx = ((M.prog_idx - 1 + d) % #M.progs) + 1          -- AUTO/BLEND : choisit la progression
     else
