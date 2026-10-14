@@ -49,6 +49,10 @@ M.arp_playing    = nil
 -- memoire harmonique (classes de hauteur 0..11) : nourrie par ce que NIAKABY entend
 M.chroma = {} ; for _i = 0, 11 do M.chroma[_i] = 0 end
 M.mgen_key = nil    -- function() return root, scale_table end : cale FOLLOW/AUTO/BLEND sur la gamme+tonique de MGEN
+-- TONALITE : d'ou vient la tonique (FOLLOW/AUTO/BLEND/ARP). MGEN, la gamme propre NIAKA, ton INPUT, ou l'IMPRO.
+M.KEY_FROM_NAMES = { "MGEN", "NIAKA", "INPUT", "IMPRO" }
+M.key_from       = 1     -- 1=MGEN (defaut)
+M.last_heard     = {}    -- derniere note entendue par source (pour TONALITE INPUT/IMPRO)
 
 -- progressions (AUTO/BLEND) : suites de degres (1 = tonique de la gamme MGEN)
 M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
@@ -80,11 +84,15 @@ local function scale() return M.scales[M.scale_names[M.scale_idx]] end
 
 -- tonique + gamme actives : MGEN si cale (FOLLOW/AUTO/BLEND), sinon les reglages NIAKABY (NOTE)
 local function key_now()
-  if M.mgen_key then
+  local kf = M.key_from or 1
+  if kf == 1 and M.mgen_key then                      -- MGEN : gamme + tonique de MGEN
     local r, sc = M.mgen_key()
     if r and type(sc) == "table" and #sc > 0 then return r, sc end
+  elseif kf == 3 or kf == 4 then                      -- INPUT / IMPRO : tonique = ce que tu joues / l'agent joue
+    local ln = M.last_heard[(kf == 3) and "input" or "comp"]
+    if ln then return M.root + ((ln - M.root) % 12), scale() end   -- classe de hauteur entendue, ramenee en registre, gamme NIAKA
   end
-  return M.root, scale()
+  return M.root, scale()                              -- NIAKA (ou fallback) : gamme + tonique propres
 end
 
 local function freq_to_midi(f)
@@ -189,9 +197,10 @@ end
 
 -- une source genere une note -> nourrit la memoire harmonique (si ecoutee ; FOLLOW/BLEND)
 function M.hear(key, note)
+  if type(note) ~= "number" then return end
+  if key then M.last_heard[key] = note end     -- TONALITE : garde la derniere note de chaque source
   if not M.on or M.mode == 1 then return end
   if not key or (M.src and not M.src[key]) then return end
-  if type(note) ~= "number" then return end
   M.chroma[note % 12] = (M.chroma[note % 12] or 0) + 1
 end
 
@@ -392,8 +401,10 @@ end
 
 -- ===== page SRC : 5 sources independantes (E2 curseur, K3 toggle, K2 tout/rien) =====
 function M.enc_src(n, d)
-  if n == 2 or n == 3 then
+  if n == 2 then
     M.src_cursor = ((M.src_cursor - 1 + d) % #M.src_keys) + 1
+  elseif n == 3 then
+    M.key_from = ((M.key_from - 1 + d) % #M.KEY_FROM_NAMES) + 1   -- TONALITE : MGEN/NIAKA/INPUT/IMPRO
   end
 end
 
@@ -412,7 +423,7 @@ function M.redraw_src()
   screen.clear() ; screen.font_size(8)
   screen.level(15); screen.move(2, 8); screen.text("NIAKABY SRC")
   screen.move(126, 8); screen.text_right(M.on and "ON" or "off")
-  local ys = { 20, 29, 38, 47, 56 }
+  local ys = { 18, 26, 34, 42, 50 }
   for i = 1, #M.src_keys do
     local k   = M.src_keys[i]
     local sel = (i == M.src_cursor)
@@ -422,7 +433,10 @@ function M.redraw_src()
     screen.level(M.src[k] and 15 or 3)
     screen.move(86, ys[i]); screen.text(M.src[k] and "[X]" or "[ ]")
   end
-  screen.level(4); screen.move(2, 63); screen.text("E2 sel  K3 on/off  K2 all")
+  -- TONALITE (E3) : d'ou vient la cle (accords/arpege)
+  screen.level(4);  screen.move(2, 58);  screen.text("E3 TONALITE")
+  screen.level(15); screen.move(86, 58); screen.text(M.KEY_FROM_NAMES[M.key_from])
+  screen.level(4);  screen.move(2, 64);  screen.text("E2 sel  K3 on  K2 all")
   screen.update()
 end
 

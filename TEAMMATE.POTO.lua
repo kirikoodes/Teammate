@@ -3837,7 +3837,7 @@ function state_save()
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
       m_react=metabolik.react, m_infl=metabolik.influence_idx,
       n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
-      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx,
+      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx, n_keyfrom=niakaby.key_from,
     }
     tab.save(st, norns.state.data .. "state.data")
   end)
@@ -3956,6 +3956,7 @@ function state_load()
     niakaby.chord_idx=g(st.n_chord,niakaby.chord_idx)
     niakaby.mode=g(st.n_mode,niakaby.mode) ; niakaby.prog_idx=g(st.n_prog,niakaby.prog_idx)
     niakaby.arp_dir=g(st.n_arpdir,niakaby.arp_dir) ; niakaby.arp_rate_idx=g(st.n_arprate,niakaby.arp_rate_idx)
+    niakaby.key_from=g(st.n_keyfrom,niakaby.key_from)
     if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
   end)
 end
