@@ -383,6 +383,11 @@ local midi_cur_stream    = 1   -- stream selectionne sur pages 9-12 (ancien menu
 -- ROUTE par mode (pages 51-54) : routing MIDI de IMPRO/POtO/8OS/MGEN dans leur propre menu
 route_cur_dev = 1              -- appareil selectionne (1-4), partage par les 4 pages ROUTE
 ROUTE_NAMES   = { "IMPRO", "POtO", "8OS", "MGEN" }   -- indexe par stream 1-4 (page-50)
+-- HUB ROUTING central (page 59) : une seule page pour router TOUTES les sources par device.
+ROUTE_HUB_ST  = { 1, 2, 3, 4, 6, 8 }                              -- streams routes
+ROUTE_HUB_NM  = { "IMPRO", "POtO", "8OS", "MGEN", "METABO", "PERU" }
+route_hub_dev = 1              -- device affiche (1-4)
+route_hub_cur = 1              -- source sous le curseur (1..#ROUTE_HUB_ST)
 local midi_cur_dev       = 1   -- inutilise (ancienne nav colonne)
 local midi_ch_audio      = {5,5,5,5}  -- canal par device pour stream AUDIO
 midi_route[6] = {false, false, false, false}   -- METABO = stream 6 (matrice de routage)
@@ -3674,6 +3679,7 @@ NAV_CATS = {
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
   { n = "EFX",    pg = {55,56,57},       arm = nil },   -- 55 reverb ; 56 glitch ; 57 delai (echo de grains)
+  { n = "ROUTE",  pg = {59},             arm = nil },   -- 59 = HUB routing central (toutes les sources)
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
@@ -4689,6 +4695,8 @@ function enc(n, d)
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- A2C : meme sensibilite d'attaque
     elseif page == 58 then
       if niakaby.enc_gate then niakaby.enc_gate(d) end                   -- GATE : reglage (pas de 0.05)
+    elseif page == 59 then
+      route_hub_dev = util.clamp(route_hub_dev + d, 1, 4)                 -- HUB : choisit le device
     elseif page >= 51 and page <= 54 then
       route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE : choisit l'appareil MIDI
     elseif page == 55 then
@@ -4821,6 +4829,9 @@ function enc(n, d)
       pcall(function() audio.level_monitor(p_monitor) end)
     elseif page == 58 then
       if niakaby then niakaby.arp_gate = util.clamp((niakaby.arp_gate or 0.8) + d * 0.01, 0.05, 1.3) end  -- GATE (E3) : reglage fin
+    elseif page == 59 then
+      local st = ROUTE_HUB_ST[route_hub_cur]                   -- HUB (E3) : canal de la source sur le device
+      if midi_ch[st] then midi_ch[st][route_hub_dev] = util.clamp(midi_ch[st][route_hub_dev] + d, 1, 16) end
     elseif page >= 51 and page <= 54 then
       local st = page - 50                                     -- ROUTE (E3) : canal MIDI de l'appareil
       midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
@@ -4964,6 +4975,13 @@ function key(n, z)
   end
   if page >= 51 and page <= 54 then                    -- ROUTE (IMPRO/POtO/8OS/MGEN) : K3 arme/coupe l'appareil
     if n == 3 then local st = page - 50 ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
+    redraw() ; return
+  end
+  if page == 59 then                                   -- HUB ROUTING central
+    if n == 2 then route_hub_cur = (route_hub_cur % #ROUTE_HUB_ST) + 1     -- K2 : curseur source
+    elseif n == 3 then local st = ROUTE_HUB_ST[route_hub_cur]              -- K3 : arme/coupe la source sur le device
+      if midi_route[st] then midi_route[st][route_hub_dev] = not midi_route[st][route_hub_dev] end
+    end
     redraw() ; return
   end
   if page == 55 then                                   -- EFX : reverb
@@ -5797,6 +5815,28 @@ function redraw()
       screen.text("note courte, puis TA release")
     end
     screen.level(4) ; screen.move(126, 63) ; screen.text_right("E2 regle / E3 fin")
+    screen.update() ; return
+  end
+  if page == 59 then                               -- HUB ROUTING central (toutes les sources, par device)
+    screen.clear() ; screen.font_size(8)
+    local d = route_hub_dev
+    local dname = (midi and midi.vports and midi.vports[d] and midi.vports[d].name) or ("DEVICE " .. d)
+    if #dname > 15 then dname = string.sub(dname, 1, 14) .. "~" end
+    screen.level(15) ; screen.move(0, 8) ; screen.text("ROUTE  d" .. d .. " " .. dname)
+    screen.level(6)  ; screen.move(126, 8) ; screen.text_right("E2 dev")
+    screen.level(3)  ; screen.move(0, 11) ; screen.line(127, 11) ; screen.stroke()
+    local ys = {20, 27, 34, 41, 48, 55}
+    for i = 1, #ROUTE_HUB_ST do
+      local st  = ROUTE_HUB_ST[i]
+      local sel = (i == route_hub_cur)
+      local on  = midi_route[st] and midi_route[st][d]
+      screen.level(sel and 15 or 4) ; screen.move(0, ys[i])
+      screen.text((sel and ">" or " ") .. (ROUTE_HUB_NM[i] or "?"))
+      screen.level(on and 15 or 3) ; screen.move(62, ys[i]) ; screen.text(on and "[X]" or "[ ]")
+      screen.level(on and (sel and 15 or 10) or 3) ; screen.move(88, ys[i])
+      screen.text("ch " .. tostring((midi_ch[st] and midi_ch[st][d]) or 1))
+    end
+    screen.level(4) ; screen.move(126, 63) ; screen.text_right("K2src K3on E3ch")
     screen.update() ; return
   end
   if page == 50 then
