@@ -81,6 +81,15 @@ a2c_on         = false
 a2c_base       = 0     -- fond lisse (detecteur d'attaques)
 a2c_last_t     = 0
 a2c_last_slot  = 0     -- affichage : dernier grain joue
+-- ===== LONG CAPTURE : 1 long REC (start/stop manuel) -> fragmente en 48 grains =====
+-- grains a pos/dur EXPLICITES (slices egales), features moyennees depuis la timeline du REC.
+-- Meme logique de jeu ensuite (grain le plus proche de l'input). Fade reglable = anti-clic.
+lc_recording = false
+lc_t0        = 0
+lc_len       = 0       -- duree enregistree (s)
+lc_feat      = {}      -- timeline features pendant le REC : {t,rms,freq,ctr,flat}
+lc_frag_n    = 0       -- nb de grains du dernier FRAG (affichage)
+grain_fade   = 0.020   -- fondu in/out par grain (anti-clic), reglable (page LONG CAP)
 -- ===== EFX : menu EFFETS (reverb integree Norns ; delai/glitch SC a venir) =====
 efx_rev_on     = false
 efx_amt        = 0.55  -- quantite de reverb (niveau de retour)
@@ -500,6 +509,47 @@ local function rec_stop()
   softcut.play(REC_V, 0)
 end
 
+-- ===== LONG CAPTURE : 1 long REC -> fragmente en 48 grains egaux =====
+LC_MAX = CORPUS_SLOTS * CORPUS_DUR   -- GLOBAL (limite 200 locals) : capacite max du buffer corpus (= 96s)
+function lc_rec_start()
+  softcut.loop(REC_V, 1)                    -- boucle sur toute la zone corpus (repart si on depasse)
+  softcut.loop_start(REC_V, CORPUS_OFFSET)
+  softcut.loop_end(REC_V, CORPUS_OFFSET + LC_MAX)
+  softcut.position(REC_V, CORPUS_OFFSET)
+  softcut.rec_level(REC_V, 1.0)             -- ecrase l'ancien enregistrement
+  softcut.pre_level(REC_V, 0.0)
+  softcut.rec(REC_V, 1)
+  softcut.play(REC_V, 1)
+  lc_feat = {} ; lc_t0 = util.time() ; lc_len = 0 ; lc_recording = true
+end
+function lc_rec_stop()
+  softcut.rec(REC_V, 0) ; softcut.play(REC_V, 0)
+  lc_recording = false
+  lc_len = math.min(util.time() - lc_t0, LC_MAX)
+end
+-- decoupe l'enregistrement en 48 grains egaux (pos/dur explicites) + features moyennees
+function lc_frag48()
+  if lc_len <= 0.1 then return 0 end
+  local N = CORPUS_SLOTS ; local slice = lc_len / N
+  for i = 1, N do
+    local t0 = (i - 1) * slice ; local t1 = i * slice
+    local sr, sf, sc, sfl, nr, nf = 0, 0, 0, 0, 0, 0
+    for _, e in ipairs(lc_feat) do
+      if e.t >= t0 and e.t < t1 then
+        sr = sr + (e.rms or 0) ; sc = sc + (e.ctr or 0) ; sfl = sfl + (e.flat or 0) ; nr = nr + 1
+        if (e.freq or 0) > 0 then sf = sf + e.freq ; nf = nf + 1 end
+      end
+    end
+    corpus[i] = {
+      slot = i, pos = CORPUS_OFFSET + (i - 1) * slice, duration = slice,
+      rms = (nr > 0) and sr / nr or 0, freq = (nf > 0) and sf / nf or 0,
+      centroid = (nr > 0) and sc / nr or 0, flatness = (nr > 0) and sfl / nr or 0,
+    }
+  end
+  count = N ; head = 1 ; last_slot = 0 ; lc_frag_n = N
+  return N
+end
+
 local function freq_to_midi(freq)
   if not freq or freq < 20 then return nil end
   local n = math.floor(69 + 12 * math.log(freq / 440) / math.log(2) + 0.5)
@@ -641,8 +691,8 @@ local function play_event(ev, rate_mult, mstream, pan, amp, no_fx)   -- no_fx : 
   end
 
   rate_mult = rate_mult or 1.0
-  local p   = slot_pos(ev.slot)
-  local dur = math.min(ev.duration, MAX_DUR)
+  local p   = ev.pos or slot_pos(ev.slot)                         -- pos explicite (grains du LONG REC fragmente) sinon grille
+  local dur = math.min(ev.duration, ev.pos and 2.0 or MAX_DUR)    -- un grain fragmente peut aller jusqu'a 2s
   local base, len, rate = p, dur, 1.0
 
   if math.random() < SLICE_PROB and dur > SLICE_MIN then
@@ -656,7 +706,8 @@ local function play_event(ev, rate_mult, mstream, pan, amp, no_fx)   -- no_fx : 
 
   local glitch = (not no_fx) and efx_glitch_on and (math.random() < 0.2 + (efx_glitch_amt or 0) * 0.7)   -- GLITCH grain (stutter/repeat)
 
-  local fade = math.max(0.010, math.min(0.050, len * 0.3))    -- fondu proportionnel a la taille du grain (plancher anti-clic)
+  -- fondu anti-clic : reglable (grain_fade) ; sinon proportionnel. Plafonne a ~la moitie du grain.
+  local fade = util.clamp(grain_fade or (len * 0.3), 0.003, math.min(0.120, len * 0.49))
   softcut.level_slew_time(v, fade)                            -- rampe d'amplitude : fade-IN au depart, fade-OUT a l'arret (anti-clic)
   softcut.level(v, (amp or 1.0) * (spat.on and spat_depth_mult("impro") or 1.0))   -- amp : CLONE suit TON energie a l'audio
   if pan then softcut.pan(v, pan)                           -- PERU : spatialise selon le point de collision
@@ -2296,6 +2347,7 @@ local function on_centroid(v) cur_centroid = v end
 local function on_flatness(v) cur_flatness = v end
 
 local function process_gate(new_gate)
+  if lc_recording then return end   -- LONG CAPTURE en cours : pas de capture grain-par-grain
   if new_gate > 0.5 and cur_gate < 0.5 and not rec_on and state ~= "REST" then
     last_sound_t = util.time()
     if clone_on then
@@ -3686,7 +3738,7 @@ LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IM
 -- HUB : E1/E2 deplacent le curseur, K1 entre, K3 arme (si armable). Dans une
 -- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
 NAV_CATS = {
-  { n = "IMPRO",  pg = {1,2,3,4,49,50,51,48}, arm = 8  },  -- 49 CLONE ; 50 A2C ; 51 ROUTE ; 48 SAMPLE BANK (47 TRIG BANK dans PERU)
+  { n = "IMPRO",  pg = {1,2,3,4,49,50,61,51,48}, arm = 8  },  -- 49 CLONE ; 50 A2C ; 61 LONG CAP ; 51 ROUTE ; 48 SAMPLE BANK
   { n = "POtO",   pg = {5,7,30,29,52},   arm = 1  },      -- 52 = ROUTE
   { n = "8OS",    pg = {6,8,28,53},      arm = 2  },      -- 53 = ROUTE
   { n = "MGEN",   pg = {13,14,15,38,34,46,25,26,54}, arm = 3 },  -- 54 = ROUTE
@@ -3895,6 +3947,7 @@ function state_save()
       efx_rev_on=efx_rev_on, efx_amt=efx_amt, efx_time=efx_time,
       efx_glitch_on=efx_glitch_on, efx_glitch_amt=efx_glitch_amt, efx_glitch_mode=efx_glitch_mode,
       efx_delay_on=efx_delay_on, efx_delay_time=efx_delay_time, efx_delay_fb=efx_delay_fb,
+      grain_fade=grain_fade,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
@@ -3999,6 +4052,7 @@ function state_load()
     if st.efx_delay_on ~= nil then efx_delay_on = st.efx_delay_on end
     if st.efx_delay_time then efx_delay_time = util.clamp(st.efx_delay_time, 0, 1) end
     if st.efx_delay_fb then efx_delay_fb = util.clamp(st.efx_delay_fb, 0, 1) end
+    if st.grain_fade then grain_fade = util.clamp(st.grain_fade, 0.002, 0.120) end
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -4344,6 +4398,10 @@ function init()
       if mclk_active and (util.time() - mclk_last_t) > 1.0 then
         mclk_active = false ; mclk_src = 0
         apply_ext_clock(false)   -- flux stoppe -> retour horloge interne (ne fige pas les sequenceurs)
+      end
+      if lc_recording then       -- LONG CAPTURE : echantillonne les features ~30Hz pour le FRAG
+        lc_feat[#lc_feat + 1] = { t = util.time() - lc_t0, rms = cur_rms, freq = cur_freq, ctr = cur_centroid, flat = cur_flatness }
+        if (util.time() - lc_t0) >= LC_MAX then lc_rec_stop() end   -- buffer plein (96s) -> arret auto
       end
       impro_energy = impro_energy * 0.90                  -- decroissance de l'enveloppe impro
       for s = 1, 8 do stream_energy[s] = (stream_energy[s] or 0) * 0.90 end   -- decroissance activite par mode
@@ -4720,6 +4778,8 @@ function enc(n, d)
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- CLONE : sensibilite du detecteur d'attaques
     elseif page == 50 then
       clone_sens = util.clamp(clone_sens + d * 0.05, 0.0, 1.0)            -- A2C : meme sensibilite d'attaque
+    elseif page == 61 then
+      grain_fade = util.clamp((grain_fade or 0.02) + d * 0.002, 0.002, 0.120)  -- LONG CAP : fondu in/out par grain
     elseif page == 58 then
       if niakaby.enc_gate then niakaby.enc_gate(d) end                   -- GATE : reglage (pas de 0.05)
     elseif page == 59 then
@@ -4998,6 +5058,15 @@ function key(n, z)
   end
   if page == 50 then                                   -- A2C (audio -> corpus) en LIVE
     if n == 3 then a2c_on = not a2c_on ; a2c_base = 0 ; a2c_last_t = 0 end   -- K3 : on/off
+    redraw() ; return
+  end
+  if page == 61 then                                   -- LONG CAPTURE
+    if n == 3 then                                     -- K3 : REC start/stop
+      if lc_recording then lc_rec_stop() else lc_rec_start() end
+    elseif n == 2 then                                 -- K2 : fragmente en 48 grains
+      if lc_recording then lc_rec_stop() end
+      lc_frag48()
+    end
     redraw() ; return
   end
   if (page >= 51 and page <= 54) or page == 60 then    -- ROUTE/PERU : K3 arme/coupe l'appareil
@@ -5876,6 +5945,29 @@ function redraw()
     else
       screen.level(8)  ; screen.move(2, 64) ; screen.text(string.format("corpus %d  grain %d  K3 on", count, a2c_last_slot))
     end
+    screen.update() ; return
+  end
+  if page == 61 then                                   -- LONG CAPTURE : 1 long REC -> FRAG 48 grains
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(2, 8) ; screen.text("LONG CAPTURE")
+    local st = lc_recording and "REC" or (lc_len > 0.1 and "stop" or "idle")
+    screen.level(lc_recording and 15 or 6) ; screen.move(126, 8) ; screen.text_right(st)
+    -- REC : temps ecoule / dernier enregistrement
+    screen.level(4) ; screen.move(2, 22) ; screen.text("K3 REC")
+    local t = lc_recording and (util.time() - lc_t0) or lc_len
+    screen.level(lc_recording and 15 or 10) ; screen.move(126, 22)
+    screen.text_right(string.format("%.1fs / %ds", t, math.floor(LC_MAX)))
+    -- FRAG
+    screen.level(4) ; screen.move(2, 34) ; screen.text("K2 FRAG 48")
+    screen.level((lc_frag_n > 0) and 15 or 5) ; screen.move(126, 34)
+    screen.text_right((lc_frag_n > 0) and (lc_frag_n .. " grains") or "--")
+    -- FADE
+    screen.level(4) ; screen.move(2, 46) ; screen.text("E2 FADE")
+    screen.level(15) ; screen.move(126, 46) ; screen.text_right(string.format("%d ms", math.floor((grain_fade or 0.02) * 1000 + 0.5)))
+    screen.level(4) ; screen.rect(2, 49, 100, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(2, 49, 100 * util.clamp((grain_fade or 0.02) / 0.120, 0, 1), 2) ; screen.fill()
+    screen.level(8) ; screen.move(2, 62)
+    screen.text(lc_recording and "enregistre... K3 stop" or "REC long, STOP, puis FRAG")
     screen.update() ; return
   end
   if page == 49 then
