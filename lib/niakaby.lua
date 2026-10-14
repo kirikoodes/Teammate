@@ -98,11 +98,21 @@ M.progs = {
   {1,2,3,4,5,6,7,1},              -- CLIMB   gamme montante
   {1,7,6,5,4,3,2,1},              -- DESCEND run descendant
   {1,5,2,6,3,7,4,1},              -- CIRCLE  quintes descendantes
+  {1,1,4,4},                      -- FUNK    vamp I -> IV
+  {2,5,2,5},                      -- FUNK2   vamp ii-V
+  {1,7,4,1},                      -- FUNKmx  I-bVII-IV-I (mixolydien)
+  {1,2,5,1},                      -- BOSSA   I-II-V-I
+  {6,2,5,1},                      -- BOSSAm  vi-ii-V-I
+  {3,6,2,5,1,4,2,5},              -- BOSSAjz chaine de ii-V
+  {1,6,5,7},                      -- TRAP    i-VI-v-VII (sombre)
+  {6,7,1,1},                      -- TRAP2   VI-VII-i
+  {1,4,6,7},                      -- TRAP3   i-iv-VI-VII
 }
 M.prog_names = {
   "POP","POP2","50s","3CH","POPV","GOSPEL","251","251vi","RHYTHM","3625","JAZZ6",
   "BLUES12","BLUESqk","CANON","ANDAL","EPIC","EPIC2","MINjz","MIN67","viV","I-iii",
   "CLIMB","DESCEND","CIRCLE",
+  "FUNK","FUNK2","FUNKmx","BOSSA","BOSSAm","BOSSAjz","TRAP","TRAP2","TRAP3",
 }
 M.prog_idx   = 1
 -- vitesse de changement d'accord (FOLLOW/AUTO/BLEND) : toutes les X beats (du lent au tres rapide ~arpege)
