@@ -3837,7 +3837,7 @@ function state_save()
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
       m_react=metabolik.react, m_infl=metabolik.influence_idx,
       n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
-      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx, n_keyfrom=niakaby.key_from,
+      n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx, n_keyfrom=niakaby.key_from, n_harm=niakaby.harm_rate_idx,
     }
     tab.save(st, norns.state.data .. "state.data")
   end)
@@ -3956,7 +3956,7 @@ function state_load()
     niakaby.chord_idx=g(st.n_chord,niakaby.chord_idx)
     niakaby.mode=g(st.n_mode,niakaby.mode) ; niakaby.prog_idx=g(st.n_prog,niakaby.prog_idx)
     niakaby.arp_dir=g(st.n_arpdir,niakaby.arp_dir) ; niakaby.arp_rate_idx=g(st.n_arprate,niakaby.arp_rate_idx)
-    niakaby.key_from=g(st.n_keyfrom,niakaby.key_from)
+    niakaby.key_from=g(st.n_keyfrom,niakaby.key_from) ; niakaby.harm_rate_idx=g(st.n_harm,niakaby.harm_rate_idx)
     if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
   end)
 end
@@ -4373,7 +4373,7 @@ function init()
   -- PROGRESSION NIAKABY (FOLLOW/AUTO/BLEND/ARP) : 1 pas harmonique par mesure, cale sur l'horloge (BPM MGEN / clock externe)
   clock.run(function()
     while true do
-      clock.sync(4)
+      clock.sync((niakaby.HARM_RATE and niakaby.HARM_RATE[niakaby.harm_rate_idx or 2]) or 4)   -- vitesse d'accord reglable
       if niakaby.on and niakaby.harmonic_step and (niakaby.mode or 1) ~= 1 then pcall(niakaby.harmonic_step, 78) end
     end
   end)

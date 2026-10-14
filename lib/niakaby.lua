@@ -59,6 +59,10 @@ M.det_scale      = "MAJOR"   -- gamme detectee (MAJEUR/MINEUR) pour INPUT/IMPRO,
 M.progs      = { {1,5,6,4}, {1,6,4,5}, {1,4,5,5}, {6,4,1,5}, {2,5,1,1}, {1,3,4,5}, {1,1,4,5} }
 M.prog_names = { "I-V-vi-IV", "I-vi-IV-V", "I-IV-V", "vi-IV-I-V", "ii-V-I", "I-iii-IV-V", "I-IV-V" }
 M.prog_idx   = 1
+-- vitesse de changement d'accord (FOLLOW/AUTO/BLEND) : toutes les X beats
+M.HARM_RATE_NAMES = { "2 mes", "1 mes", "1/2", "1 tps" }
+M.HARM_RATE       = { 8, 4, 2, 1 }   -- en beats (clock.sync cote script principal)
+M.harm_rate_idx   = 2                -- 1 mesure (4 beats) = comportement d'origine
 
 -- ce que NIAKABY ecoute (combinable) -> harmonisation (NOTE) et memoire harmonique (FOLLOW/BLEND)
 M.src        = { input = true, metabo = false, comp = false, mgen = true, snot = false }  -- ecoute MGEN par defaut (FOLLOW suit MGEN)
@@ -353,8 +357,8 @@ function M.redraw()
   elseif M.mode == 3 or M.mode == 4 then       -- AUTO / BLEND : progression
     screen.level(4);  screen.move(2, 22);  screen.text("E2 PROG")
     screen.level(15); screen.move(56, 22); screen.text(M.prog_names[M.prog_idx])
-    screen.level(4);  screen.move(2, 32);  screen.text("E3 OCT")
-    screen.level(15); screen.move(74, 32); screen.text(string.format("%+d", M.octave))
+    screen.level(4);  screen.move(2, 32);  screen.text("E3 VITESSE")
+    screen.level(15); screen.move(74, 32); screen.text(M.HARM_RATE_NAMES[M.harm_rate_idx])
   else                                          -- NOTE / FOLLOW : gamme
     screen.level(4);  screen.move(2, 22);  screen.text("E2 GAMME")
     screen.level(15); screen.move(74, 22); screen.text((M.mode == 2) and "MGEN" or M.scale_names[M.scale_idx])
@@ -395,7 +399,9 @@ function M.enc(n, d)
     end
   elseif n == 3 then
     if M.mode == 5 then
-      M.arp_rate_idx = util.clamp(M.arp_rate_idx + d, 1, #M.ARP_RATE)   -- ARP : rythme
+      M.arp_rate_idx = util.clamp(M.arp_rate_idx + d, 1, #M.ARP_RATE)       -- ARP : vitesse d'arpege
+    elseif M.mode == 3 or M.mode == 4 then
+      M.harm_rate_idx = util.clamp(M.harm_rate_idx + d, 1, #M.HARM_RATE)    -- AUTO/BLEND : vitesse d'accord
     else
       M.octave = util.clamp(M.octave + d, -2, 2)
     end
