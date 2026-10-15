@@ -560,8 +560,18 @@ local function freq_to_midi(freq)
   return (n >= 0 and n <= 127) and n or nil
 end
 
+-- VOLUME PAR ORGANE (page MIX) : multiplicateur de velocite par stream MIDI, pour mettre
+-- tous les organes au meme niveau (MGEN/NIAKA/METABO/PERU/IMPRO/POtO/8OS sortent a des
+-- velocites differentes). GLOBAL (limite 200 locals). 1.0 = inchange.
+organ_vol = { 1, 1, 1, 1, 1, 1, 1, 1 }
+MIX_ST = { 1, 2, 3, 4, 6, 7, 8 }                                   -- streams des organes (page MIX)
+MIX_NM = { "IMPRO", "POtO", "8OS", "MGEN", "METABO", "NIAKA", "PERU" }
+mix_cur = 1                                                        -- curseur organe (page MIX)
+
 local function midi_note_on(stream, note, vel)
   if frag_on and not frag_open then return end   -- SLICER : tranche coupee -> aucune note ne sort (tous les channels)
+  -- VOLUME PAR ORGANE : echelle de velocite pour egaliser les organes entre eux (page MIX)
+  vel = math.max(1, math.min(127, math.floor((vel or 64) * (organ_vol[stream] or 1) + 0.5)))
   if stream_energy and stream_energy[stream] then   -- suit l'activite du mode (meme sans device MIDI) -> source CC/OSC
     stream_energy[stream] = math.max(stream_energy[stream], (vel or 0) / 127)
   end
@@ -3682,12 +3692,27 @@ function metabo_shape_niakaby()
   local tv = ((c.growth or 0) - (c.lactate or 0)) * dep
   if coherent then niakaby.transpose = util.clamp(math.floor(tv * 2 + 0.5), -1, 1) * 12
   else niakaby.transpose = util.clamp(math.floor(tv * 12 + 0.5), -12, 12) end
-  -- STYLE DE JEU : respiration=souffle(legato) ; stress=staccato ; fermentation=swing ; croissance=vitesse
+  -- STYLE DE JEU : respiration=souffle(legato) ; stress=staccato ; croissance=vitesse.
+  -- (METABO NE TOUCHE PAS au swing -> ta rythmique reste intacte.)
   niakaby.arp_gate   = util.clamp(0.35 + (c.respiration or 0) * 0.7 - sfx * 0.3, 0.05, 1.3)
-  niakaby.seq_swing  = util.clamp((c.fermentation or 0) * 0.6 * dep, 0, 0.6)
   if niakaby.ARP_RATE then
     local ri = 2 + math.floor((c.growth or 0) * 4 + sfx * 1.5)
     niakaby.arp_rate_idx = util.clamp(ri, 1, #niakaby.ARP_RATE)
+  end
+  -- METABO SCULPTE LES PAS du sequenceur (PAS le swing) : densite (euclidien) + ratchets.
+  if niakaby.seq_on then
+    local n = niakaby.seq_len or 16
+    local dens = util.clamp((0.22 + (c.growth or 0) * 0.55 + sfx * 0.3) * (0.4 + dep * 0.8), 0.08, 1.0)
+    local k = util.clamp(math.floor(dens * n + 0.5), 1, n)
+    local pat = {} ; local bucket = 0
+    for i = 1, n do
+      bucket = bucket + k
+      if bucket >= n then bucket = bucket - n ; pat[i] = 1 else pat[i] = 0 end   -- euclidien : k frappes reparties
+    end
+    if sfx > 0.6 then                                   -- stress fort : doublés sur les temps forts
+      for _, i in ipairs({ 1, math.floor(n / 2) + 1 }) do if pat[i] == 1 then pat[i] = 2 end end
+    end
+    niakaby.seq_pat = pat
   end
 end
 
@@ -3821,6 +3846,7 @@ NAV_CATS = {
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
   { n = "EFX",    pg = {55,56,57},       arm = nil },   -- 55 reverb ; 56 glitch ; 57 delai (echo de grains)
   { n = "ROUTE",  pg = {59},             arm = nil },   -- 59 = HUB routing central (toutes les sources)
+  { n = "MIX",    pg = {64},             arm = nil },   -- 64 = volume par organe (egaliser les niveaux)
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
 home_cursor = 1
@@ -4016,7 +4042,7 @@ function state_save()
       efx_rev_on=efx_rev_on, efx_amt=efx_amt, efx_time=efx_time,
       efx_glitch_on=efx_glitch_on, efx_glitch_amt=efx_glitch_amt, efx_glitch_mode=efx_glitch_mode,
       efx_delay_on=efx_delay_on, efx_delay_time=efx_delay_time, efx_delay_fb=efx_delay_fb,
-      grain_fade=grain_fade, corpus_long_mode=corpus_long_mode,
+      grain_fade=grain_fade, corpus_long_mode=corpus_long_mode, organ_vol=organ_vol,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
@@ -4125,6 +4151,7 @@ function state_load()
     if st.efx_delay_fb then efx_delay_fb = util.clamp(st.efx_delay_fb, 0, 1) end
     if st.grain_fade then grain_fade = util.clamp(st.grain_fade, 0.002, 0.120) end
     if st.corpus_long_mode ~= nil then corpus_long_mode = st.corpus_long_mode end
+    if type(st.organ_vol)=="table" then for i=1,8 do if st.organ_vol[i] then organ_vol[i]=util.clamp(st.organ_vol[i],0,2.0) end end end
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -4874,6 +4901,8 @@ function enc(n, d)
       if niakaby.enc_gate then niakaby.enc_gate(d) end                   -- GATE : reglage (pas de 0.05)
     elseif page == 59 then
       route_hub_dev = util.clamp(route_hub_dev + d, 1, 4)                 -- HUB : choisit le device
+    elseif page == 64 then
+      mix_cur = util.clamp(mix_cur + d, 1, #MIX_ST)                       -- MIX : curseur organe
     elseif (page >= 51 and page <= 54) or page == 60 then
       route_cur_dev = util.clamp(route_cur_dev + d, 1, 4)                 -- ROUTE/PERU : choisit l'appareil MIDI
     elseif page == 55 then
@@ -5013,6 +5042,9 @@ function enc(n, d)
     elseif page == 59 then
       local st = ROUTE_HUB_ST[route_hub_cur]                   -- HUB (E3) : canal de la source sur le device
       if midi_ch[st] then midi_ch[st][route_hub_dev] = util.clamp(midi_ch[st][route_hub_dev] + d, 1, 16) end
+    elseif page == 64 then
+      local st = MIX_ST[mix_cur]                              -- MIX (E3) : volume de l'organe (0..200%)
+      organ_vol[st] = util.clamp((organ_vol[st] or 1) + d * 0.05, 0, 2.0)
     elseif (page >= 51 and page <= 54) or page == 60 then
       local st = (page == 60) and 8 or (page - 50)            -- ROUTE/PERU (E3) : canal MIDI de l'appareil
       midi_ch[st][route_cur_dev] = util.clamp(midi_ch[st][route_cur_dev] + d, 1, 16)
@@ -5183,6 +5215,11 @@ function key(n, z)
   end
   if (page >= 51 and page <= 54) or page == 60 then    -- ROUTE/PERU : K3 arme/coupe l'appareil
     if n == 3 then local st = (page == 60) and 8 or (page - 50) ; midi_route[st][route_cur_dev] = not midi_route[st][route_cur_dev] end
+    redraw() ; return
+  end
+  if page == 64 then                                   -- MIX : K2 = aligne tous les organes sur le curseur ; K3 = reset 100%
+    if n == 2 then local v = organ_vol[MIX_ST[mix_cur]] or 1 ; for _, st in ipairs(MIX_ST) do organ_vol[st] = v end
+    elseif n == 3 then for _, st in ipairs(MIX_ST) do organ_vol[st] = 1 end end
     redraw() ; return
   end
   if page == 59 then                                   -- HUB ROUTING central
@@ -6038,6 +6075,24 @@ function redraw()
       screen.text("ch " .. tostring((midi_ch[st] and midi_ch[st][d]) or 1))
     end
     screen.level(4) ; screen.move(126, 63) ; screen.text_right("K2src K3on E3ch")
+    screen.update() ; return
+  end
+  if page == 64 then                               -- MIX : volume par organe (egaliser les niveaux)
+    screen.clear() ; screen.font_size(8)
+    screen.level(15) ; screen.move(0, 8) ; screen.text("MIX organes")
+    screen.level(6)  ; screen.move(126, 8) ; screen.text_right("K2=all K3=100%")
+    local ys = { 17, 24, 31, 38, 45, 52, 59 }
+    for i = 1, #MIX_ST do
+      local st  = MIX_ST[i] ; local v = organ_vol[st] or 1
+      local sel = (i == mix_cur)
+      screen.level(sel and 15 or 5) ; screen.move(0, ys[i])
+      screen.text((sel and ">" or " ") .. (MIX_NM[i] or "?"))
+      -- barre 0..200% (100% = repere a mi-course)
+      screen.level(3)  ; screen.rect(46, ys[i] - 4, 60, 3) ; screen.stroke()
+      screen.level(sel and 15 or 9) ; screen.rect(46, ys[i] - 4, 60 * util.clamp(v / 2, 0, 1), 3) ; screen.fill()
+      screen.level(2)  ; screen.rect(46 + 30, ys[i] - 5, 1, 5) ; screen.fill()   -- repere 100%
+      screen.level(sel and 15 or 9) ; screen.move(126, ys[i]) ; screen.text_right(math.floor(v * 100 + 0.5) .. "%")
+    end
     screen.update() ; return
   end
   if page == 50 then
