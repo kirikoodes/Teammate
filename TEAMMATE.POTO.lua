@@ -3637,6 +3637,20 @@ end
 niaka_metabo_link  = false   -- on/off de l'emprise
 niaka_metabo_depth = 0.6     -- profondeur 0..1 (0 = NIAKABY libre, 1 = pilote a fond)
 niaka_metabo_bal   = 0.5     -- dosage nutriment : 0 = INPUT (toi), 1 = COMPAGNON
+-- NIAKABY LEAD : NIAKABY devient le chef harmonique -> MGEN (et la coherence METABO) se calent
+-- sur SA clef (lui-meme suit ton input/le champ). Inverse la hierarchie habituelle (NIAKABY->MGEN).
+niaka_lead = false
+-- MGEN (et donc METABO via la coherence) se cale sur la clef courante de NIAKABY.
+function niaka_lead_sync()
+  if not (niaka_lead and niakaby and niakaby.cur_key) then return end
+  local r, sc = niakaby.cur_key()
+  if not r then return end
+  local npc = r % 12
+  mgen_root = 60 + ((npc + 6) % 12) - 6            -- tonique MGEN = celle de NIAKABY (octave proche de C4)
+  local minor = false
+  if type(sc) == "table" then for _, v in ipairs(sc) do if (v % 12) == 3 then minor = true break end end end
+  mgen_scale_idx = minor and 1 or 5                -- MGEN : MINOR(1) / MAJOR(5)
+end
 -- "voyage" de progressions, du plus consonant au plus tendu/complexe (indices dans niakaby.progs)
 NMETA_JOURNEY = { 1, 3, 14, 7, 9, 11, 28, 15, 16, 18, 31, 23 }   -- POP,50s,CANON,251,RHYTHM,JAZZ6,BOSSA,ANDAL,EPIC,MINjz,TRAP,DESCEND
 -- applique l'etat de METABO a NIAKABY (appele par mesure). Gate : link + METABO on.
@@ -3645,7 +3659,7 @@ function metabo_shape_niakaby()
   local dep = niaka_metabo_depth or 0.6
   local c   = metabolik.ch or {}
   local sfx = metabolik.stressFx or 0
-  local coherent = (mgen_running == true)   -- MGEN joue -> on reste dans SA clef (diatonique, zero dissonance)
+  local coherent = (mgen_running == true) and not niaka_lead   -- MGEN joue -> clef MGEN, SAUF si NIAKABY est le lead (MGEN se cale alors sur lui)
   -- TONIQUE + mode
   if coherent then
     niakaby.key_from = 2                                     -- MGEN : NIAKABY VERROUILLE sur la clef de MGEN
@@ -4006,7 +4020,7 @@ function state_save()
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
-      nmeta_link=niaka_metabo_link, nmeta_depth=niaka_metabo_depth, nmeta_bal=niaka_metabo_bal,
+      nmeta_link=niaka_metabo_link, nmeta_depth=niaka_metabo_depth, nmeta_bal=niaka_metabo_bal, niaka_lead=niaka_lead,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
       m_scale=metabolik.scale_idx, m_oct=metabolik.octave, m_dens=metabolik.density_idx,
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
@@ -4130,6 +4144,7 @@ function state_load()
       for d=1,4 do if st.niaka_ch[m][d] then niaka_ch[m][d]=st.niaka_ch[m][d] end end end end end
     meta_mgen_drive=g(st.meta_drive,meta_mgen_drive) ; meta_mgen_scope=g(st.meta_scope,meta_mgen_scope) ; meta_note_inf=g(st.meta_note,meta_note_inf)
     if st.nmeta_link~=nil then niaka_metabo_link=st.nmeta_link end
+    if st.niaka_lead~=nil then niaka_lead=st.niaka_lead end
     niaka_metabo_depth=g(st.nmeta_depth,niaka_metabo_depth) ; niaka_metabo_bal=g(st.nmeta_bal,niaka_metabo_bal)
     spat.mode=g(st.spat_mode,spat.mode) ; spat.mass=g(st.spat_mass,spat.mass) ; spat.tempo=g(st.spat_tempo,spat.tempo)
     metabolik.scale_idx=g(st.m_scale,metabolik.scale_idx) ; metabolik.octave=g(st.m_oct,metabolik.octave)
@@ -4573,6 +4588,7 @@ function init()
     while true do
       clock.sync((niakaby.HARM_RATE and niakaby.HARM_RATE[niakaby.harm_rate_idx or 2]) or 4)   -- vitesse d'accord reglable
       pcall(metabo_shape_niakaby)   -- METABO (organisme) remodele NIAKABY par mesure (si link on)
+      pcall(niaka_lead_sync)        -- NIAKABY lead -> MGEN se cale sur sa clef
       if niakaby.on and niakaby.harmonic_step and (niakaby.mode or 1) ~= 1 then pcall(niakaby.harmonic_step, 78) end
     end
   end)
@@ -5126,6 +5142,8 @@ function key(n, z)
     if n == 3 then
       niaka_metabo_link = not niaka_metabo_link
       if not niaka_metabo_link and niakaby then niakaby.transpose = 0 end   -- relache : plus de transposition imposee
+    elseif n == 2 then
+      niaka_lead = not niaka_lead                        -- K2 : NIAKABY lead (MGEN/METABO se calent sur lui)
     end
     redraw() ; return
   end
@@ -6228,7 +6246,7 @@ function redraw()
     screen.level(12) ; screen.rect(0, 23, 126 * (niaka_metabo_depth or 0), 2) ; screen.fill()
     -- dosage nutriment INPUT <-> COMP
     screen.level(4)  ; screen.move(0, 34) ; screen.text("E3 NUTRI")
-    screen.level(10) ; screen.move(126, 34) ; screen.text_right(string.format("IN %d / CO %d", math.floor((1-(niaka_metabo_bal or 0.5))*100), math.floor((niaka_metabo_bal or 0.5)*100)))
+    screen.level(10) ; screen.move(126, 34) ; screen.text_right(string.format("IN%d CO%d", math.floor((1-(niaka_metabo_bal or 0.5))*100+0.5), math.floor((niaka_metabo_bal or 0.5)*100+0.5)))
     -- etat vivant : tonique du champ, tension, prog, transpose
     local pc, minor = (metabolik and metabolik.harmonic) and metabolik.harmonic() or nil
     local tkey = pc and (NN[pc + 1] .. (minor and "m" or "")) or "--"
@@ -6241,7 +6259,7 @@ function redraw()
     screen.level(4)  ; screen.move(66, 56) ; screen.text("stress")
     screen.level(15) ; screen.move(126, 56) ; screen.text_right(string.format("%d%%", math.floor(((metabolik and metabolik.stressFx) or 0) * 100)))
     screen.level(4)  ; screen.move(0, 64) ; screen.text("K3 on/off")
-    if niaka_metabo_link and not (metabolik and metabolik.on) then screen.level(12) ; screen.move(126, 64) ; screen.text_right("METABO off!") end
+    screen.level(niaka_lead and 15 or 5) ; screen.move(70, 64) ; screen.text("K2 LEAD " .. (niaka_lead and "ON" or "off"))
     screen.update() ; return
   end
 

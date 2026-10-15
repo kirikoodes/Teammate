@@ -196,6 +196,13 @@ local function key_now()
   return M.root, scale()                              -- NIAKA (kf==3) ou fallback
 end
 
+-- clef JOUEE actuellement (tonique MIDI + gamme), transposition incluse : pour que MGEN/METABO
+-- se calent sur NIAKABY quand il est le lead harmonique.
+function M.cur_key()
+  local r, sc = key_now()
+  return (r or M.root) + (M.transpose or 0), sc
+end
+
 local function freq_to_midi(f)
   if not f or f < 30 then return nil end
   return math.floor(69 + 12 * math.log(f / 440) / math.log(2) + 0.5)
