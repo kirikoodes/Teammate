@@ -58,6 +58,16 @@ M.arp_gate       = 0.8    -- GATE/SUSTAIN de l'arp (fraction du pas) : <1 = NIAK
                           -- -> c'est la RELEASE de TON synthe qui sonne ensuite (tu la regles toi-meme) ;
                           -- 1 ou + = legato (notes enchainees). Reglable : page ARP, K2 maintenu + E3.
 
+-- ===== SEQUENCEUR DE GROOVE (en mode ARP) : grille de pas, cale sur l'horloge master (OP-XY) =====
+-- chaque pas : 0 = espace (rest), 1 = joue, 2 = double (ratchet x2), 3 = triple. + swing.
+M.seq_on    = false
+M.seq_len   = 16          -- nombre de pas (1..32)
+M.seq_pat   = {}          -- valeurs par pas (nil = 1 = joue)
+M.seq_swing = 0.0         -- swing : retarde les pas PAIRS (0..0.6 du pas)
+M.seq_i     = 0           -- pas courant (tete de lecture)
+M.seq_cur   = 1           -- curseur d'edition
+M.SEQ_VAL_NAMES = { "·", "x", "xx", "xxx" }   -- rest / joue / double / triple (affichage cellule)
+
 -- memoire harmonique (classes de hauteur 0..11) : nourrie par ce que NIAKABY entend
 M.chroma = {} ; for _i = 0, 11 do M.chroma[_i] = 0 end
 M.mgen_key = nil    -- function() return root, scale_table end : cale FOLLOW/AUTO/BLEND sur la gamme+tonique de MGEN
@@ -508,6 +518,91 @@ function M.arp_tick(vel)
       M.arp_bounce = step ; M.arp_i = ni
     end
   end
+end
+
+-- SEQUENCEUR : appele a chaque pas de grille (clock.sync cote main, = horloge master OP-XY).
+-- Lit le pattern : espace = silence, joue = 1 note/accord d'arpege, double/triple = ratchet.
+-- Swing : retarde les pas pairs d'une fraction du pas. Ne joue qu'en mode ARP.
+function M.seq_step(vel)
+  if not M.on or M.mode ~= 5 then return end
+  local n = M.seq_len or 16 ; if n < 1 then n = 1 end
+  M.seq_i = (M.seq_i % n) + 1
+  local v = M.seq_pat[M.seq_i] ; if v == nil then v = 1 end
+  if v <= 0 then return end                       -- espace (rest)
+  local step = arp_step_sec()
+  local function fire()
+    M.arp_tick(vel or 96)
+    if v >= 2 and clock and clock.run then         -- DOUBLE/TRIPLE : ratchet
+      clock.run(function()
+        local hits = (v >= 3) and 2 or 1
+        local gap  = step / (v >= 3 and 3 or 2)
+        for _ = 1, hits do clock.sleep(gap) ; M.arp_tick(vel or 96) end
+      end)
+    end
+  end
+  local sw = M.seq_swing or 0
+  if sw > 0 and (M.seq_i % 2) == 0 and clock and clock.run then
+    clock.run(function() clock.sleep(step * sw) ; fire() end)   -- swing : pas pair en retard
+  else
+    fire()
+  end
+end
+
+-- ===== page SEQUENCEUR : edition de la grille =====
+function M.seq_enc(n, d, shift)
+  if shift then
+    if n == 2 then M.seq_len = util.clamp((M.seq_len or 16) + d, 1, 32)
+    elseif n == 3 then M.seq_swing = util.clamp((M.seq_swing or 0) + d * 0.02, 0, 0.6) end
+    return
+  end
+  if n == 2 then
+    M.seq_cur = util.clamp((M.seq_cur or 1) + d, 1, M.seq_len or 16)
+  elseif n == 3 then
+    local cur = M.seq_cur or 1
+    local v = M.seq_pat[cur] ; if v == nil then v = 1 end
+    M.seq_pat[cur] = util.clamp(v + d, 0, 3)
+  end
+end
+
+function M.seq_key(n, shift)
+  if n == 3 then
+    M.seq_on = not M.seq_on ; M.seq_i = 0
+    if not M.seq_on then release() end
+  elseif n == 2 then                               -- K2 : cycle la valeur du pas courant (· -> x -> xx -> xxx)
+    local cur = M.seq_cur or 1
+    local v = M.seq_pat[cur] ; if v == nil then v = 1 end
+    M.seq_pat[cur] = (v + 1) % 4
+  end
+end
+
+function M.redraw_seq()
+  screen.clear() ; screen.font_size(8)
+  screen.level(15) ; screen.move(0, 8) ; screen.text("NIAKABY SEQ")
+  screen.level(M.seq_on and 13 or 5) ; screen.move(126, 8) ; screen.text_right(M.seq_on and "ON" or "off")
+  -- infos : longueur + swing
+  screen.level(4) ; screen.move(0, 18) ; screen.text("LEN " .. (M.seq_len or 16))
+  screen.level(4) ; screen.move(60, 18) ; screen.text("SWING " .. math.floor((M.seq_swing or 0) * 100) .. "%")
+  if M.mode ~= 5 then screen.level(12) ; screen.move(126, 18) ; screen.text_right("mode ARP!") end
+  -- grille : 16 pas par rangee, 2 rangees (jusqu'a 32)
+  local n = M.seq_len or 16
+  local cw = 8
+  for i = 1, n do
+    local col = (i - 1) % 16 ; local row = math.floor((i - 1) / 16)
+    local x = col * cw ; local y = 26 + row * 16
+    local v = M.seq_pat[i] ; if v == nil then v = 1 end
+    local cur = (i == M.seq_cur) ; local ph = (i == M.seq_i) and M.seq_on
+    -- cellule : hauteur selon valeur (rest bas, joue/double/triple + haut)
+    if v > 0 then
+      local h = 2 + v * 3
+      screen.level(ph and 15 or 10) ; screen.rect(x + 1, y + 10 - h, cw - 2, h) ; screen.fill()
+    else
+      screen.level(3) ; screen.rect(x + 1, y + 8, cw - 2, 2) ; screen.fill()   -- espace : trait bas
+    end
+    if cur then screen.level(15) ; screen.rect(x, y - 2, cw, 14) ; screen.stroke() end
+    if ph and not cur then screen.level(6) ; screen.rect(x, y - 2, cw, 14) ; screen.stroke() end
+  end
+  screen.level(4) ; screen.move(0, 63) ; screen.text("E2pas E3val K2cyc K3on")
+  screen.update()
 end
 
 -- mise a jour ~30 Hz avec les features audio (mode NOTE uniquement)

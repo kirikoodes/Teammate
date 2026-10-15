@@ -3246,6 +3246,7 @@ peru_rmodes = { {src=0, amt=0}, {src=1, amt=0.5}, {src=1, amt=1.0}, {src=2, amt=
 peru_rmode  = 1
 peru_k2_down = false ; peru_k2_moved = false   -- K2 maintenu sur PERU = shift (E3 -> threshold SAMT)
 niak_k2_down = false ; niak_k2_moved = false   -- K2 maintenu sur NIAKABY = shift (E3 -> GATE/sustain arp)
+niak_seq_k2_down = false ; niak_seq_k2_moved = false   -- K2 maintenu sur NIAKABY SEQ = shift (E2 len / E3 swing)
 PERU_RLBL   = { "OFF", "IN 50%", "IN 100%", "MB 50%", "MB 100%", "IM 50%", "IM 100%", "SM 50%", "SM 100%" }
 
 function peru_add(slot)
@@ -3749,7 +3750,7 @@ NAV_CATS = {
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
   { n = "METABO", pg = {18,19,20,21},    arm = 5  },
-  { n = "NIAKA",  pg = {22,23,24,58},    arm = 6  },   -- 58 = GATE/sustain
+  { n = "NIAKA",  pg = {22,23,24,58,62}, arm = 6  },   -- 58 = GATE/sustain ; 62 = SEQ groove
   { n = "PERU",   pg = {39,40,47,60},    arm = 11 },   -- 60 = PERU ROUTE
   { n = "WIFI",   pg = {36,35},          arm = 9  },
   { n = "CC",     pg = {37,45},          arm = 10 },
@@ -3961,6 +3962,7 @@ function state_save()
       m_react=metabolik.react, m_infl=metabolik.influence_idx,
       n_scale=niakaby.scale_idx, n_oct=niakaby.octave, n_chord=niakaby.chord_idx, n_src=niakaby.src,
       n_mode=niakaby.mode, n_prog=niakaby.prog_idx, n_arpdir=niakaby.arp_dir, n_arprate=niakaby.arp_rate_idx, n_keyfrom=niakaby.key_from, n_harm=niakaby.harm_rate_idx, n_arpgate=niakaby.arp_gate,
+      n_seqon=niakaby.seq_on, n_seqlen=niakaby.seq_len, n_seqpat=niakaby.seq_pat, n_seqsw=niakaby.seq_swing,
     }
     tab.save(st, norns.state.data .. "state.data")
   end)
@@ -4087,6 +4089,9 @@ function state_load()
     niakaby.arp_dir=g(st.n_arpdir,niakaby.arp_dir) ; niakaby.arp_rate_idx=g(st.n_arprate,niakaby.arp_rate_idx)
     niakaby.key_from=g(st.n_keyfrom,niakaby.key_from) ; niakaby.harm_rate_idx=g(st.n_harm,niakaby.harm_rate_idx)
     niakaby.arp_gate=g(st.n_arpgate,niakaby.arp_gate)
+    if st.n_seqon~=nil then niakaby.seq_on=st.n_seqon end
+    niakaby.seq_len=g(st.n_seqlen,niakaby.seq_len) ; niakaby.seq_swing=g(st.n_seqsw,niakaby.seq_swing)
+    if type(st.n_seqpat)=="table" then niakaby.seq_pat=st.n_seqpat end
     if type(st.n_src)=="table" and niakaby.src then for k,v in pairs(st.n_src) do niakaby.src[k]=v end end
   end)
 end
@@ -4523,7 +4528,10 @@ function init()
     while true do
       local r = (niakaby.ARP_RATE and niakaby.ARP_RATE[niakaby.arp_rate_idx or 2]) or 0.5
       clock.sync(r)
-      if niakaby.on and (niakaby.mode or 1) == 5 and niakaby.arp_tick then pcall(niakaby.arp_tick, 96) end
+      if niakaby.on and (niakaby.mode or 1) == 5 then
+        if niakaby.seq_on and niakaby.seq_step then pcall(niakaby.seq_step, 96)   -- SEQUENCEUR de groove (pattern + swing)
+        elseif niakaby.arp_tick then pcall(niakaby.arp_tick, 96) end               -- arpege uniforme
+      end
     end
   end)
 
@@ -4765,6 +4773,9 @@ function enc(n, d)
       metabolik.enc_feed(2, d)
     elseif page == 22 then
       niakaby.enc(2, d)
+    elseif page == 62 then
+      if niak_seq_k2_down then niak_seq_k2_moved = true end
+      niakaby.seq_enc(2, d, niak_seq_k2_down)                    -- SEQ : curseur pas (ou longueur si K2 maintenu)
     elseif page == 23 then
       niaka_route_dev = util.clamp(niaka_route_dev + d, 1, 4)   -- E2 : choisit le DEVICE
     elseif page == 24 then
@@ -4946,6 +4957,9 @@ function enc(n, d)
     elseif page == 22 then
       if niak_k2_down and niakaby.enc_gate then niakaby.enc_gate(d) ; niak_k2_moved = true   -- K2 maintenu : GATE/sustain
       else niakaby.enc(3, d) end
+    elseif page == 62 then
+      if niak_seq_k2_down then niak_seq_k2_moved = true end
+      niakaby.seq_enc(3, d, niak_seq_k2_down)                    -- SEQ : valeur du pas (ou swing si K2 maintenu)
     elseif page == 23 then
       local m = niaka_route_cur   -- E3 : canal du mode (curseur) sur le device affiche
       niaka_ch[m][niaka_route_dev] = util.clamp(niaka_ch[m][niaka_route_dev] + d, 1, 16)
@@ -5023,11 +5037,17 @@ function key(n, z)
     else niak_k2_down = false ; if not niak_k2_moved then niakaby.key(2) end end
     redraw() ; return
   end
+  if page == 62 and n == 2 then             -- NIAKABY SEQ : K2 tap = cycle valeur du pas ; maintenu + E2/E3 = len/swing
+    if z == 1 then niak_seq_k2_down = true ; niak_seq_k2_moved = false
+    else niak_seq_k2_down = false ; if not niak_seq_k2_moved then niakaby.seq_key(2) end end
+    redraw() ; return
+  end
   if z == 0 then return end
   if page == 18 then metabolik.key(n) ; redraw() ; return end
   if page == 20 then metabolik.key_play(n) ; redraw() ; return end
   if page == 21 then metabolik.key_feed(n) ; redraw() ; return end
   if page == 22 then niakaby.key(n) ; redraw() ; return end
+  if page == 62 then niakaby.seq_key(n) ; redraw() ; return end    -- SEQ : K3 on/off (K2 gere plus haut)
   if page == 23 then
     if n == 2 then niaka_route_cur = (niaka_route_cur % 5) + 1             -- K2 : curseur mode (1..5)
     elseif n == 3 then                                                     -- K3 : active/coupe ce mode sur le device affiche
@@ -5858,6 +5878,7 @@ function redraw()
   if page == 20 then metabolik.redraw_play() ; return end
   if page == 21 then metabolik.redraw_feed() ; return end
   if page == 22 then niakaby.redraw() ; return end
+  if page == 62 then niakaby.redraw_seq() ; return end   -- SEQUENCEUR de groove
   if page == 24 then niakaby.redraw_src() ; return end
   if page == 23 then                               -- NIAKABY ROUTE (page dediee, vue PAR DEVICE)
     screen.clear() ; screen.font_size(8)
