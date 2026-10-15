@@ -3645,27 +3645,29 @@ function metabo_shape_niakaby()
   local dep = niaka_metabo_depth or 0.6
   local c   = metabolik.ch or {}
   local sfx = metabolik.stressFx or 0
-  -- TONIQUE + mode : suit la "chair" harmonique (notes reellement jouees)
-  if metabolik.harmonic then
+  local coherent = (mgen_running == true)   -- MGEN joue -> on reste dans SA clef (diatonique, zero dissonance)
+  -- TONIQUE + mode
+  if coherent then
+    niakaby.key_from = 2                                     -- MGEN : NIAKABY VERROUILLE sur la clef de MGEN
+  elseif metabolik.harmonic then                            -- MGEN off : la tonique suit la "chair" harmonique jouee
     local pc, minor, en = metabolik.harmonic()
     if pc and en and en > 0.3 then
-      niakaby.key_from = 2                                   -- NIAKA : utilise root+gamme qu'on fixe ici
-      niakaby.root     = 48 + pc                             -- tonique vers la note dominante jouee
-      -- gamme : garde une couleur du monde si deja choisie, sinon majeur/mineur detecte
+      niakaby.key_from = 3 ; niakaby.root = 48 + pc          -- NIAKA : utilise root+gamme qu'on fixe (tonique bouge vers le champ)
       local nm = niakaby.scale_names[niakaby.scale_idx]
-      if nm == "MAJOR" or nm == "MINOR" then
-        niakaby.scale_idx = minor and 2 or 1
-      end
+      if nm == "MAJOR" or nm == "MINOR" then niakaby.scale_idx = minor and 2 or 1 end
     end
   end
-  -- TENSION metabolique -> progression (plus tendu = plus complexe) + couleur d'accord
+  -- TENSION metabolique -> progression (plus tendu = plus complexe) + couleur d'accord (toujours diatonique)
   local tension = math.min(1, (sfx * 0.5 + (c.glycolysis or 0) * 0.25 + (c.fermentation or 0) * 0.25) * (0.5 + dep))
   local J = NMETA_JOURNEY
   local ji = 1 + math.floor(tension * (#J - 1) + 0.5)
   niakaby.prog_idx  = J[util.clamp(ji, 1, #J)]
   niakaby.chord_idx = util.clamp(1 + math.floor(tension * 3 + 0.5), 1, #niakaby.chord_names)   -- triad->7->9->sus
-  -- TRANSPOSITION : croissance monte, lactate descend (demi-tons), dosee par la profondeur
-  niakaby.transpose = util.clamp(math.floor(((c.growth or 0) - (c.lactate or 0)) * 12 * dep + 0.5), -12, 12)
+  -- TRANSPOSITION : croissance monte, lactate descend. COHERENT (MGEN on) -> OCTAVES seulement
+  -- (jamais chromatique = pas de clash) ; MGEN off -> demi-tons libres.
+  local tv = ((c.growth or 0) - (c.lactate or 0)) * dep
+  if coherent then niakaby.transpose = util.clamp(math.floor(tv * 2 + 0.5), -1, 1) * 12
+  else niakaby.transpose = util.clamp(math.floor(tv * 12 + 0.5), -12, 12) end
   -- STYLE DE JEU : respiration=souffle(legato) ; stress=staccato ; fermentation=swing ; croissance=vitesse
   niakaby.arp_gate   = util.clamp(0.35 + (c.respiration or 0) * 0.7 - sfx * 0.3, 0.05, 1.3)
   niakaby.seq_swing  = util.clamp((c.fermentation or 0) * 0.6 * dep, 0, 0.6)
@@ -6231,7 +6233,7 @@ function redraw()
     local pc, minor = (metabolik and metabolik.harmonic) and metabolik.harmonic() or nil
     local tkey = pc and (NN[pc + 1] .. (minor and "m" or "")) or "--"
     screen.level(4)  ; screen.move(0, 46) ; screen.text("clef")
-    screen.level(15) ; screen.move(34, 46) ; screen.text(tkey)
+    screen.level(15) ; screen.move(26, 46) ; screen.text(mgen_running and "MGEN" or tkey)   -- MGEN on -> verrouille sur MGEN (coherent)
     screen.level(4)  ; screen.move(60, 46) ; screen.text("prog")
     screen.level(15) ; screen.move(96, 46) ; screen.text((niakaby and niakaby.prog_names and niakaby.prog_names[niakaby.prog_idx]) or "--")
     screen.level(4)  ; screen.move(0, 56) ; screen.text("transp")
