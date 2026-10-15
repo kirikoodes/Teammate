@@ -574,8 +574,8 @@ end
 -- tous les organes au meme niveau (MGEN/NIAKA/METABO/PERU/IMPRO/POtO/8OS sortent a des
 -- velocites differentes). GLOBAL (limite 200 locals). 1.0 = inchange.
 organ_vol = { 1, 1, 1, 1, 1, 1, 1, 1 }
-MIX_ST = { 1, 2, 3, 4, 6, 7, 8 }                                   -- streams des organes (page MIX)
-MIX_NM = { "IMPRO", "POtO", "8OS", "MGEN", "METABO", "NIAKA", "PERU" }
+MIX_ST = { 1, 4, 6, 7, 8 }                                         -- streams des organes (page MIX ; POtO/8OS retires)
+MIX_NM = { "IMPRO", "MGEN", "METABO", "NIAKA", "PERU" }
 mix_cur = 1                                                        -- curseur organe (page MIX)
 
 local function midi_note_on(stream, note, vel)
