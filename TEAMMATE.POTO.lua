@@ -3855,8 +3855,7 @@ LIVE_NAMES  = { "POtO", "8OS", "MGEN", "SPAT", "METABO", "NIAKABY", "AUDIO", "IM
 -- categorie : E1 defile ses pages puis reboucle sur le HUB. arm = index live_toggle.
 NAV_CATS = {
   { n = "IMPRO",  pg = {1,2,3,4,49,50,61,51,48}, arm = 8  },  -- 49 CLONE ; 50 A2C ; 61 LONG CAP ; 51 ROUTE ; 48 SAMPLE BANK
-  { n = "POtO",   pg = {5,7,30,29,52},   arm = 1  },      -- 52 = ROUTE
-  { n = "8OS",    pg = {6,8,28,53},      arm = 2  },      -- 53 = ROUTE
+  -- POtO et 8OS retires du menu (plus utilises) ; code conserve (pages 5,7,30,29,52 / 6,8,28,53 injoignables).
   { n = "MGEN",   pg = {13,14,15,38,34,46,25,26,54}, arm = 3 },  -- 54 = ROUTE
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
@@ -3867,7 +3866,7 @@ NAV_CATS = {
   { n = "CC",     pg = {37,45},          arm = 10 },
   { n = "SAMT",   pg = {41,43,44},       arm = 12 },
   { n = "EFX",    pg = {55,56,57},       arm = nil },   -- 55 reverb ; 56 glitch ; 57 delai (echo de grains)
-  { n = "ROUTE",  pg = {59},             arm = nil },   -- 59 = HUB routing central (toutes les sources)
+  -- ROUTE (hub central page 59) retire du menu : le routing est deja dans chaque sous-menu.
   { n = "MIX",    pg = {64},             arm = nil },   -- 64 = volume par organe (egaliser les niveaux)
   { n = "AGENT",  pg = {33,31,32,42},    arm = nil },
 }
