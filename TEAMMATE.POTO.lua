@@ -444,10 +444,12 @@ local midi_audio_note    = nil        -- note MIDI audio active courante
 -- (plusieurs notes a la fois, sans octave exacte) ; MONO = une note precise (defaut).
 -- GLOBALS (limite 200 locals). Necessite le CHROMA du moteur SC (SYSTEM>RESTART une fois).
 audio_midi_poly = false
-am_poly_thr     = 0.45     -- seuil relatif : fraction de la note la plus forte pour declencher
+am_clean        = 0.5      -- NETTOYAGE/SELECTIVITE POLY : 0 = genereux (prend tout), 1 = strict
+                           -- (rejette le bruit via la platitude spectrale + ne garde que l'essentiel)
+am_poly_max     = 4        -- nombre MAX de notes simultanees (prend les plus fortes)
 am_poly_base    = 48       -- octave de base des notes poly (C3)
 am_poly_notes   = {}       -- notes MIDI poly actives, par classe de hauteur (0..11)
-am_k2_down = false ; am_k2_moved = false   -- K2 maintenu sur page 16 = shift (E3 seuil / E2 octave)
+am_k2_down = false ; am_k2_moved = false   -- K2 maintenu sur page 16 = shift (E3 clean / E2 max notes)
 
 local rms_smooth     = 0
 local ply_idx        = 1
@@ -2789,18 +2791,29 @@ local function audio_midi_loop()
       if midi_audio_note then audio_midi_note_off(midi_audio_note) ; midi_audio_note = nil end
       for pc = 0, 11 do if am_poly_notes[pc] then audio_midi_note_off(am_poly_notes[pc]) ; am_poly_notes[pc] = nil end end
     elseif audio_midi_poly then
-      -- POLYPHONIQUE : lit le chroma (12 classes), joue une note par classe au-dessus du seuil.
+      -- POLYPHONIQUE : lit le chroma (12 classes). NETTOYAGE : rejette le bruit (platitude
+      -- spectrale haute = son non-tonal) et ne garde que les N notes les plus fortes = l'essentiel.
       if midi_audio_note then audio_midi_note_off(midi_audio_note) ; midi_audio_note = nil end   -- coupe un reste mono
-      local mx = 0 ; for pc = 0, 11 do local v = clone_chroma[pc] or 0 ; if v > mx then mx = v end end
-      local sounding = (cur_gate or 0) > 0.3 and mx > 1e-6
+      local cl  = am_clean or 0.5
+      local mx  = 0 ; for pc = 0, 11 do local v = clone_chroma[pc] or 0 ; if v > mx then mx = v end end
+      local noisy = (cur_flatness or 0) > (1 - cl * 0.6)             -- trop bruité -> on rejette tout
+      local thr   = 0.30 + cl * 0.45                                 -- seuil relatif (plus clean = plus strict)
+      local sounding = (cur_gate or 0) > 0.3 and mx > 1e-6 and not noisy
+      -- selection : classes au-dessus du seuil, triees par energie, limitees a am_poly_max
+      local want = {}
+      if sounding then
+        local cand = {}
+        for pc = 0, 11 do local v = clone_chroma[pc] or 0 ; if v >= mx * thr then cand[#cand + 1] = { pc = pc, v = v } end end
+        table.sort(cand, function(a, b) return a.v > b.v end)
+        for i = 1, math.min(#cand, am_poly_max or 4) do want[cand[i].pc] = cand[i].v end
+      end
       for pc = 0, 11 do
-        local v = clone_chroma[pc] or 0
-        local active = sounding and (v >= mx * (am_poly_thr or 0.45))
-        if active and not am_poly_notes[pc] then
+        local v = want[pc]
+        if v and not am_poly_notes[pc] then
           local vel = math.max(1, math.min(127, math.floor((v / (mx + 1e-9)) * 70 + 35)))
           local note = (am_poly_base or 48) + pc
           audio_midi_note_on(note, vel) ; am_poly_notes[pc] = note
-        elseif (not active) and am_poly_notes[pc] then
+        elseif (not v) and am_poly_notes[pc] then
           audio_midi_note_off(am_poly_notes[pc]) ; am_poly_notes[pc] = nil
         end
       end
@@ -4065,7 +4078,7 @@ function state_save()
       efx_delay_on=efx_delay_on, efx_delay_time=efx_delay_time, efx_delay_fb=efx_delay_fb,
       grain_fade=grain_fade, corpus_long_mode=corpus_long_mode, organ_vol=organ_vol,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
-      audio_midi_poly=audio_midi_poly, am_poly_thr=am_poly_thr, am_poly_base=am_poly_base,
+      audio_midi_poly=audio_midi_poly, am_clean=am_clean, am_poly_max=am_poly_max, am_poly_base=am_poly_base,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       nmeta_link=niaka_metabo_link, nmeta_depth=niaka_metabo_depth, nmeta_bal=niaka_metabo_bal, niaka_lead=niaka_lead,
@@ -4175,7 +4188,7 @@ function state_load()
     if st.corpus_long_mode ~= nil then corpus_long_mode = st.corpus_long_mode end
     if type(st.organ_vol)=="table" then for i=1,8 do if st.organ_vol[i] then organ_vol[i]=util.clamp(st.organ_vol[i],0,2.0) end end end
     if st.audio_midi_poly~=nil then audio_midi_poly=st.audio_midi_poly end
-    am_poly_thr=g(st.am_poly_thr,am_poly_thr) ; am_poly_base=g(st.am_poly_base,am_poly_base)
+    am_clean=g(st.am_clean,am_clean) ; am_poly_max=g(st.am_poly_max,am_poly_max) ; am_poly_base=g(st.am_poly_base,am_poly_base)
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -4883,7 +4896,7 @@ function enc(n, d)
     elseif page == 15 then
       mgen_break_idx = ((mgen_break_idx - 1 + d) % #MGEN_BREAK_NAMES) + 1
     elseif page == 16 then
-      if am_k2_down then am_poly_base = util.clamp(am_poly_base + d, 24, 84) ; am_k2_moved = true  -- K2 maintenu : octave POLY
+      if am_k2_down then am_poly_max = util.clamp(am_poly_max + d, 1, 8) ; am_k2_moved = true  -- K2 maintenu : MAX notes (essentiel)
       else midi_audio_cur_dev = util.clamp(midi_audio_cur_dev + d, 1, 4) end
     elseif page == 17 then
       spat.mass = util.clamp(spat.mass + d * 0.05, 0.0, 1.0)
@@ -5029,7 +5042,7 @@ function enc(n, d)
         midi_ch[midi_cur_stream][dev] = util.clamp(midi_ch[midi_cur_stream][dev] + d, 1, 16)
       end
     elseif page == 16 then
-      if am_k2_down then am_poly_thr = util.clamp(am_poly_thr + d * 0.02, 0.1, 0.9) ; am_k2_moved = true  -- K2 maintenu : seuil POLY
+      if am_k2_down then am_clean = util.clamp(am_clean + d * 0.05, 0, 1) ; am_k2_moved = true  -- K2 maintenu : CLEAN (nettoyage/selectivite)
       else midi_ch_audio[midi_audio_cur_dev] = util.clamp(midi_ch_audio[midi_audio_cur_dev] + d, 1, 16) end
     elseif page == 17 then
       spat.tempo = util.clamp(spat.tempo + d * 0.05, 0.0, 1.0)
@@ -6580,7 +6593,7 @@ function redraw()
   elseif page == 16 then
     if audio_midi_poly then
       local nn = 0 ; for pc = 0, 11 do if am_poly_notes[pc] then nn = nn + 1 end end
-      screen.text(string.format("AUDIO>MIDI POLY  %d notes  seuil %d%%", nn, math.floor((am_poly_thr or 0.45) * 100)))
+      screen.text(string.format("POLY %dn  CLEAN %d%%  MAX %d", nn, math.floor((am_clean or 0.5) * 100), am_poly_max or 4))
     else
       local an = midi_audio_note and string.format("n%d", midi_audio_note) or "---"
       screen.text(string.format("AUDIO>MIDI MONO  live:%s  K2=poly", an))
