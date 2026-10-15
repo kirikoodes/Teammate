@@ -738,6 +738,9 @@ local function play_event(ev, rate_mult, mstream, pan, amp, no_fx)   -- no_fx : 
   if not no_fx then                                     -- un ECHO ne re-declenche ni MIDI ni les feeds METABO/PERU
     midi_note_on(mstream or 1, imp_note, imp_vel)         -- stream 1 = IMPRO ; 8 = PERU
     if niakaby and niakaby.hear then niakaby.hear((mstream or 1) == 1 and "comp" or nil, imp_note) end  -- memoire harmonique NIAKABY (COMP = impro)
+    if (mstream or 1) == 1 and metabolik and metabolik.feed_note then
+      metabolik.feed_note(imp_note, (niaka_metabo_bal or 0.5) * 1.2)   -- COMPAGNON nourrit le champ harmonique METABO
+    end
     companion_feed(ev.rms, f, ev.centroid, ev.flatness)   -- nourrit METABO (mode COMP)
     if (mstream or 1) == 1 then impro_energy = math.max(impro_energy, imp_vel / 127) end   -- suivi d'enveloppe de l'impro (pour PERU src=IMPRO, continu)
   end
@@ -3627,6 +3630,51 @@ function face_redraw()
   screen.update()
 end
 
+-- ===== METABO >>> NIAKABY : organisme harmonique -> pilote la tonalite, les accords, le style =====
+-- METABO metabolise les NOTES jouees (input + compagnon, champ harmonique) + sa dynamique
+-- (croissance/stress/fermentation...) et propose a NIAKABY : tonique (vers les notes jouees),
+-- progression (complexite montante), transposition, et style de jeu (gate/swing/vitesse).
+niaka_metabo_link  = false   -- on/off de l'emprise
+niaka_metabo_depth = 0.6     -- profondeur 0..1 (0 = NIAKABY libre, 1 = pilote a fond)
+niaka_metabo_bal   = 0.5     -- dosage nutriment : 0 = INPUT (toi), 1 = COMPAGNON
+-- "voyage" de progressions, du plus consonant au plus tendu/complexe (indices dans niakaby.progs)
+NMETA_JOURNEY = { 1, 3, 14, 7, 9, 11, 28, 15, 16, 18, 31, 23 }   -- POP,50s,CANON,251,RHYTHM,JAZZ6,BOSSA,ANDAL,EPIC,MINjz,TRAP,DESCEND
+-- applique l'etat de METABO a NIAKABY (appele par mesure). Gate : link + METABO on.
+function metabo_shape_niakaby()
+  if not (niaka_metabo_link and metabolik and metabolik.on and niakaby) then return end
+  local dep = niaka_metabo_depth or 0.6
+  local c   = metabolik.ch or {}
+  local sfx = metabolik.stressFx or 0
+  -- TONIQUE + mode : suit la "chair" harmonique (notes reellement jouees)
+  if metabolik.harmonic then
+    local pc, minor, en = metabolik.harmonic()
+    if pc and en and en > 0.3 then
+      niakaby.key_from = 2                                   -- NIAKA : utilise root+gamme qu'on fixe ici
+      niakaby.root     = 48 + pc                             -- tonique vers la note dominante jouee
+      -- gamme : garde une couleur du monde si deja choisie, sinon majeur/mineur detecte
+      local nm = niakaby.scale_names[niakaby.scale_idx]
+      if nm == "MAJOR" or nm == "MINOR" then
+        niakaby.scale_idx = minor and 2 or 1
+      end
+    end
+  end
+  -- TENSION metabolique -> progression (plus tendu = plus complexe) + couleur d'accord
+  local tension = math.min(1, (sfx * 0.5 + (c.glycolysis or 0) * 0.25 + (c.fermentation or 0) * 0.25) * (0.5 + dep))
+  local J = NMETA_JOURNEY
+  local ji = 1 + math.floor(tension * (#J - 1) + 0.5)
+  niakaby.prog_idx  = J[util.clamp(ji, 1, #J)]
+  niakaby.chord_idx = util.clamp(1 + math.floor(tension * 3 + 0.5), 1, #niakaby.chord_names)   -- triad->7->9->sus
+  -- TRANSPOSITION : croissance monte, lactate descend (demi-tons), dosee par la profondeur
+  niakaby.transpose = util.clamp(math.floor(((c.growth or 0) - (c.lactate or 0)) * 12 * dep + 0.5), -12, 12)
+  -- STYLE DE JEU : respiration=souffle(legato) ; stress=staccato ; fermentation=swing ; croissance=vitesse
+  niakaby.arp_gate   = util.clamp(0.35 + (c.respiration or 0) * 0.7 - sfx * 0.3, 0.05, 1.3)
+  niakaby.seq_swing  = util.clamp((c.fermentation or 0) * 0.6 * dep, 0, 0.6)
+  if niakaby.ARP_RATE then
+    local ri = 2 + math.floor((c.growth or 0) * 4 + sfx * 1.5)
+    niakaby.arp_rate_idx = util.clamp(ri, 1, #niakaby.ARP_RATE)
+  end
+end
+
 -- ===== METABO >>> MGEN : la cellule secoue le sequenceur au hasard (opt-in) =====
 meta_mgen_drive = 0      -- 0..1 intensite (0 = off)
 meta_mgen_scope = 1      -- 1 = LIGHT (regen/gamme) , 2 = FULL (+ themes, breaks, styles)
@@ -3749,7 +3797,7 @@ NAV_CATS = {
   { n = "MGEN",   pg = {13,14,15,38,34,46,25,26,54}, arm = 3 },  -- 54 = ROUTE
   { n = "AUDIO",  pg = {16},             arm = 7  },
   { n = "SPAT",   pg = {17},             arm = 4  },
-  { n = "METABO", pg = {18,19,20,21},    arm = 5  },
+  { n = "METABO", pg = {18,19,20,21,63}, arm = 5  },   -- 63 = META>NIAKA (organisme harmonique)
   { n = "NIAKA",  pg = {22,23,24,58,62}, arm = 6  },   -- 58 = GATE/sustain ; 62 = SEQ groove
   { n = "PERU",   pg = {39,40,47,60},    arm = 11 },   -- 60 = PERU ROUTE
   { n = "WIFI",   pg = {36,35},          arm = 9  },
@@ -3956,6 +4004,7 @@ function state_save()
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
+      nmeta_link=niaka_metabo_link, nmeta_depth=niaka_metabo_depth, nmeta_bal=niaka_metabo_bal,
       spat_mode=spat.mode, spat_mass=spat.mass, spat_tempo=spat.tempo,
       m_scale=metabolik.scale_idx, m_oct=metabolik.octave, m_dens=metabolik.density_idx,
       m_pers=metabolik.persona_idx, m_follow=metabolik.follow_amt, m_feed=metabolik.feed_idx,
@@ -4078,6 +4127,8 @@ function state_load()
     if type(st.niaka_ch)=="table" then for m=1,5 do if type(st.niaka_ch[m])=="table" then
       for d=1,4 do if st.niaka_ch[m][d] then niaka_ch[m][d]=st.niaka_ch[m][d] end end end end end
     meta_mgen_drive=g(st.meta_drive,meta_mgen_drive) ; meta_mgen_scope=g(st.meta_scope,meta_mgen_scope) ; meta_note_inf=g(st.meta_note,meta_note_inf)
+    if st.nmeta_link~=nil then niaka_metabo_link=st.nmeta_link end
+    niaka_metabo_depth=g(st.nmeta_depth,niaka_metabo_depth) ; niaka_metabo_bal=g(st.nmeta_bal,niaka_metabo_bal)
     spat.mode=g(st.spat_mode,spat.mode) ; spat.mass=g(st.spat_mass,spat.mass) ; spat.tempo=g(st.spat_tempo,spat.tempo)
     metabolik.scale_idx=g(st.m_scale,metabolik.scale_idx) ; metabolik.octave=g(st.m_oct,metabolik.octave)
     metabolik.density_idx=g(st.m_dens,metabolik.density_idx) ; metabolik.persona_idx=g(st.m_pers,metabolik.persona_idx)
@@ -4519,6 +4570,7 @@ function init()
   clock.run(function()
     while true do
       clock.sync((niakaby.HARM_RATE and niakaby.HARM_RATE[niakaby.harm_rate_idx or 2]) or 4)   -- vitesse d'accord reglable
+      pcall(metabo_shape_niakaby)   -- METABO (organisme) remodele NIAKABY par mesure (si link on)
       if niakaby.on and niakaby.harmonic_step and (niakaby.mode or 1) ~= 1 then pcall(niakaby.harmonic_step, 78) end
     end
   end)
@@ -4591,7 +4643,9 @@ function init()
       -- memoire harmonique (FOLLOW/BLEND) : l'INPUT nourrit le chroma une fois par hauteur distincte (equilibre avec les notes)
       if s.input and (cur_gate or 0) > 0.5 and (cur_freq or 0) > 30 then
         local im = freq_to_midi(cur_freq)
-        if im and im ~= niaka_last_in then niaka_last_in = im ; niakaby.hear("input", im) end
+        if im and im ~= niaka_last_in then niaka_last_in = im ; niakaby.hear("input", im)
+          if metabolik and metabolik.feed_note then metabolik.feed_note(im, (1 - (niaka_metabo_bal or 0.5)) * 1.2) end  -- INPUT (toi) nourrit le champ harmonique METABO
+        end
       else niaka_last_in = nil end
     end
   end)
@@ -4780,6 +4834,8 @@ function enc(n, d)
       niaka_route_dev = util.clamp(niaka_route_dev + d, 1, 4)   -- E2 : choisit le DEVICE
     elseif page == 24 then
       niakaby.enc_src(2, d)
+    elseif page == 63 then
+      niaka_metabo_depth = util.clamp(niaka_metabo_depth + d * 0.05, 0, 1)   -- META>NIAKA : profondeur
     elseif page == 25 then
       meta_mgen_drive = util.clamp(meta_mgen_drive + d * 0.05, 0, 1)
     elseif page == 38 then
@@ -4924,6 +4980,8 @@ function enc(n, d)
     elseif page == 46 then
       rep_char = util.clamp(rep_char + d, 1, #REP_NAMES)      -- E3 : choisit l'entite (temps grec)
       rep_rand = false
+    elseif page == 63 then
+      niaka_metabo_bal = util.clamp(niaka_metabo_bal + d * 0.05, 0, 1)   -- META>NIAKA : dosage INPUT<->COMP
     elseif page == 49 then
       p_monitor = util.clamp(p_monitor + d * 0.05, 0.0, 1.0)  -- CLONE (E3) : volume du MONITEUR (t'entendre)
       pcall(function() audio.level_monitor(p_monitor) end)
@@ -5060,6 +5118,13 @@ function key(n, z)
   if page == 25 then
     if n == 2 then meta_mgen_scope = (meta_mgen_scope == 1) and 2 or 1
     elseif n == 3 then meta_shake_mgen() end
+    redraw() ; return
+  end
+  if page == 63 then                                   -- META>NIAKA : organisme harmonique
+    if n == 3 then
+      niaka_metabo_link = not niaka_metabo_link
+      if not niaka_metabo_link and niakaby then niakaby.transpose = 0 end   -- relache : plus de transposition imposee
+    end
     redraw() ; return
   end
   if page == 34 then                                   -- FRAG : fragmenteur MIDI (KHEOPS/KHEPHREN/MYKERINOS)
@@ -6146,6 +6211,35 @@ function redraw()
     screen.level(4)  ; screen.move(2, 58) ; screen.text("last:")
     screen.level(10) ; screen.move(32, 58) ; screen.text(meta_mgen_last or "--")
     screen.level(4)  ; screen.move(2, 64) ; screen.text("K3 new theme now")
+    screen.update() ; return
+  end
+
+  if page == 63 then                                   -- META>NIAKA : organisme harmonique
+    screen.clear() ; screen.font_size(8)
+    local NN = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" }
+    screen.level(15) ; screen.move(0, 8) ; screen.text("METABO>NIAKA")
+    screen.level(niaka_metabo_link and 13 or 5) ; screen.move(126, 8) ; screen.text_right(niaka_metabo_link and "ON" or "off")
+    -- profondeur
+    screen.level(4)  ; screen.move(0, 20) ; screen.text("E2 PROFOND")
+    screen.level(15) ; screen.move(126, 20) ; screen.text_right(string.format("%d%%", math.floor((niaka_metabo_depth or 0) * 100)))
+    screen.level(4)  ; screen.rect(0, 23, 126, 2) ; screen.stroke()
+    screen.level(12) ; screen.rect(0, 23, 126 * (niaka_metabo_depth or 0), 2) ; screen.fill()
+    -- dosage nutriment INPUT <-> COMP
+    screen.level(4)  ; screen.move(0, 34) ; screen.text("E3 NUTRI")
+    screen.level(10) ; screen.move(126, 34) ; screen.text_right(string.format("IN %d / CO %d", math.floor((1-(niaka_metabo_bal or 0.5))*100), math.floor((niaka_metabo_bal or 0.5)*100)))
+    -- etat vivant : tonique du champ, tension, prog, transpose
+    local pc, minor = (metabolik and metabolik.harmonic) and metabolik.harmonic() or nil
+    local tkey = pc and (NN[pc + 1] .. (minor and "m" or "")) or "--"
+    screen.level(4)  ; screen.move(0, 46) ; screen.text("clef")
+    screen.level(15) ; screen.move(34, 46) ; screen.text(tkey)
+    screen.level(4)  ; screen.move(60, 46) ; screen.text("prog")
+    screen.level(15) ; screen.move(96, 46) ; screen.text((niakaby and niakaby.prog_names and niakaby.prog_names[niakaby.prog_idx]) or "--")
+    screen.level(4)  ; screen.move(0, 56) ; screen.text("transp")
+    screen.level(15) ; screen.move(44, 56) ; screen.text(string.format("%+d", (niakaby and niakaby.transpose) or 0))
+    screen.level(4)  ; screen.move(66, 56) ; screen.text("stress")
+    screen.level(15) ; screen.move(126, 56) ; screen.text_right(string.format("%d%%", math.floor(((metabolik and metabolik.stressFx) or 0) * 100)))
+    screen.level(4)  ; screen.move(0, 64) ; screen.text("K3 on/off")
+    if niaka_metabo_link and not (metabolik and metabolik.on) then screen.level(12) ; screen.move(126, 64) ; screen.text_right("METABO off!") end
     screen.update() ; return
   end
 

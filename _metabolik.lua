@@ -65,6 +65,25 @@ M.feed_names = {"INPUT","COMP","MIX","WIFI","SNOT"}
 M.feed_idx   = 1
 M.react      = 0.5    -- reactivite au compagnon : 0 = lisse/lent, 1 = vif/serre
 
+-- CHAMP HARMONIQUE VIVANT : chroma (12 classes de hauteur) nourri par les NOTES reellement
+-- jouees (input + compagnon). Grandit quand une note est nourrie, se digere (decait) selon le
+-- metabolisme -> la "chair" harmonique du moment. Pilote la tonalite/les accords de NIAKABY.
+M.hfield = {} ; for _i = 0, 11 do M.hfield[_i] = 0 end
+function M.feed_note(note, w)
+  if type(note) ~= "number" then return end
+  local pc = note % 12
+  M.hfield[pc] = math.min(4.0, (M.hfield[pc] or 0) + (w or 1))
+end
+-- tonique + mode detectes du champ : pc dominant, mineur si la tierce mineure pese plus
+function M.harmonic()
+  local best, bv, tot = 0, -1, 0
+  for i = 0, 11 do local v = M.hfield[i] or 0 ; tot = tot + v ; if v > bv then bv = v ; best = i end end
+  if tot < 0.3 then return nil end                      -- rien d'assez nourri
+  local maj = (M.hfield[(best + 4) % 12] or 0) + (M.hfield[(best + 9) % 12] or 0) * 0.5
+  local min = (M.hfield[(best + 3) % 12] or 0) + (M.hfield[(best + 8) % 12] or 0) * 0.5
+  return best, (min > maj * 1.1), tot                   -- pc tonique, is_minor, energie totale
+end
+
 -- influence METABO -> compagnon (opt-in, non destructif) : la cellule infleche les strategies
 M.influence_names = {"OFF","LOW","MID","HIGH"}
 M.INFLU_AMT       = {0, 0.33, 0.66, 1.0}
@@ -165,6 +184,13 @@ function M.update(rms, freq, centroid, flatness, dt)
   else
     M.in_note = nil
   end
+
+  -- DIGESTION du champ harmonique : les notes se consomment d'autant plus vite que le
+  -- metabolisme est actif (respiration + stress). Les notes peu nourries s'effacent -> la
+  -- "chair" harmonique suit ce qui est JOUE en ce moment (input + compagnon).
+  local digest = dt * (0.25 + (c.respiration or 0) * 0.6 + (M.stress or 0) * 0.5)
+  local keep = math.max(0.0, 1 - digest)
+  for i = 0, 11 do M.hfield[i] = (M.hfield[i] or 0) * keep end
 
   if M.flash > 0 then M.flash = math.max(0, M.flash - dt * 3) end
   M.state = (M.stressFx > 0.66 and "MONOTONE") or (M.stressFx > 0.33 and "PERTURBE") or "STABLE"

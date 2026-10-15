@@ -27,6 +27,7 @@ M.scales = {
 M.scale_idx = 1     -- MAJOR par defaut (utilise en mode NOTE ; FOLLOW/AUTO/BLEND suivent MGEN)
 M.root      = 48    -- C3 (mode NOTE ; sinon tonique MGEN)
 M.octave    = 0     -- -2..+2
+M.transpose = 0     -- transposition (demi-tons) appliquee a TOUTE la sortie (pilotee par METABO)
 
 M.chord_names = {"TRIAD","7TH","9TH","SUS"}
 M.CHORD_STEPS = {
@@ -225,14 +226,14 @@ local function build_chord(deg, oct, root, sc)
     local d   = (deg - 1) + st
     local o   = math.floor(d / L)
     local idx = (d % L) + 1
-    local n   = root + (M.octave + oct + o) * 12 + sc[idx]
+    local n   = root + (M.octave + oct + o) * 12 + sc[idx] + (M.transpose or 0)
     while n < 24  do n = n + 12 end
     while n > 100 do n = n - 12 end
     notes[#notes + 1] = n
   end
   for _, st in ipairs(shape) do add_step(st) end
   -- basse a l'octave grave (fondamentale)
-  local bass = root + (M.octave + oct - 1) * 12 + sc[((deg - 1) % L) + 1]
+  local bass = root + (M.octave + oct - 1) * 12 + sc[((deg - 1) % L) + 1] + (M.transpose or 0)
   while bass < 24 do bass = bass + 12 end
   notes[#notes + 1] = bass
   -- couleur METABO (quand la cellule est active)
@@ -257,7 +258,7 @@ local function build_arp(deg, oct, root, sc)
       local d   = (deg - 1) + st
       local idx = (d % L) + 1
       local oo  = math.floor(d / L) + o + (oct or 0)
-      local n   = root + (M.octave + oo) * 12 + sc[idx]
+      local n   = root + (M.octave + oo) * 12 + sc[idx] + (M.transpose or 0)
       while n < 24 do n = n + 12 end ; while n > 100 do n = n - 12 end
       if not seen[n] then seen[n] = true ; notes[#notes + 1] = n end
     end
