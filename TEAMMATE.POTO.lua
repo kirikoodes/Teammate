@@ -369,18 +369,8 @@ mclk_src_name    = "?"  -- nom du device verrouille (affiche sur MGEN)
 -- SYNC HORLOGE NATIVE : quand l'OP-XY (ou autre) envoie son horloge MIDI, on bascule le
 -- Norns en source d'horloge MIDI (clock.sync se VERROUILLE phase+tempo sur le device) ->
 -- MGEN, NIAKABY (arp/accords), tout suit. Retour en interne quand le flux s'arrete.
--- MODE HORLOGE quand un device externe (OP-XY) envoie son horloge MIDI :
---  SYNC   (mclk_sync_ext=true)  : sync MIDI NATIVE -> phase+tempo verrouilles, MAIS transmet
---                                 la GIGUE USB de la source (micro-coupures rythmiques).
---  STABLE (mclk_sync_ext=false) : horloge INTERNE calee sur le tempo MOYEN lisse de la source
---                                 -> parfaitement regulier (pas de gigue), suit le tempo. DEFAUT.
-mclk_sync_ext    = false  -- STABLE par defaut (anti-gigue)
+mclk_sync_ext    = true   -- auto-sync natif active (peut se couper : page MGEN BPM, K2 maintenu? -> non, flag simple)
 clock_ext_applied = false -- etat applique (anti-spam de params:set)
-mbpm_k2_down = false ; mbpm_k2_moved = false   -- K2 maintenu page 13 = shift (E3 -> mode horloge)
-function set_clock_mode(stable)
-  mclk_sync_ext = not stable
-  if stable then apply_ext_clock(false) end   -- STABLE : rend l'horloge interne (le suiveur lisse le tempo)
-end
 
 function apply_ext_clock(on)
   if on == clock_ext_applied then return end
@@ -4089,7 +4079,6 @@ function state_save()
       grain_fade=grain_fade, corpus_long_mode=corpus_long_mode, organ_vol=organ_vol,
       midi_route=midi_route, midi_ch=midi_ch, midi_ch_audio=midi_ch_audio, audio_midi_on=audio_midi_on,
       audio_midi_poly=audio_midi_poly, am_clean=am_clean, am_poly_max=am_poly_max, am_poly_base=am_poly_base,
-      mclk_sync_ext=mclk_sync_ext,
       niaka_on=niaka_on, niaka_ch=niaka_ch,
       meta_drive=meta_mgen_drive, meta_scope=meta_mgen_scope, meta_note=meta_note_inf,
       nmeta_link=niaka_metabo_link, nmeta_depth=niaka_metabo_depth, nmeta_bal=niaka_metabo_bal, niaka_lead=niaka_lead,
@@ -4200,7 +4189,6 @@ function state_load()
     if type(st.organ_vol)=="table" then for i=1,8 do if st.organ_vol[i] then organ_vol[i]=util.clamp(st.organ_vol[i],0,2.0) end end end
     if st.audio_midi_poly~=nil then audio_midi_poly=st.audio_midi_poly end
     am_clean=g(st.am_clean,am_clean) ; am_poly_max=g(st.am_poly_max,am_poly_max) ; am_poly_base=g(st.am_poly_base,am_poly_base)
-    if st.mclk_sync_ext~=nil then mclk_sync_ext=st.mclk_sync_ext end
     pcall(efx_apply)
     audio_midi_on=g(st.audio_midi_on,audio_midi_on)
     if type(st.mgen_on)=="table" then for i=1,16 do
@@ -5059,8 +5047,7 @@ function enc(n, d)
     elseif page == 17 then
       spat.tempo = util.clamp(spat.tempo + d * 0.05, 0.0, 1.0)
     elseif page == 13 then
-      if mbpm_k2_down then set_clock_mode(d < 0) ; mbpm_k2_moved = true   -- K2 maintenu : E3 gauche=STABLE / droite=SYNC
-      else mgen_scale_idx = ((mgen_scale_idx - 1 + d) % #MGEN_SCALE_NAMES) + 1 end
+      mgen_scale_idx = ((mgen_scale_idx - 1 + d) % #MGEN_SCALE_NAMES) + 1
     elseif page == 14 then
       local ch = mgen_ch[mgen_sel_ch]
       ch.style_idx = ((ch.style_idx - 1 + d) % #MGEN_STYLE_NAMES) + 1
@@ -5200,26 +5187,6 @@ function key(n, z)
   if page == 62 and n == 2 then             -- NIAKABY SEQ : K2 tap = cycle valeur du pas ; maintenu + E2/E3 = len/swing
     if z == 1 then niak_seq_k2_down = true ; niak_seq_k2_moved = false
     else niak_seq_k2_down = false ; if not niak_seq_k2_moved then niakaby.seq_key(2) end end
-    redraw() ; return
-  end
-  if page == 13 and n == 2 then             -- MGEN BPM : K2 tap = tap tempo / nouveau theme ; maintenu + E3 = mode horloge
-    if z == 1 then mbpm_k2_down = true ; mbpm_k2_moved = false
-    else mbpm_k2_down = false
-      if not mbpm_k2_moved then
-        if mgen_running then mgen_gen_all(true)                      -- nouveau theme
-        else                                                        -- tap tempo
-          local now = util.time()
-          if #mgen_tap_times > 0 and (now - mgen_tap_times[#mgen_tap_times]) > 3.0 then mgen_tap_times = {} end
-          table.insert(mgen_tap_times, now)
-          if #mgen_tap_times > 4 then table.remove(mgen_tap_times, 1) end
-          if #mgen_tap_times >= 2 then
-            local total = 0 ; for i = 2, #mgen_tap_times do total = total + (mgen_tap_times[i] - mgen_tap_times[i-1]) end
-            mgen_bpm = math.max(60, math.min(200, math.floor(60.0 / (total / (#mgen_tap_times - 1)) + 0.5)))
-            clock.tempo = mgen_bpm
-          end
-        end
-      end
-    end
     redraw() ; return
   end
   if page == 16 and n == 2 then             -- AUDIO>MIDI : K2 tap = MONO/POLY ; maintenu + E3 seuil / E2 octave
@@ -5538,6 +5505,26 @@ function key(n, z)
     end
   elseif n == 2 and page == 17 then
     spat.mode = (spat.mode % #SPAT_MODES) + 1
+  elseif n == 2 and page == 13 then
+    if mgen_running then
+      mgen_gen_all(true)
+    else
+      local now = util.time()
+      if #mgen_tap_times > 0 and (now - mgen_tap_times[#mgen_tap_times]) > 3.0 then
+        mgen_tap_times = {}
+      end
+      table.insert(mgen_tap_times, now)
+      if #mgen_tap_times > 4 then table.remove(mgen_tap_times, 1) end
+      if #mgen_tap_times >= 2 then
+        local total = 0
+        for i = 2, #mgen_tap_times do
+          total = total + (mgen_tap_times[i] - mgen_tap_times[i-1])
+        end
+        local avg   = total / (#mgen_tap_times - 1)
+        mgen_bpm    = math.max(60, math.min(200, math.floor(60.0 / avg + 0.5)))
+        clock.tempo = mgen_bpm
+      end
+    end
   end
   if n == 3 then
     if page == 1 then
@@ -6802,10 +6789,8 @@ function redraw()
     screen.move(48, 50)
     screen.text(string.format("%s %d", mclk_active and "EXT" or "bpm", mgen_bpm))
     if mclk_active then                                   -- device verrouille (verifie que c'est bien l'OP-XY)
-      local nm = mclk_src_name or "?" ; if #nm > 9 then nm = string.sub(nm, 1, 8) .. "~" end
+      local nm = mclk_src_name or "?" ; if #nm > 12 then nm = string.sub(nm, 1, 11) .. "~" end
       screen.level(6) ; screen.move(128, 50) ; screen.text_right(nm)
-      screen.level(mbpm_k2_down and 15 or 8) ; screen.move(48, 42)
-      screen.text("CLK " .. (mclk_sync_ext and "SYNC" or "STABLE"))   -- K2 maintenu + E3 pour changer
     end
     screen.level(8)
     screen.move(48, 57)
