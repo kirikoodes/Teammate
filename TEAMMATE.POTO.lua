@@ -370,11 +370,11 @@ mclk_src_name    = "?"  -- nom du device verrouille (affiche sur MGEN)
 -- SYNC HORLOGE NATIVE : quand l'OP-XY (ou autre) envoie son horloge MIDI, on bascule le
 -- Norns en source d'horloge MIDI (clock.sync se VERROUILLE phase+tempo sur le device) ->
 -- MGEN, NIAKABY (arp/accords), tout suit. Retour en interne quand le flux s'arrete.
--- HORLOGE EXTERNE (OP-XY) : false = STABLE (horloge INTERNE calee sur le tempo MOYEN LISSE
--- de la source -> parfaitement reguliere, pas de gigue USB transmise ; suit quand meme le
--- tempo). true = sync MIDI native (phase-lock mais transmet la gigue -> micro-coupures).
--- STABLE par defaut, AUTOMATIQUE, sans aucun bouton ni affichage (demande de l'utilisateur).
-mclk_sync_ext    = false
+-- HORLOGE EXTERNE (OP-XY) : true = sync MIDI NATIVE -> l'OP-XY est le SEUL maitre, le Norns
+-- n'a PAS sa propre horloge (clock_source=midi), il est pilote directement par les pulses ->
+-- pas de conflit/flottement entre deux horloges (choix de l'utilisateur, config qui marche).
+-- (false = STABLE : horloge interne calee sur le tempo lisse ; abandonne car 2 horloges = instable.)
+mclk_sync_ext    = true
 clock_ext_applied = false -- etat applique (anti-spam de params:set)
 
 function apply_ext_clock(on)
