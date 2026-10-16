@@ -2779,10 +2779,13 @@ local function midi_clock_in(data, src)
       local avg_pulse = (mclk_t[#mclk_t] - mclk_t[1]) / (#mclk_t - 1)
       local bpm = 60.0 / (avg_pulse * 24)
       if bpm >= 30 and bpm <= 300 then
-        mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.08)   -- passe-bas doux (plus stable)
-        if math.abs(mclk_bpm_f - mgen_bpm) > 0.6 then   -- hysteresis : ne change l'entier qu'au vrai changement de tempo (pas de flottement +-1)
+        mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.05)   -- passe-bas plus fort (anti-bruit)
+        -- ZONE MORTE +-1 BPM : on ne change le tempo applique QU'au vrai changement de tempo.
+        -- Le bruit d'estimation (+-0.5) ne fait plus flotter 134<->135 (qui causait les mini-accrocs).
+        -- Le tempo reel etant un entier, on se verrouille dessus exactement -> pas de derive.
+        if mclk_bpm_f > mgen_bpm + 1.0 or mclk_bpm_f < mgen_bpm - 1.0 then
           mgen_bpm = math.floor(mclk_bpm_f + 0.5)
-          if not (mclk_sync_ext and clock_ext_applied) then params:set("clock_tempo", mgen_bpm) end  -- STABLE : suit le tempo externe (clock.tempo= ne marche PAS, il faut le param)
+          if not (mclk_sync_ext and clock_ext_applied) then params:set("clock_tempo", mgen_bpm) end  -- STABLE : suit le tempo externe
         end
         mclk_active = true   -- active des que des pulses valides arrivent
         if mclk_sync_ext then apply_ext_clock(true) end   -- VERROUILLAGE NATIF sur le device (phase+tempo)
