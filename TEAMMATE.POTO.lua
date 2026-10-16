@@ -346,6 +346,7 @@ frag_rand       = false    -- navigue aleatoirement entre les 3 pyramides
 frag_inv        = false    -- inverse le sens data : bouge->joue (def) <-> bouge->coupe
 frag_open       = true     -- etat courant du gate (true = laisse passer)
 frag_idx        = 0        -- tranche courante (0..N-1) pour l'affichage
+frag_rot        = 0        -- rotation lente (incremente par barre) -> les motifs DEPHASENT = vivants
 frag_hist       = {}       -- historique des N dernieres valeurs data (masque 8OS MASK)
 frag_dv         = 0        -- derniere valeur data lue (0..1) pour l'affichage
 frag_hist_mean  = 0.5      -- moyenne glissante du flux (seuil auto-centre du masque)
@@ -1845,15 +1846,27 @@ function frag_data_val()   -- global (limite 200 locals)
 end
 
 function frag_slice_state(c, idx, N, amt)   -- global (limite 200 locals)
-  if c == 1 then          -- KHEOPS : chaos - dispersion aleatoire dense, imprevisible
-    return (math.random() < 0.4) and "mute" or "play"
-  elseif c == 2 then      -- KHEPHREN : pointilliste (Ikeda) - points isoles tres espaces, tres vide
-    local step = math.max(2, math.floor(N / 2))                 -- ~2 impacts par barre
-    return (idx % step == 0) and "play" or "mute"
-  elseif c == 3 then      -- MYKERINOS : salves - BLOCS contigus qui passent puis silence
-    local half = math.max(2, math.floor(N / 2))
-    local q    = math.max(1, math.floor(N / 4))
-    return ((idx % half) < q) and "play" or "mute"
+  amt = amt or 0.6
+  -- euclidien E(k,N) decale : repartit k impacts de facon INEGALE sur N (groove, pas de grille carree)
+  local function euc(k, rot)
+    k = math.max(1, math.min(N, k))
+    return ((((idx + (rot or 0)) % N) * k) % N) < k
+  end
+  if c == 1 then          -- KHEOPS : massif et DRIVING - groove euclidien dense + fantomes (respire)
+    local k = math.max(2, math.floor(N * (0.52 + amt * 0.33)))
+    if euc(k, frag_rot) then
+      return (math.random() < 0.10) and "mute" or "play"         -- rares trous = syncope
+    else
+      return (math.random() < 0.18 * amt) and "play" or "mute"   -- rares ghosts entre les coups
+    end
+  elseif c == 2 then      -- KHEPHREN : pointilliste SYNCOPE - euclidien clairseme, decale, qui DEPHASE
+    local k = math.max(2, math.floor(N * (0.22 + amt * 0.16)))
+    return euc(k, math.floor(N * 0.375) + frag_rot) and "play" or "mute"
+  elseif c == 3 then      -- MYKERINOS : SALVES gestuelles - rafales type tresillo (3-3-2), longueur variable
+    local function tri(i) i = (i + frag_rot) % N ; return (i * 3 % N) < 3 end   -- onsets tresillo (inegaux)
+    local run = 1 + math.floor(amt * 2)                          -- longueur de rafale 1..3 selon amt
+    for b = 0, run - 1 do if tri((idx - b) % N) then return "play" end end   -- onset OU juste apres = salve
+    return "mute"
   elseif c == 4 then      -- 8OS DENS : la DONNEE regle la densite de coupe (probabiliste)
     local v = frag_dv                                           -- 0..1 (mouvement)
     local pmute = frag_inv and v or (1 - v)                     -- def: bouge->joue ; inv: bouge->coupe
@@ -4683,8 +4696,11 @@ function init()
       if not frag_on then
         frag_open = true ; frag_idx = 0
       else
-        if frag_idx == 0 and frag_rand and math.random() < 0.5 then
-          frag_char = math.random(3)                      -- morph aleatoire entre les 3 pyramides (par barre)
+        if frag_idx == 0 then
+          frag_rot = frag_rot + 1                         -- DEPHASAGE lent : les motifs evoluent de barre en barre
+          if frag_rand and math.random() < 0.5 then
+            frag_char = math.random(3)                    -- morph aleatoire entre les 3 pyramides (par barre)
+          end
         end
         frag_dv = frag_data_val()                         -- mesure du flux a cette tranche
         frag_hist[frag_idx + 1] = frag_dv                 -- l'historique dessine le masque (8OS MASK)
