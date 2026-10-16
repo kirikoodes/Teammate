@@ -385,7 +385,7 @@ function apply_ext_clock(on)
     pcall(function() params:set("clock_source", 2) end)   -- 2 = midi (sync externe)
   else
     pcall(function() params:set("clock_source", 1) end)   -- 1 = internal
-    pcall(function() if mgen_bpm then clock.tempo = mgen_bpm end end)
+    pcall(function() if mgen_bpm then params:set("clock_tempo", mgen_bpm) end end)   -- clock.tempo= est un no-op sur ce norns
   end
 end
 
@@ -2782,7 +2782,7 @@ local function midi_clock_in(data, src)
         mclk_bpm_f  = (mclk_bpm_f <= 0) and bpm or (mclk_bpm_f + (bpm - mclk_bpm_f) * 0.08)   -- passe-bas doux (plus stable)
         if math.abs(mclk_bpm_f - mgen_bpm) > 0.6 then   -- hysteresis : ne change l'entier qu'au vrai changement de tempo (pas de flottement +-1)
           mgen_bpm = math.floor(mclk_bpm_f + 0.5)
-          if not (mclk_sync_ext and clock_ext_applied) then clock.tempo = mgen_bpm end  -- en sync native, le Norns gere le tempo
+          if not (mclk_sync_ext and clock_ext_applied) then params:set("clock_tempo", mgen_bpm) end  -- STABLE : suit le tempo externe (clock.tempo= ne marche PAS, il faut le param)
         end
         mclk_active = true   -- active des que des pulses valides arrivent
         if mclk_sync_ext then apply_ext_clock(true) end   -- VERROUILLAGE NATIF sur le device (phase+tempo)
@@ -4175,7 +4175,7 @@ function state_load()
     if type(st.tbank)=="table" then for id,slots in pairs(st.tbank) do if type(slots)=="table" then tb_get(id).slots = slots end end end
     peru_rmode=util.clamp(g(st.peru_rmode,peru_rmode), 1, #peru_rmodes)
     if type(st.os8_src)=="table" then for _,k in ipairs(os8_src_keys) do if st.os8_src[k]~=nil then os8_src[k]=st.os8_src[k] end end end
-    if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; clock.tempo=mgen_bpm end
+    if st.mgen_bpm then mgen_bpm=st.mgen_bpm ; params:set("clock_tempo", mgen_bpm) end
     mgen_scale_idx=g(st.mgen_scale_idx,mgen_scale_idx)
     if st.mgen_mut_idx then mgen_mut_idx=st.mgen_mut_idx ; mgen_mut_rate=MGEN_MUT_RATES[mgen_mut_idx] or mgen_mut_rate end
     mgen_evo_meta=g(st.mgen_evo_meta,mgen_evo_meta) ; mgen_recall=g(st.mgen_recall,mgen_recall)
@@ -4913,7 +4913,7 @@ function enc(n, d)
       midi_cur_stream = util.clamp(midi_cur_stream + d, 1, 4)
     elseif page == 13 then
       mgen_bpm    = util.clamp(mgen_bpm + d, 60, 200)
-      clock.tempo = mgen_bpm
+      params:set("clock_tempo", mgen_bpm)
     elseif page == 14 then
       mgen_sel_ch = util.clamp(mgen_sel_ch + d, 1, 16)
     elseif page == 15 then
@@ -5545,7 +5545,7 @@ function key(n, z)
         end
         local avg   = total / (#mgen_tap_times - 1)
         mgen_bpm    = math.max(60, math.min(200, math.floor(60.0 / avg + 0.5)))
-        clock.tempo = mgen_bpm
+        params:set("clock_tempo", mgen_bpm)
       end
     end
   end
