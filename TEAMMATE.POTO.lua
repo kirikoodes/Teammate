@@ -1868,10 +1868,12 @@ function frag_slice_state(c, idx, N, amt)   -- global (limite 200 locals)
     for b = 0, run - 1 do if tri((idx - b) % N) then return "play" end end   -- onset OU juste apres = salve
     return "mute"
   elseif c == 4 then      -- 8OS DENS : la DONNEE regle la densite de coupe (probabiliste)
-    local v = frag_dv                                           -- 0..1 (mouvement)
+    local v = frag_dv or 0                                      -- 0..1 (mouvement)
+    if v < 0.02 and not frag_inv then return "play" end         -- SECURITE : pas de donnee -> laisse passer (ne coupe pas tout)
     local pmute = frag_inv and v or (1 - v)                     -- def: bouge->joue ; inv: bouge->coupe
     return (math.random() < pmute) and "mute" or "play"
   else                    -- 8OS MASK : la DONNEE dessine le masque (l'historique = le motif)
+    if (frag_hist_mean or 0) < 0.02 then return "play" end      -- SECURITE : pas de donnee -> laisse passer
     local s = frag_hist[idx + 1]
     if s == nil then s = frag_hist_mean end
     local play = (s >= frag_hist_mean)                          -- seuil auto-centre sur le mouvement recent
