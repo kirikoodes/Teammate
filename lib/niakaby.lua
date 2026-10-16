@@ -84,46 +84,47 @@ M.sil_rel        = 0.45       -- silence avant de relacher l'accord en NOTE (plu
 
 -- progressions (AUTO/BLEND/ARP-CHORD) : suites de degres (1 = tonique de la gamme active).
 -- Longueurs variees (3,4,5,6,8,12) = patterns differents ; le degre s'adapte a la gamme (meme penta).
+-- Chaque progression a une IDENTITE PROPRE (pas de simples rotations qui sonnent pareil) :
+-- cadence/depart different, mouvement different, longueur differente (2..12 accords).
 M.progs = {
-  {1,5,6,4},                      -- POP     I-V-vi-IV
-  {6,4,1,5},                      -- POP2    vi-IV-I-V
-  {1,6,4,5},                      -- 50s     I-vi-IV-V (doo-wop)
-  {1,4,5},                        -- 3CH     I-IV-V
-  {1,5,4,5},                      -- POPV    I-V-IV-V
-  {1,4,1,5},                      -- GOSPEL  I-IV-I-V
-  {2,5,1},                        -- 251     ii-V-I (jazz)
-  {2,5,1,6},                      -- 251vi   ii-V-I-vi
-  {1,6,2,5},                      -- RHYTHM  I-vi-ii-V (rhythm changes)
-  {3,6,2,5},                      -- 3625    iii-vi-ii-V
-  {1,4,3,6,2,5},                  -- JAZZ6   I-IV-iii-vi-ii-V
+  {1,4,5,1},                      -- AUTH    cadence authentique I-IV-V-I
+  {1,5,6,4},                      -- POP     I-V-vi-IV (hymne pop)
+  {1,6,4,5},                      -- DOOWOP  I-vi-IV-V (50s)
+  {1,4,1,5},                      -- GOSPEL  I-IV-I-V (balancier)
+  {4,1,4,5},                      -- PLAGAL  IV-I-IV-V (depart sur IV)
+  {2,5,1},                        -- 251     ii-V-I (cadence jazz)
+  {1,6,2,5},                      -- TURN    I-vi-ii-V (turnaround)
+  {3,6,2,5,1},                    -- 36251   iii-vi-ii-V-I (chaine)
+  {1,4,3,6,2,5,1},                -- JAZZ7   I-IV-iii-vi-ii-V-I (long jazz)
+  {1,2,3,6},                      -- STEPvi  I-ii-iii-vi (montee par degres)
   {1,1,1,1,4,4,1,1,5,4,1,5},      -- BLUES12 blues 12 mesures
-  {1,4,1,1,4,4,1,1,5,4,1,1},      -- BLUESqk quick-change
-  {1,5,6,3,4,1,4,5},              -- CANON   Pachelbel
-  {1,7,6,5},                      -- ANDAL   i-VII-VI-V (andalou)
-  {1,6,3,7},                      -- EPIC    i-VI-III-VII
-  {1,7,6,7},                      -- EPIC2   i-VII-VI-VII
-  {1,4,7,3},                      -- MINjz   i-iv-VII-III
-  {1,6,7},                        -- MIN67   i-VI-VII
-  {6,5,4,5},                      -- viV     vi-V-IV-V
-  {1,3,4,5},                      -- I-iii   I-iii-IV-V
-  {1,2,3,4,5,6,7,1},              -- CLIMB   gamme montante
-  {1,7,6,5,4,3,2,1},              -- DESCEND run descendant
-  {1,5,2,6,3,7,4,1},              -- CIRCLE  quintes descendantes
-  {1,1,4,4},                      -- FUNK    vamp I -> IV
-  {2,5,2,5},                      -- FUNK2   vamp ii-V
-  {1,7,4,1},                      -- FUNKmx  I-bVII-IV-I (mixolydien)
-  {1,2,5,1},                      -- BOSSA   I-II-V-I
+  {1,4,1,5,4,1},                  -- BLUES6  blues court
+  {1,3,4,5},                      -- SOUL    I-iii-IV-V
+  {1,7,6,5},                      -- ANDAL   i-VII-VI-V (phrygien descendant)
+  {1,6,3,7},                      -- EPIC    i-VI-III-VII (epique)
+  {1,4,7,3},                      -- AEOL    i-iv-VII-III (eolien)
+  {1,6,7,3},                      -- MINDRK  i-VI-VII-III (mineur sombre)
+  {6,7,1},                        -- LIFT    VI-VII-i (montee tendue)
+  {1,7,4,6},                      -- DARK    i-VII-IV-VI
+  {1,5,4,7},                      -- DORIAN  i-v-IV-VII (couleur dorienne)
+  {1,2,5,1},                      -- BOSSA   I-II-V-I (II majeur)
   {6,2,5,1},                      -- BOSSAm  vi-ii-V-I
-  {3,6,2,5,1,4,2,5},              -- BOSSAjz chaine de ii-V
-  {1,6,5,7},                      -- TRAP    i-VI-v-VII (sombre)
-  {6,7,1,1},                      -- TRAP2   VI-VII-i
-  {1,4,6,7},                      -- TRAP3   i-iv-VI-VII
+  {1,4,2,5,3,6},                  -- SAMBA   I-IV-ii-V-iii-vi
+  {1,4},                          -- VAMP    I-IV (vamp 2 accords)
+  {1,7},                          -- VAMPb7  I-bVII (vamp modal)
+  {2,5,2,5},                      -- PUMP    ii-V ii-V (pompe)
+  {1,1,4,7},                      -- FUNK    I-I-IV-bVII
+  {1,5,6,3,4,1,4,5},              -- CANON   Pachelbel (8)
+  {1,4,7,3,6,2,5,1},              -- CIRCLE  cycle de quintes (8)
+  {1,2,3,4,5,6,7,1},              -- CLIMB   gamme montante
+  {7,6,5,4,3,2,1},                -- FALL    descente complete
+  {1,3,5,7},                      -- STACK   tierces empilees (arpege d'accord)
 }
 M.prog_names = {
-  "POP","POP2","50s","3CH","POPV","GOSPEL","251","251vi","RHYTHM","3625","JAZZ6",
-  "BLUES12","BLUESqk","CANON","ANDAL","EPIC","EPIC2","MINjz","MIN67","viV","I-iii",
-  "CLIMB","DESCEND","CIRCLE",
-  "FUNK","FUNK2","FUNKmx","BOSSA","BOSSAm","BOSSAjz","TRAP","TRAP2","TRAP3",
+  "AUTH","POP","DOOWOP","GOSPEL","PLAGAL","251","TURN","36251","JAZZ7","STEPvi",
+  "BLUES12","BLUES6","SOUL","ANDAL","EPIC","AEOL","MINDRK","LIFT","DARK","DORIAN",
+  "BOSSA","BOSSAm","SAMBA","VAMP","VAMPb7","PUMP","FUNK","CANON","CIRCLE","CLIMB",
+  "FALL","STACK",
 }
 M.prog_idx   = 1
 -- vitesse de changement d'accord (FOLLOW/AUTO/BLEND) : toutes les X beats (du lent au tres rapide ~arpege)

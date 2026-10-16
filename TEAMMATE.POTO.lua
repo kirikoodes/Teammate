@@ -3697,7 +3697,7 @@ function niaka_lead_sync()
   mgen_scale_idx = minor and 1 or 5                -- MGEN : MINOR(1) / MAJOR(5)
 end
 -- "voyage" de progressions, du plus consonant au plus tendu/complexe (indices dans niakaby.progs)
-NMETA_JOURNEY = { 1, 3, 14, 7, 9, 11, 28, 15, 16, 18, 31, 23 }   -- POP,50s,CANON,251,RHYTHM,JAZZ6,BOSSA,ANDAL,EPIC,MINjz,TRAP,DESCEND
+NMETA_JOURNEY = { 1, 2, 3, 13, 28, 6, 7, 21, 9, 29, 14, 15, 19, 31 }  -- calme->tendu : AUTH,POP,DOOWOP,SOUL,CANON,251,TURN,BOSSA,JAZZ7,CIRCLE,ANDAL,EPIC,DARK,FALL
 -- applique l'etat de METABO a NIAKABY (appele par mesure). Gate : link + METABO on.
 function metabo_shape_niakaby()
   if not (niaka_metabo_link and metabolik and metabolik.on and niakaby) then return end
@@ -4218,6 +4218,7 @@ function state_load()
     niakaby.scale_idx=g(st.n_scale,niakaby.scale_idx) ; niakaby.octave=g(st.n_oct,niakaby.octave)
     niakaby.chord_idx=g(st.n_chord,niakaby.chord_idx)
     niakaby.mode=g(st.n_mode,niakaby.mode) ; niakaby.prog_idx=g(st.n_prog,niakaby.prog_idx)
+    niakaby.prog_idx=util.clamp(niakaby.prog_idx or 1, 1, #niakaby.progs)   -- borne : la liste de progressions a pu changer
     niakaby.arp_dir=g(st.n_arpdir,niakaby.arp_dir) ; niakaby.arp_rate_idx=g(st.n_arprate,niakaby.arp_rate_idx)
     niakaby.key_from=g(st.n_keyfrom,niakaby.key_from) ; niakaby.harm_rate_idx=g(st.n_harm,niakaby.harm_rate_idx)
     niakaby.arp_gate=g(st.n_arpgate,niakaby.arp_gate)
